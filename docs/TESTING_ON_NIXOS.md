@@ -62,4 +62,4 @@ Software rendering is a fallback for investigation, not a claim of better perfor
 
 ## Resource measurements
 
-With Centaur and its native app open, inspect both processes in the system monitor (or `ps -C centaur,centaur-preview -o pid,comm,rss,pcpu`). Note the Air's model, RAM, desktop session and GPU, then record idle CPU/RAM and how drawing, resizing and app relaunch feel. Test both the first cold launch and a subsequent warm launch.
+With Centaur and its native app open, inspect both processes in the system monitor. Nix's installed executables may appear as `.centaur-wrapped` and `.centaur-preview-wrapped`. Note the Air's model, RAM, desktop session and GPU, then record idle CPU/RAM and how drawing, resizing and app relaunch feel. Test both the first cold launch and a subsequent warm launch.

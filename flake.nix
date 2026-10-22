@@ -21,11 +21,17 @@
         preCheck = ''
           export QT_QPA_PLATFORM=offscreen
           export QT_QUICK_BACKEND=software
+          export QT_FORCE_STDERR_LOGGING=1
           export QML_IMPORT_PATH="${qmlPath pkgs}"
           export QT_PLUGIN_PATH="${pluginPath pkgs}"
+          export XDG_CACHE_HOME="$TMPDIR/centaur-cache"
+          mkdir -p "$XDG_CACHE_HOME"
           export XDG_RUNTIME_DIR="$TMPDIR/centaur-runtime"
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
+          ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+            export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
+          ''}
         '';
         # Application projects are real local Git repositories.
         qtWrapperArgs = [ "--prefix" "PATH" ":" (pkgs.lib.makeBinPath [ pkgs.git ])
