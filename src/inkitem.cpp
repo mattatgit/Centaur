@@ -45,6 +45,8 @@ void InkItem::drawStroke(QPainter *painter, const QVariantMap &stroke) {
     const bool arrow = stroke["tool"].toString() == "comment";
     const QColor color(arrow ? "#ff6060" : "#426bc9");
     painter->setPen(QPen(color, 2.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    // A preceding comment's filled anchor must not fill subsequent paths.
+    painter->setBrush(Qt::NoBrush);
     auto position = [this](const QVariant &v) { auto p = v.toMap(); return QPointF(p["x"].toDouble() * width(), p["y"].toDouble() * height()); };
     QPainterPath path(position(points.first()));
     if (points.size() == 1) painter->drawPoint(position(points.first()));

@@ -8,6 +8,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QGuiApplication>
+#include <QImage>
+#include <QPainter>
 #include <QStandardPaths>
 
 class CoreTests : public QObject {
@@ -56,6 +58,34 @@ private slots:
         QCOMPARE(layer.acceptedMouseButtons(), Qt::LeftButton);
         layer.setTool("interact");
         QCOMPARE(layer.acceptedMouseButtons(), Qt::NoButton);
+    }
+    void drawingAfterACommentHasNoFill_data() {
+        QTest::addColumn<bool>("closed");
+        QTest::newRow("open stroke") << false;
+        QTest::newRow("closed stroke") << true;
+    }
+    void drawingAfterACommentHasNoFill() {
+        QFETCH(bool, closed);
+        InkItem layer;
+        layer.setSize(QSizeF(256, 256));
+        const auto point = [](double x, double y) {
+            return QVariantMap{{"x", x}, {"y", y}};
+        };
+        QVariantList drawing{point(0.25, 0.25), point(0.75, 0.25), point(0.75, 0.75)};
+        if (closed) drawing.append(point(0.25, 0.25));
+        layer.setAnnotations({
+            QVariantMap{{"tool", "comment"}, {"points", QVariantList{point(0.05, 0.05), point(0.15, 0.15)}}},
+            QVariantMap{{"tool", "draw"}, {"points", drawing}}
+        });
+        QImage image(256, 256, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        layer.paint(&painter);
+        painter.end();
+        // Both open and closed outlines must leave the underlying app visible.
+        QCOMPARE(image.pixelColor(160, 96).alpha(), 0);
+        QCOMPARE(image.pixelColor(128, 64), QColor("#426bc9"));
+        QVERIFY(image.pixelColor(13, 13).alpha() > 0); // Comment anchor still renders.
     }
     void anAgentProposalIncludesBothAuthors() {
         QTemporaryDir dir;
