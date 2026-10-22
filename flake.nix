@@ -30,6 +30,7 @@
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"
           ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+            export LC_ALL=C.UTF-8
             export FONTCONFIG_FILE="${pkgs.makeFontsConf { fontDirectories = [ pkgs.dejavu_fonts ]; }}"
           ''}
         '';

@@ -15,7 +15,7 @@ Item {
         XdgShell {
             onToplevelCreated: function(toplevel, xdgSurface) {
                 toplevel.sendUnmaximized(Qt.size(host.width, host.height))
-                clients.append({ shell: xdgSurface, top: toplevel })
+                clients.append({ shell: xdgSurface, clientToplevel: toplevel })
                 host.updateSurfaceCount()
             }
         }
@@ -28,7 +28,7 @@ Item {
         model: clients
         delegate: ShellSurfaceItem {
             required property var shell
-            required property var top
+            required property var clientToplevel
             required property int index
             objectName: "embeddedClient"
             shellSurface: shell
@@ -44,7 +44,7 @@ Item {
     }
     function configureClients() {
         for (let i = 0; i < clients.count; ++i)
-            clients.get(i).top.sendUnmaximized(Qt.size(host.width, host.height))
+            clients.get(i).clientToplevel.sendUnmaximized(Qt.size(host.width, host.height))
     }
     function updateSurfaceCount() {
         let count = 0

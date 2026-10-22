@@ -17,14 +17,14 @@ Agent::Agent(QObject *parent) : QObject(parent) {
     connect(&m_process, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
         if (e == QProcess::FailedToStart) {
             m_timeout.stop();
-            QFile::remove(m_promptFile);
+            if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
             emit failed("Could not start omp. Set CENTAUR_AGENT to its executable path.");
         }
     });
     connect(&m_process, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
         [this](int code, QProcess::ExitStatus status) {
             m_timeout.stop();
-            QFile::remove(m_promptFile);
+            if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
             if (m_cancelled) return;
             if (code != 0 || status != QProcess::NormalExit) {
                 // Raw provider output can contain credentials. Keep it out of shared chat.
@@ -44,7 +44,10 @@ QString Agent::executable() const {
 }
 bool Agent::available() const { return QFileInfo(executable()).isExecutable(); }
 bool Agent::busy() const { return m_process.state() != QProcess::NotRunning; }
-void Agent::cancel() { m_cancelled = true; m_timeout.stop(); m_process.kill(); QFile::remove(m_promptFile); }
+void Agent::cancel() {
+    m_cancelled = true; m_timeout.stop(); m_process.kill();
+    if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
+}
 
 QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
     QByteArray json = text.trimmed();
