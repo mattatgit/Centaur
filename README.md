@@ -51,6 +51,8 @@ This proves authored collaboration and coordination locally. Networking between 
 
 ## Connect the agent
 
+For step-by-step instructions on the Air, see [Omp NixOS Setup](docs/OMP_NIXOS_SETUP.md).
+
 Centaur uses **oh-my-pi (`omp`)**, the same agent runtime used by Dialogue. Install it and sign in using its normal setup. Launch Centaur with `omp` on `PATH`, or supply its executable explicitly:
 
 ```sh

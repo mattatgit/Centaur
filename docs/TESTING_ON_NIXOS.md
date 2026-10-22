@@ -40,7 +40,7 @@ The automatic Linux test separately requires an actual client buffer and a mouse
 
 Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. Keep the hosting window open.
 
-To test the live agent, install/sign in to omp and put it on PATH or set `CENTAUR_AGENT` to its executable. Then try:
+To connect the live agent, follow [Omp NixOS Setup](OMP_NIXOS_SETUP.md). Then try:
 
 - Matt: “Keep the navigation minimal.”
 - Saori: “All six sections must be easy to reach. @centaur, what do you suggest?”
