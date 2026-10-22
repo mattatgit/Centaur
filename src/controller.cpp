@@ -95,7 +95,8 @@ void Controller::renameAgent(const QString &name) { command({{"type", "agentName
 void Controller::cancelAgent() { command({{"type", "cancel"}}); }
 
 void Controller::startPreview() {
-    if (!embeddingSupported() || m_projectId.isEmpty() || previewRunning()) return;
+    if (!embeddingSupported() || m_projectId.isEmpty() || m_stopping
+        || m_preview.state() != QProcess::NotRunning) return;
     auto env = QProcessEnvironment::systemEnvironment();
     env.insert("WAYLAND_DISPLAY", socketName());
     env.insert("QT_QPA_PLATFORM", "wayland");
@@ -110,7 +111,11 @@ void Controller::startPreview() {
     emit previewChanged();
 }
 void Controller::stopPreview() {
+    if (m_stopping) return;
     m_stopping = true;
+    // Release compositor views while their QML context and client surfaces are
+    // alive. Killing the client during QML teardown can reenter model removal.
+    emit previewStopping();
     if (m_preview.state() != QProcess::NotRunning) {
         m_preview.terminate();
         if (!m_preview.waitForFinished(800)) { m_preview.kill(); m_preview.waitForFinished(800); }

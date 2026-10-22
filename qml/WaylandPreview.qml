@@ -7,6 +7,7 @@ Item {
     id: host
     objectName: "waylandHost"
     clip: true
+    property bool disposing: false
     ListModel { id: clients }
     WaylandCompositor {
         id: compositor
@@ -33,7 +34,7 @@ Item {
             objectName: "embeddedClient"
             shellSurface: shell
             autoCreatePopupItems: true
-            onSurfaceDestroyed: { clients.remove(index); host.updateSurfaceCount() }
+            onSurfaceDestroyed: if (!host.disposing) { clients.remove(index); host.updateSurfaceCount() }
             onWidthChanged: if (width > 0) host.configureClients()
             Component.onCompleted: takeFocus()
             Connections {
@@ -43,13 +44,16 @@ Item {
         }
     }
     function configureClients() {
+        if (disposing) return
         for (let i = 0; i < clients.count; ++i)
-            clients.get(i).clientToplevel.sendUnmaximized(Qt.size(host.width, host.height))
+            if (clients.get(i).clientToplevel) clients.get(i).clientToplevel.sendUnmaximized(Qt.size(host.width, host.height))
     }
     function updateSurfaceCount() {
+        if (disposing) return
         let count = 0
         for (let i = 0; i < clients.count; ++i) {
-            const surface = clients.get(i).shell.surface
+            const shell = clients.get(i).shell
+            const surface = shell ? shell.surface : null
             if (surface && surface.hasContent) ++count
         }
         Backend.surfaceCount = count
@@ -57,5 +61,14 @@ Item {
     onWidthChanged: configureClients()
     onHeightChanged: configureClients()
     Component.onCompleted: if (compositor.created) Backend.startPreview()
-    Component.onDestruction: Backend.stopPreview()
+    Connections {
+        target: Backend
+        function onPreviewStopping() {
+            host.disposing = true
+            clients.clear()
+            Backend.surfaceCount = 0
+            host.disposing = false
+        }
+    }
+    Component.onDestruction: disposing = true
 }

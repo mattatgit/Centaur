@@ -43,6 +43,7 @@ int main(int argc, char *argv[]) {
     });
     qmlRegisterType<InkItem>("Centaur.Native", 1, 0, "InkLayer");
     QQmlApplicationEngine engine;
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&controller] { controller.stopPreview(); });
     engine.rootContext()->setContextProperty("Backend", &controller);
     bool qmlWarning = false;
     QObject::connect(&engine, &QQmlEngine::warnings, &app, [&qmlWarning] { qmlWarning = true; });

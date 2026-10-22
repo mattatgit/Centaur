@@ -54,6 +54,7 @@ public:
 signals:
     void changed();
     void previewChanged();
+    void previewStopping();
     void previewOutput(const QByteArray &output);
     void error(const QString &message);
 private:
