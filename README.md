@@ -79,7 +79,7 @@ Or build and run the package checks in Nix's sandbox:
 nix build -L
 ```
 
-Tests cover project persistence and Git checkpoints, two local native clients exchanging authored messages, proposal quorum and invalidation, valid source application and rejection of broken QML. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process and requires it to create a surface inside Centaur's compositor. These tests do not call a live model.
+Tests cover project persistence and Git checkpoints, two local native clients exchanging authored messages, proposal quorum and invalidation, valid source application and rejection of broken QML. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
 
 For the older MacBook Air running NixOS, see [the target-machine test guide](docs/TESTING_ON_NIXOS.md).
 

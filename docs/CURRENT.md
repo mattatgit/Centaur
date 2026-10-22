@@ -23,10 +23,12 @@ The agent adapter invokes omp without tools and expects a clarification or propo
 
 ## Next evidence needed
 
-Run the Linux embedding test and manually exercise focus, typing, checkbox input, menus/dialogs, relaunch, drawing overlays and app scaling. Then configure a real omp session and test compatible requests, contradictory requirements, mid-run corrections, and reopening a settled decision. Measure resources on target hardware.
+On the NixOS Air, manually exercise focus, typing, checkbox input, menus/dialogs, relaunch, drawing overlays and app scaling. Then configure a real omp session and test compatible requests, contradictory requirements, mid-run corrections, and reopening a settled decision. Measure resources on target hardware.
 
 ## Validation and target machine — 22 October 2026
 
 The native macOS interface has been compiled, rendered and visually inspected. Both main views load without QML warnings. Coordination tests and the packaged Nix build pass on aarch64-darwin. Tests use explicit agent doubles and do not call a live provider.
+
+The x86_64-linux Nix package and all three Linux suites pass in GitHub Actions at code commit `edd4733`: core coordination, both UI views, and native embedding. The embedding test verifies that a separate process supplies an actual rendered Wayland buffer and receives a mouse click through the canvas; it also exits cleanly. The lifecycle fix releases client views before terminating the client and before QML teardown. [Passing Linux run](https://github.com/mattatgit/Centaur/actions/runs/39709315047).
 
 The target test machine is an older MacBook Air running NixOS. Development stays on the faster Mac; the Air is for Linux embedding, interaction and resource measurements. `docs/TESTING_ON_NIXOS.md` gives the prototype-branch launch command and test procedure. Linux CI runs the actual native surface and mouse-input smoke test; physical GPU behaviour and live model negotiation still need the Air pass.
