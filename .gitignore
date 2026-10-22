@@ -1,0 +1,7 @@
+/build*/
+/result*
+/.centaur-data/
+/.direnv/
+/.env
+*.user
+.DS_Store

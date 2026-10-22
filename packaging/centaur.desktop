@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Centaur
+Comment=Make native apps together
+Exec=centaur
+Icon=centaur
+Terminal=false
+Categories=Development;Graphics;
+StartupNotify=true

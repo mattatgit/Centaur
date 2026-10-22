@@ -1,0 +1,32 @@
+# Current state
+
+## Agreed direction
+
+Centaur and the apps it produces are native. Target NixOS and modest hardware. One project represents one repository and one app. The two main views are projects and collaborative app building. The workspace contains a main canvas, a comfortably wide chat sidebar, Draw and Comment (Dialogue's Arrow behaviour). No activity rail. Start with Dialogue's restrained visual style and adapt it for families later. The default agent mention is @centaur and is configurable.
+
+## First prototype
+
+Focus on two experiments: a native app operating inside Centaur's frame, and an agent negotiating instructions from multiple authors. The intended complete loop is conversation → clarified direction → accepted change → native app revision inside the canvas.
+
+Implemented as C++17 / Qt Quick 6.8+, with a separate Qt Quick client and a nested Wayland compositor on Linux. A macOS build is provided for native shell development, with an explicit Linux-only placeholder for embedding. Project state is stored locally, source versions use Git, and multiple native windows share an authoritative local session over QLocalSocket.
+
+The agent adapter invokes omp without tools and expects a clarification or proposed QML source. All contributors since the previous accepted build must agree before a proposal is checked/applied. This agreement rule is an experimental prototype policy, not an established product decision. New contributions invalidate pending proposals and stale agent results are discarded. Real model mediation quality still needs evaluation with family conversations.
+
+## Deliberate boundaries
+
+- The initial app framework is Qt Quick; arbitrary native frameworks are not yet supported.
+- Author names can be selected locally. No accounts or cross-computer networking yet.
+- Source, conversation and marks are shared; each window has its own live app interaction state.
+- No sandbox around generated native QML yet. Run trusted local projects as an ordinary user.
+- Canvas fitting is fixed to one app frame. Infinite panning, frame resizing and full history browsing are follow-up work.
+- Test doubles validate coordination; they do not establish that the live model resolves disagreements well.
+
+## Next evidence needed
+
+Run the Linux embedding test and manually exercise focus, typing, checkbox input, menus/dialogs, relaunch, drawing overlays and app scaling. Then configure a real omp session and test compatible requests, contradictory requirements, mid-run corrections, and reopening a settled decision. Measure resources on target hardware.
+
+## Validation and target machine — 22 October 2026
+
+The native macOS interface has been compiled, rendered and visually inspected. Both main views load without QML warnings. Coordination tests and the packaged Nix build pass on aarch64-darwin. Tests use explicit agent doubles and do not call a live provider.
+
+The target test machine is an older MacBook Air running NixOS. Development stays on the faster Mac; the Air is for Linux embedding, interaction and resource measurements. `docs/TESTING_ON_NIXOS.md` gives the prototype-branch launch command and test procedure. Linux CI runs the actual native surface and mouse-input smoke test; physical GPU behaviour and live model negotiation still need the Air pass.
