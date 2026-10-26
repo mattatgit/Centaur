@@ -86,7 +86,7 @@ Open a project and send:
 
 > @centaur change the app's title to Family planner.
 
-The agent should ask a question or propose a change. When a proposal is ready, use **Agree & build**. Each contributor since the previous accepted change must agree before Centaur applies it.
+The agent should ask a question or make the change after checking its native QML. Making the request is your approval; compatible changes need no extra click. Only genuinely conflicting requests pause for agreement: Centaur explains the conflict, and only the affected authors use **Agree to compromise** before that change is applied.
 
 ## If it does not work
 

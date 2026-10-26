@@ -56,12 +56,13 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                     state["revision"] = state["revision"].toInt() + 1;
                     auto decisions = state["decisions"].toArray();
                     decisions.append(QJsonObject{{"summary", proposal["message"]}, {"authors", proposal["accepted"]},
+                        {"requestedBy", proposal["requestedBy"]}, {"conflict", proposal["conflict"]},
                         {"revision", state["revision"]}, {"time", Workspace::now()}});
                     state["decisions"] = decisions;
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
                     state["proposal"] = QJsonObject();
-                    addMessage(state, state["agentName"].toString(), "Applied the agreed change. Revision " +
+                    addMessage(state, state["agentName"].toString(), "Applied the change. Revision " +
                         QString::number(state["revision"].toInt()) + " is ready to try.", "agent");
                     emit sourceChanged(id);
                 } else {
@@ -100,6 +101,18 @@ void Session::start() {
         if (!m_server.listen(m_socketName)) { emit error(m_server.errorString()); return; }
         m_host = true;
         m_starting = false;
+        for (const auto &project : m_workspace.projects()) {
+            const auto id = project.toMap()["id"].toString();
+            auto state = m_workspace.load(id);
+            const auto proposal = state["proposal"].toObject();
+            // Do not auto-apply proposals made under the old everyone-agrees
+            // policy, or resume an interrupted automatic check without context.
+            if (!proposal.isEmpty() && !proposal["conflict"].isObject()) {
+                state["proposal"] = QJsonObject();
+                addMessage(state, state["agentName"].toString(), "An unfinished change wasn't applied. Ask me again to continue.", "system");
+                persist(id, state);
+            }
+        }
         publish();
     } else {
         m_client.connectToServer(m_socketName);
@@ -208,6 +221,7 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
                 fail("The agent is busy. Your message is saved; address it again when it finishes.");
             } else {
                 m_agentProject = id;
+                m_agentAuthor = author;
                 m_agentEpoch = state["epoch"].toInt();
                 QString image;
                 const auto filename = command["image"].toString();
@@ -215,7 +229,9 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
                 const auto canonical = QFileInfo(filename).canonicalFilePath();
                 if (canonical.startsWith(expected) && canonical.endsWith(".png")
                     && command["imageRevision"] == state["revision"]) image = canonical;
-                m_agent.ask(m_workspace.projectPath(id), state, m_workspace.source(id), image);
+                auto request = state;
+                request["requestAuthor"] = author;
+                m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
             }
         }
     } else if (type == "annotation") {
@@ -258,8 +274,9 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
         auto proposal = state["proposal"].toObject();
         if (proposal.isEmpty() || proposal["id"] != command["proposalId"]
             || proposal["epoch"] != state["epoch"]) { fail("That proposal has changed. Review the latest one."); return; }
+        if (!proposal["conflict"].isObject()) { fail("Only conflicting requests need agreement. Ask the agent to prepare this change again."); return; }
         if (!m_validatingProject.isEmpty() || m_agent.busy()) { fail("The agent is already working."); return; }
-        if (!proposal["authors"].toArray().contains(author)) { fail("This proposal needs agreement from the people who contributed to it."); return; }
+        if (!proposal["authors"].toArray().contains(author)) { fail("This conflict needs agreement only from the people whose requests conflict."); return; }
         auto accepted = proposal["accepted"].toArray();
         if (!accepted.contains(author)) accepted.append(author);
         proposal["accepted"] = accepted;
@@ -282,6 +299,7 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
         if (m_agentProject == id && m_agent.busy()) {
             m_agent.cancel();
             m_agentProject.clear();
+            m_agentAuthor.clear();
             addMessage(state, state["agentName"].toString(), author + " stopped the agent. Your app is unchanged.", "system");
             persist(id, state);
         }
@@ -291,27 +309,54 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
 
 void Session::finishAgent(const QJsonObject &reply) {
     const auto id = m_agentProject;
+    const auto requester = m_agentAuthor;
     m_agentProject.clear();
+    m_agentAuthor.clear();
     auto state = m_workspace.load(id);
+    bool automatic = false;
     if (state["epoch"].toInt() != m_agentEpoch) {
         addMessage(state, state["agentName"].toString(), "New messages or drawings arrived while I was thinking. Address me again so I can include them.", "system");
     } else {
-        addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent");
         if (reply["kind"] == "proposal") {
+            const auto conflict = reply["conflict"];
+            QJsonArray authors{requester};
+            if (conflict.isObject()) {
+                authors = conflict.toObject()["authors"].toArray();
+                QSet<QString> knownAuthors;
+                for (const auto &value : state["messages"].toArray()) {
+                    const auto message = value.toObject();
+                    if (message["kind"] == "human") knownAuthors.insert(message["author"].toString());
+                }
+                for (const auto &value : state["annotations"].toArray())
+                    knownAuthors.insert(value.toObject()["author"].toString());
+                for (const auto &value : state["decisions"].toArray())
+                    for (const auto &author : value.toObject()["authors"].toArray()) knownAuthors.insert(author.toString());
+                for (const auto &author : authors) {
+                    if (knownAuthors.contains(author.toString())) continue;
+                    addMessage(state, state["agentName"].toString(), "I couldn't identify the people involved in that conflict. Please clarify whose requests differ and ask me again.", "system");
+                    persist(id, state);
+                    publish(id);
+                    return;
+                }
+            }
             auto proposal = reply;
             proposal["id"] = uid(); proposal["epoch"] = m_agentEpoch;
-            proposal["authors"] = state["contributors"];
-            proposal["accepted"] = QJsonArray();
+            proposal["requestedBy"] = requester;
+            proposal["authors"] = authors;
+            automatic = conflict.isNull();
+            proposal["accepted"] = automatic ? QJsonArray{requester} : QJsonArray();
             state["proposal"] = proposal;
         }
+        addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent");
     }
-    persist(id, state);
+    if (persist(id, state) && automatic) applyProposal(id, state);
     publish(id);
 }
 
 void Session::agentError(const QString &message) {
     const auto id = m_agentProject;
     m_agentProject.clear();
+    m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
     addMessage(state, state["agentName"].toString(), message, "system");

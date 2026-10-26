@@ -13,6 +13,26 @@
 #include <QScopeGuard>
 #include <QStandardPaths>
 
+static bool writeAgentReply(const QString &path, const QJsonObject &reply, const QByteArray &before = {}) {
+    const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
+    return !shell.isEmpty() && Workspace::writeFile(path, "#!" + shell + "\ncat >/dev/null\n" + before
+        + "cat <<'CENTAUR_REPLY'\n" + QJsonDocument(reply).toJson(QJsonDocument::Compact) + "\nCENTAUR_REPLY\n")
+        && QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+}
+
+class AgentOverride {
+public:
+    explicit AgentOverride(const QString &path) : m_hadValue(qEnvironmentVariableIsSet("CENTAUR_AGENT")),
+        m_previous(qgetenv("CENTAUR_AGENT")) { qputenv("CENTAUR_AGENT", path.toUtf8()); }
+    ~AgentOverride() {
+        if (m_hadValue) qputenv("CENTAUR_AGENT", m_previous);
+        else qunsetenv("CENTAUR_AGENT");
+    }
+private:
+    bool m_hadValue;
+    QByteArray m_previous;
+};
+
 class CoreTests : public QObject {
     Q_OBJECT
 private slots:
@@ -50,6 +70,24 @@ private slots:
         QVERIFY(Agent::parseReply("not json", &error).isEmpty());
         QVERIFY(Agent::parseReply(R"({"kind":"proposal","message":"Done"})", &error).isEmpty());
         QVERIFY(Agent::parseReply(R"({"kind":"anything","message":"Done"})", &error).isEmpty());
+        const QJsonObject compatible{{"kind", "proposal"}, {"message", "Try blue"},
+            {"conflict", QJsonValue::Null}, {"qml", "import QtQuick\nRectangle { color: 'blue' }"}};
+        QVERIFY(!Agent::parseReply(QJsonDocument(compatible).toJson(), &error).isEmpty());
+        auto missingClassification = compatible;
+        missingClassification.remove("conflict");
+        QVERIFY(Agent::parseReply(QJsonDocument(missingClassification).toJson(), &error).isEmpty());
+        auto conflict = compatible;
+        conflict["conflict"] = QJsonObject{{"reason", "Show all tasks versus hide completed tasks"},
+            {"authors", QJsonArray{"Matt", "Saori"}}};
+        QVERIFY(!Agent::parseReply(QJsonDocument(conflict).toJson(), &error).isEmpty());
+        for (const auto &invalid : QJsonArray{
+                 true, QJsonObject(),
+                 QJsonObject{{"reason", "Opposing requests"}, {"authors", QJsonArray{"Matt"}}},
+                 QJsonObject{{"reason", "Opposing requests"}, {"authors", QJsonArray{"Matt", "Matt"}}},
+                 QJsonObject{{"reason", ""}, {"authors", QJsonArray{"Matt", "Saori"}}}}) {
+            conflict["conflict"] = invalid;
+            QVERIFY(Agent::parseReply(QJsonDocument(conflict).toJson(), &error).isEmpty());
+        }
         QCOMPARE(Agent::parseReply("```json\n{\"kind\":\"question\",\"message\":\"Which is better?\"}\n```", &error)["kind"].toString(), QString("question"));
     }
     void agentReceivesStdinEofBeforeReplying() {
@@ -121,35 +159,96 @@ private slots:
         QCOMPARE(image.pixelColor(128, 64), QColor("#426bc9"));
         QVERIFY(image.pixelColor(13, 13).alpha() > 0); // Comment anchor still renders.
     }
-    void anAgentProposalIncludesBothAuthors() {
+    void compatibleRequestsApplyWithoutApproval() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/fake-agent";
-        const auto reply = QJsonDocument(QJsonObject{{"kind", "proposal"},
+        const auto qml = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'green' }");
+        const QJsonObject reply{{"kind", "proposal"}, {"conflict", QJsonValue::Null},
             {"message", "Keep navigation short, with every section reachable."},
-            {"qml", "import QtQuick\nRectangle { width: 520; height: 640; color: 'green' }"}}).toJson(QJsonDocument::Compact);
-        const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
-        QVERIFY(!shell.isEmpty());
-        QVERIFY(Workspace::writeFile(fake, "#!" + shell + "\ncat <<'CENTAUR_REPLY'\n" + reply + "\nCENTAUR_REPLY\n"));
-        QVERIFY(QFile::setPermissions(fake, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
-        const auto previousAgent = qgetenv("CENTAUR_AGENT");
-        qputenv("CENTAUR_AGENT", fake.toUtf8());
+            {"qml", qml}};
+        QVERIFY(writeAgentReply(fake, reply));
+        const AgentOverride agentOverride(fake);
         Session session(dir.path()); session.start();
+        QSignalSpy sourceChanged(&session, &Session::sourceChanged);
+        Session guest(dir.path());
+        QSignalSpy guestSnapshots(&guest, &Session::snapshot);
+        guest.start();
+        QTRY_VERIFY(!guestSnapshots.isEmpty());
         session.send({{"type", "create"}, {"name", "Negotiate"}});
         Workspace workspace(dir.path());
         const auto id = workspace.projects().first().toMap()["id"].toString();
-        const auto initial = workspace.source(id);
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "Keep navigation simple"}});
-        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur keep every section easy to reach"}});
+        guest.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur keep every section easy to reach"}});
+        // No accept command from either author: making the request approves it.
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 2, 15000);
+        QCOMPARE(workspace.source(id), qml);
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+        const auto decision = workspace.load(id)["decisions"].toArray().last().toObject();
+        QCOMPARE(decision["authors"].toArray(), QJsonArray{"Saori"});
+        QCOMPARE(decision["requestedBy"].toString(), QString("Saori"));
+        QVERIFY(decision["conflict"].isNull());
+        QCOMPARE(sourceChanged.size(), 1);
+        QTRY_COMPARE(guestSnapshots.last().first().toJsonObject()["states"].toArray().first().toObject()["revision"].toInt(), 2);
+    }
+    void conflictingRequestsNeedOnlyAffectedAuthors() {
+        QTemporaryDir dir;
+        const auto fake = dir.path() + "/conflict-agent";
+        const QJsonObject conflict{{"reason", "Matt wants all tasks visible; Saori wants completed tasks hidden."},
+            {"authors", QJsonArray{"Matt", "Saori"}}};
+        const auto qml = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'blue' }");
+        QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "Add a toggle for completed tasks."},
+            {"conflict", conflict}, {"qml", qml}}));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type", "create"}, {"name", "Compromise"}});
+        Workspace workspace(dir.path());
+        const auto id = workspace.projects().first().toMap()["id"].toString();
+        const auto initial = workspace.source(id);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Sam"}, {"text", "The title looks good."}});
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "Keep every task visible."}});
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur hide completed tasks."}});
         QTRY_VERIFY_WITH_TIMEOUT(!workspace.load(id)["proposal"].toObject().isEmpty(), 5000);
         const auto proposal = workspace.load(id)["proposal"].toObject();
         QCOMPARE(proposal["authors"].toArray(), (QJsonArray{"Matt", "Saori"}));
+        QVERIFY(proposal["accepted"].toArray().isEmpty());
+        QCOMPARE(proposal["conflict"].toObject(), conflict);
         QCOMPARE(workspace.source(id), initial);
-        qputenv("CENTAUR_AGENT", previousAgent);
+        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Sam"}, {"proposalId", proposal["id"]}});
+        QVERIFY(workspace.load(id)["proposal"].toObject()["accepted"].toArray().isEmpty());
+        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", proposal["id"]}});
+        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", proposal["id"]}});
+        QCOMPARE(workspace.source(id), initial);
+        QCOMPARE(workspace.load(id)["proposal"].toObject()["accepted"].toArray(), QJsonArray{"Matt"});
+        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Saori"}, {"proposalId", proposal["id"]}});
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 2, 15000);
+        QCOMPARE(workspace.source(id), qml);
+        const auto decision = workspace.load(id)["decisions"].toArray().last().toObject();
+        QCOMPARE(decision["authors"].toArray(), (QJsonArray{"Matt", "Saori"}));
+        QCOMPARE(decision["conflict"].toObject(), conflict);
+    }
+    void conflictCannotRequireAnUnknownAuthorsAgreement() {
+        QTemporaryDir dir;
+        const auto fake = dir.path() + "/unknown-author-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "A compromise"},
+            {"conflict", QJsonObject{{"reason", "Opposing requests"}, {"authors", QJsonArray{"Matt", "Nobody"}}}},
+            {"qml", "import QtQuick\nRectangle { color: 'blue' }"}}));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type", "create"}, {"name", "Unknown author"}});
+        Workspace workspace(dir.path());
+        const auto id = workspace.projects().first().toMap()["id"].toString();
+        const auto initial = workspace.source(id);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().size(), 2, 5000);
+        QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("couldn't identify"));
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+        QCOMPARE(workspace.source(id), initial);
+        QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
     }
     void newDiscussionInvalidatesAnInFlightAgentReply() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/slow-agent";
-        const auto reply = QJsonDocument(QJsonObject{{"kind", "proposal"}, {"message", "Try blue"},
+        const auto reply = QJsonDocument(QJsonObject{{"kind", "proposal"}, {"message", "Try blue"}, {"conflict", QJsonValue::Null},
             {"qml", "import QtQuick\nRectangle { color: 'blue' }"}}).toJson(QJsonDocument::Compact);
         const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
         QVERIFY(!shell.isEmpty());
@@ -192,7 +291,38 @@ private slots:
         QVERIFY(hostSpy.size() > 1);
         QVERIFY(guestSpy.size() > 1);
     }
-    void proposalsNeedEveryContributorAndBecomeStale() {
+    void newDiscussionDuringAutomaticCheckDoesNotApplyStaleCode() {
+        QTemporaryDir dir;
+        const auto fake = dir.path() + "/agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "Try blue"},
+            {"conflict", QJsonValue::Null}, {"qml", "import QtQuick\nRectangle { color: 'blue' }"}}));
+        const AgentOverride agentOverride(fake);
+        const auto checker = dir.path() + "/checker";
+        const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
+        QVERIFY(!shell.isEmpty());
+        QVERIFY(Workspace::writeFile(checker, "#!" + shell + "\n: > \"$2.checking\"\nsleep 0.3\nexit 0\n"));
+        QVERIFY(QFile::setPermissions(checker, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const bool hadPreview = qEnvironmentVariableIsSet("CENTAUR_PREVIEW");
+        const auto previousPreview = qgetenv("CENTAUR_PREVIEW");
+        const auto restorePreview = qScopeGuard([&] {
+            if (hadPreview) qputenv("CENTAUR_PREVIEW", previousPreview);
+            else qunsetenv("CENTAUR_PREVIEW");
+        });
+        qputenv("CENTAUR_PREVIEW", checker.toUtf8());
+        Session session(dir.path()); session.start();
+        session.send({{"type", "create"}, {"name", "Correction during check"}});
+        Workspace workspace(dir.path());
+        const auto id = workspace.projects().first().toMap()["id"].toString();
+        const auto initial = workspace.source(id);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
+        QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(workspace.projectPath(id) + "/.centaur/candidate.qml.checking"), 5000);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "Wait, let's discuss the colour."}});
+        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("conversation changed while"), 5000);
+        QCOMPARE(workspace.source(id), initial);
+        QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+    }
+    void conflictAgreementsBecomeStale() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());
         QString error;
@@ -202,6 +332,7 @@ private slots:
         state["epoch"] = 2;
         state["contributors"] = QJsonArray{"Matt", "Saori"};
         state["proposal"] = QJsonObject{{"id", "p1"}, {"epoch", 2}, {"kind", "proposal"},
+            {"conflict", QJsonObject{{"reason", "Opposing navigation requests"}, {"authors", QJsonArray{"Matt", "Saori"}}}},
             {"message", "A simpler layout"}, {"authors", QJsonArray{"Matt", "Saori"}},
             {"accepted", QJsonArray()}, {"qml", "import QtQuick\nRectangle { width: 520; height: 640 }"}};
         QVERIFY(workspace.save(id, state));
@@ -216,7 +347,7 @@ private slots:
         session.send({{"type", "accept"}, {"projectId", id}, {"author", "Saori"}, {"proposalId", "p1"}});
         QCOMPARE(workspace.source(id), initial);
     }
-    void agreedProposalChecksAndUpdatesNativeSource() {
+    void conflictAgreementSurvivesRestartAndUpdatesNativeSource() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());
         QString error;
@@ -225,31 +356,52 @@ private slots:
         const auto source = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'blue' }");
         state["epoch"] = 1;
         state["proposal"] = QJsonObject{{"id", "p1"}, {"epoch", 1}, {"message", "Try blue"},
+            {"conflict", QJsonObject{{"reason", "Opposing colour requests"}, {"authors", QJsonArray{"Matt", "Saori"}}}},
             {"authors", QJsonArray{"Matt", "Saori"}}, {"accepted", QJsonArray()}, {"qml", source}};
         workspace.save(id, state);
-        Session session(dir.path()); session.start();
-        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", "p1"}});
-        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Saori"}, {"proposalId", "p1"}});
+        {
+            Session session(dir.path()); session.start();
+            session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", "p1"}});
+        }
+        Session reopened(dir.path()); reopened.start();
+        QCOMPARE(workspace.load(id)["proposal"].toObject()["accepted"].toArray(), QJsonArray{"Matt"});
+        reopened.send({{"type", "accept"}, {"projectId", id}, {"author", "Saori"}, {"proposalId", "p1"}});
         QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 2, 15000);
         QCOMPARE(workspace.source(id), source);
         QCOMPARE(workspace.load(id)["decisions"].toArray().size(), 1);
     }
     void brokenQmlLeavesTheCurrentAppIntact() {
         QTemporaryDir dir;
-        Workspace workspace(dir.path());
-        QString error;
-        auto id = workspace.createProject("Broken proposal", "", &error);
-        const auto initial = workspace.source(id);
-        auto state = workspace.load(id);
-        state["epoch"] = 1;
-        state["proposal"] = QJsonObject{{"id", "bad"}, {"epoch", 1}, {"message", "Broken"},
-            {"authors", QJsonArray{"Matt"}}, {"accepted", QJsonArray()}, {"qml", "this is not QML"}};
-        workspace.save(id, state);
+        const auto fake = dir.path() + "/broken-qml-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "Try blue"},
+            {"conflict", QJsonValue::Null}, {"qml", "this is not QML"}}));
+        const AgentOverride agentOverride(fake);
         Session session(dir.path()); session.start();
-        session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", "bad"}});
-        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["proposal"].toObject().isEmpty(), 15000);
+        session.send({{"type", "create"}, {"name", "Broken proposal"}});
+        Workspace workspace(dir.path());
+        const auto id = workspace.projects().first().toMap()["id"].toString();
+        const auto initial = workspace.source(id);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
+        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("did not pass"), 15000);
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
         QCOMPARE(workspace.source(id), initial);
         QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
+    }
+    void oldApprovalProposalsAreNotSilentlyAppliedOnRestart() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Older proposal", "", &error);
+        const auto initial = workspace.source(id);
+        auto state = workspace.load(id);
+        state["proposal"] = QJsonObject{{"id", "old"}, {"epoch", 0}, {"message", "Try blue"},
+            {"authors", QJsonArray{"Matt", "Saori"}}, {"accepted", QJsonArray()},
+            {"qml", "import QtQuick\nRectangle { color: 'blue' }"}};
+        QVERIFY(workspace.save(id, state));
+        Session session(dir.path()); session.start();
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+        QCOMPARE(workspace.source(id), initial);
+        QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("Ask me again"));
     }
 };
 

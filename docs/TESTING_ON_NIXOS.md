@@ -44,9 +44,11 @@ To connect the live agent, follow [Omp NixOS Setup](OMP_NIXOS_SETUP.md). Then tr
 
 - Matt: “Keep the navigation minimal.”
 - Saori: “All six sections must be easy to reach. @centaur, what do you suggest?”
-- Continue the discussion until the direction is clear, then ask for a proposal.
-- Accept it in each author's window. The app should change only once everyone has accepted.
-- Repeat, but send another message while the agent is thinking. Its old result should not be applied.
+- If the requests are compatible and the direction is clear, the agent should check/apply a small change without anyone clicking approval. A clarification question is appropriate if it needs more direction.
+- Test a genuine conflict next: Matt asks for the shared screen to be solid blue with no colour switch, then Saori asks for that same screen to be solid red with no colour switch and mentions `@centaur`.
+- The agent should explain the incompatible requirements and ask a focused question or propose a compromise. A compromise waits for **Agree to compromise** from Matt and Saori. One person's acceptance is insufficient; an unrelated third contributor should not be asked to agree.
+- Repeat, but send another message while the agent is thinking or checking the candidate app. Its old result should not be applied.
+- Reopen Centaur with a partly accepted conflict proposal. The previous acceptance should persist; the other affected author can complete the agreement. An unfinished proposal from the older approval-every-change version is cleared on upgrade; ask for that change again.
 
 Record what the model misunderstood as well as the code result. Passing the coordination tests does not establish mediation quality.
 

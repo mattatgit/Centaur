@@ -8,6 +8,7 @@ Rectangle {
     signal sendRequested(string text)
     property var proposal: Backend.project.proposal || ({})
     property bool hasProposal: !!proposal.id
+    property bool hasConflict: hasProposal && !!proposal.conflict
     property bool accepted: hasProposal && proposal.accepted.indexOf(Backend.author) !== -1
     property bool contributor: hasProposal && proposal.authors.indexOf(Backend.author) !== -1
     function focusComposer() { composer.forceActiveFocus() }
@@ -99,17 +100,18 @@ Rectangle {
             }
         }
         Rectangle {
-            visible: chat.hasProposal
+            visible: chat.hasConflict
             Layout.fillWidth: true
             implicitHeight: proposalColumn.implicitHeight + 28
             color: "#f3f7e8"; radius: 12
             ColumnLayout {
                 id: proposalColumn
                 anchors.fill: parent; anchors.margins: 14; spacing: 10
-                Text { text: "A direction to agree on"; font.pointSize: 11; font.weight: Font.DemiBold; color: Theme.ink }
+                Text { text: "Resolve conflicting requests"; font.pointSize: 11; font.weight: Font.DemiBold; color: Theme.ink }
+                Text { text: chat.hasConflict ? chat.proposal.conflict.reason : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; font.pointSize: 10.5; color: Theme.ink }
                 Text { text: chat.hasProposal ? chat.proposal.authors.map(function(name) { return (chat.proposal.accepted.indexOf(name) !== -1 ? "✓ " : "○ ") + name }).join("   ") : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
-                FlatButton { text: chat.accepted ? "Waiting for everyone" : "Agree & build"; tone: "dark"; enabled: chat.contributor && !chat.accepted && !Backend.agentBusy; Layout.fillWidth: true; onClicked: Backend.acceptProposal() }
-                Text { text: "More discussion updates the proposal before anything changes."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: Theme.muted; font.pointSize: 9.5 }
+                FlatButton { text: chat.accepted ? "Waiting for the others involved" : "Agree to compromise"; tone: "dark"; visible: chat.contributor; enabled: !chat.accepted && !Backend.agentBusy; Layout.fillWidth: true; onClicked: Backend.acceptProposal() }
+                Text { text: "Only the people whose requests conflict need to agree. More discussion updates the proposed compromise."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: Theme.muted; font.pointSize: 9.5 }
             }
         }
         Rectangle {

@@ -26,8 +26,8 @@ Centaur needs a graphical Linux session and its normal `XDG_RUNTIME_DIR`. It run
 2. On Linux, use the starter app inside the canvas: add a task, tick a checkbox, open the menu and dialog.
 3. Choose **Draw** to sketch, or **Comment** to drag an arrow towards a feature. Switch back to **Use app** to interact. Undo removes your last mark. Press Escape to return to the app.
 4. Chat with another author. Mention **@centaur** when you want an agent response. You can change your name and the agent's name from the name button at the top right.
-5. The agent can ask a question or propose an implementation. Each contributor since the last change accepts the proposal with **Agree & build**. New messages or drawings invalidate an outstanding proposal.
-6. Once everyone accepts, Centaur checks the candidate QML in another process, saves a Git checkpoint and restarts the native preview. A candidate that fails its QML check leaves the existing app untouched.
+5. A request to the agent is approval to make that change. Compatible requests are checked and applied automatically, with no extra approval click. If the agent identifies genuinely incompatible requirements, it explains the conflict and proposes a compromise. Only the affected authors use **Agree to compromise**; other contributors do not need to sign off. The agent may ask a clarification question before it can propose a change.
+6. Centaur checks candidate QML in another process, saves a Git checkpoint and restarts the native preview. A candidate that fails its QML check leaves the existing app untouched. New messages or drawings invalidate an outstanding response, app check or conflict proposal so outdated code is not applied.
 
 The chat sidebar is resizable, starts at 430 logical pixels, and uses 12.5-point message text. There is no activity rail; decisions and progress appear in the chat.
 
@@ -61,7 +61,7 @@ CENTAUR_AGENT=/path/to/omp nix run .
 
 Optionally set `CENTAUR_MODEL` to an omp model identifier. No provider keys are stored in Centaur projects. If omp is unavailable or cannot authenticate, Centaur reports that in the chat; it does not substitute simulated agent replies.
 
-For this experiment the agent receives the authored conversation, accepted decisions, current QML, revision-tagged drawing geometry and a canvas image captured when it is mentioned. It returns a clarification or a complete proposed `App.qml`. The coordinator owns file writes, validation, agreement and checkpoints. Omp runs without tools, project rules, skills or discovered extensions; it cannot edit the project directly through this integration.
+For this experiment the agent receives the authored conversation, the requesting author, applied decisions, current QML, revision-tagged drawing geometry and a canvas image captured when it is mentioned. It returns a clarification or a complete proposed `App.qml` with an explicit conflict classification. A compatible proposal uses `"conflict": null` and is applied after its native check. A conflict includes a reason and the affected authors; the coordinator waits for those authors to agree before checking/applying the compromise. Missing or malformed classifications and unknown conflict authors leave the app unchanged. The agent determines semantic conflicts; its judgment still needs evaluation with real people. Omp runs without tools, project rules, skills or discovered extensions; the coordinator owns file writes, validation, agreement and checkpoints.
 
 This deliberately limits the first generated apps to Qt Quick `Item` / `Rectangle` roots with built-in modules. They can also run independently with `centaur-preview /path/to/App.qml`. Generating arbitrary native application frameworks and larger compiled projects comes later.
 
@@ -81,7 +81,7 @@ Or build and run the package checks in Nix's sandbox:
 nix build -L
 ```
 
-Tests cover project persistence and Git checkpoints, two local native clients exchanging authored messages, proposal quorum and invalidation, valid source application and rejection of broken QML. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
+Tests cover project persistence and Git checkpoints, automatic changes requested through a second native client, conflict agreement by only the affected authors, stale responses/checks, agreement across restarts, malformed classifications, and rejection of broken QML. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
 
 For the older MacBook Air running NixOS, see [the target-machine test guide](docs/TESTING_ON_NIXOS.md).
 

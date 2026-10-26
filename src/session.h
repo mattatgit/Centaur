@@ -45,6 +45,7 @@ private:
     Agent m_agent;
     QProcess m_validator;
     QString m_agentProject;
+    QString m_agentAuthor;
     QString m_validatingProject;
     int m_agentEpoch = 0;
     int m_validatingEpoch = 0;
