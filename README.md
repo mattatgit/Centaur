@@ -4,6 +4,8 @@ A native workshop for families to build native apps together. One project is one
 
 This is the first rough prototype. The interface is C++ / Qt Quick. On Linux, a nested Wayland compositor displays a **separate native app process** inside the canvas and forwards input to it.
 
+See [Architecture](docs/ARCHITECTURE.md) for the runtime and agreed deployment direction, and [Current state](docs/CURRENT.md) for implementation status.
+
 ## Run on NixOS
 
 With Nix flakes enabled, from this repository:

@@ -4,6 +4,8 @@
 
 Centaur and the apps it produces are native. Target NixOS and modest hardware. One project represents one repository and one app. The two main views are projects and collaborative app building. The workspace contains a main canvas, a comfortably wide chat sidebar, Draw and Comment (Dialogue's Arrow behaviour). No activity rail. Start with Dialogue's restrained visual style and adapt it for families later. The default agent mention is @centaur and is configurable.
 
+The agreed deployment direction is a standalone native app, beginning with **Install this app on this computer** on NixOS: its own launcher, persistent app data and an installed release that stays stable while authors continue editing. Family sharing and explicit release updates follow later; distributing an app does not itself synchronise family data. These features are not implemented yet. See [Architecture](ARCHITECTURE.md) for the deployment stages, runtime boundaries and font packaging considerations.
+
 ## First prototype
 
 Focus on two experiments: a native app operating inside Centaur's frame, and an agent negotiating instructions from multiple authors. The intended complete loop is conversation → clarified direction → accepted change → native app revision inside the canvas.
