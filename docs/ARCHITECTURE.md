@@ -10,6 +10,24 @@ App changes update the existing project. Git checkpoints preserve source history
 
 See [Current state](CURRENT.md) for implemented behaviour, deliberate boundaries and validation evidence.
 
+## Collaboration between people
+
+### Current support
+
+Several native windows can collaborate under the same OS user on one computer, using the same data directory. Display names identify contributions but are not authenticated accounts. The first window hosts the authoritative project state, runs OMP and validates/saves changes. Other windows share chat, annotations, conflict decisions and app source. Each window runs its own native preview with independent interaction state. Keep the host window open; host loss currently requires reopening the windows to resume saved work.
+
+Separate computers, separate OS users, invitations, authenticated membership and reconnection are not implemented. The local socket is restricted to the current OS user. Changing a display name does not establish a trusted identity, and copying a project folder between devices does not create a shared live session.
+
+### Proposed implementation sequence
+
+The following is the proposed route beyond the local experiment, not an existing feature or a selected hosted service:
+
+1. **Two devices on a private network:** add host/join UI and an authenticated, encrypted network transport (for example, WebSockets over TLS) around the existing command/snapshot model. One Centaur instance owns the project, Git history, agent credentials and validation. An invitation grants access to a specific project; participant identities and permissions are checked by the host rather than accepted from arbitrary client-supplied author strings. Clients do not need their own OMP credentials just to participate.
+2. **Reliable shared editing:** clients receive the accepted source and required assets and render a local native preview. Commands need identifiers, acknowledgements and ordering; reconnecting clients need a current snapshot and protection against replaying stale changes. Queue agent requests and explain what happens when discussion changes during a request. Continue applying compatible changes directly and requiring agreement only for actual conflicting requests.
+3. **Family access beyond one network:** move hosting into a persistent service so closing a window does not end the session, then add invitation management, revocation and a practical connection path across networks. Decide between self-hosting, a hosted service or a relay when this stage is scoped. Provider credentials remain on the host; distribute neither the host's credentials nor its complete data directory to participants.
+
+The first network milestone should be two people on separate NixOS devices, with verified identities, shared chat/drawing, an agent change visible in both previews, conflict agreement, and a successful disconnect/rejoin. This is authoring collaboration; synchronising the deployed app's own family data remains a separate concern.
+
 ## Deployment direction
 
 Agreed on 27 October 2026: a finished app should become an ordinary native application that people can open independently of Centaur. Centaur remains the workshop where its authors return to improve it. An installed app should not require the Centaur authoring environment or OMP, unless an app deliberately includes an agent feature with its own runtime requirements.
@@ -48,7 +66,7 @@ Export, independent app packaging, family installation links and release updates
 
 ## Fonts and packaged assets
 
-Open-source fonts can be used in Centaur and in generated native apps when their individual licences permit redistribution. Inter is an available option under the SIL Open Font License 1.1; adopting it as the default typography is a separate UI decision.
+Inter is the default typography in Centaur and its native example/preview runtime. It is bundled under the SIL Open Font License 1.1. Other open-source fonts can be used when their individual licences permit redistribution.
 
 For an Inter-based implementation:
 
@@ -60,4 +78,6 @@ For an Inter-based implementation:
 
 Sources: [Inter licence](https://github.com/rsms/inter/blob/master/LICENSE.txt), [OFL bundling FAQ](https://openfontlicense.org/ofl-faq/), [Qt application fonts](https://doc.qt.io/qt-6/qfontdatabase.html#addApplicationFont).
 
-No font files have been added or font defaults changed as part of this architecture record. Font licensing is separate from the unresolved application and Qt distribution licensing decisions noted in the README.
+The implementation embeds unmodified Inter 4.1 Regular, SemiBold and Bold in both native executables and registers them before creating QML engines. New example apps and existing apps using the runtime's default font receive Inter; explicitly chosen font families in saved app source are respected. OMP is told to preserve Inter unless an author requests another font. Source provenance and hashes are recorded in [the font asset directory](../assets/fonts/inter/README.md). The licence is embedded and installed as a readable file with the package. Future standalone app exports must preserve those assets and notices too.
+
+Font licensing is separate from the unresolved application and Qt distribution licensing decisions noted in the README.

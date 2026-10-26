@@ -3,6 +3,7 @@
 #include "agent.h"
 #include "inkitem.h"
 #include "controller.h"
+#include "typography.h"
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QFile>
@@ -14,6 +15,10 @@
 #include <QPainter>
 #include <QScopeGuard>
 #include <QStandardPaths>
+#include <QFontDatabase>
+#include <QFontInfo>
+#include <QQmlComponent>
+#include <QQmlEngine>
 
 static bool writeAgentReply(const QString &path, const QJsonObject &reply, const QByteArray &before = {}) {
     const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
@@ -50,6 +55,33 @@ class CoreTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { Q_INIT_RESOURCE(starter); }
+    void interRendersTextAndControlsWithoutSystemInstallation() {
+        QCOMPARE(QGuiApplication::font().family(), QString("Inter"));
+        for (auto weight : {QFont::Normal, QFont::DemiBold, QFont::Bold}) {
+            QFont font("Inter"); font.setWeight(weight);
+            const QFontInfo resolved(font);
+            QCOMPARE(resolved.family(), QString("Inter"));
+            QCOMPARE(resolved.weight(), weight);
+        }
+        QQmlEngine engine;
+        QQmlComponent component(&engine);
+        component.setData("import QtQuick\nimport QtQuick.Controls.Basic\nItem {\n"
+            "Text { objectName: 'heading'; text: 'Family planner'; font.weight: Font.DemiBold; "
+                "property string renderedFamily: fontInfo.family }\n"
+            "TextEdit { objectName: 'chat'; text: 'Hello family'; font.pointSize: 12.5 }\n"
+            "Button { objectName: 'button'; text: 'Add' }\n"
+            "TextField { objectName: 'field'; placeholderText: 'Add a task' }\n"
+            "CheckBox { objectName: 'checkbox'; text: 'Plan something' }\n}", QUrl("qrc:/font-check.qml"));
+        QScopedPointer<QObject> root(component.create());
+        QVERIFY2(root, qPrintable(component.errorString()));
+        for (const auto *name : {"heading", "chat", "button", "field", "checkbox"}) {
+            const auto item = root->findChild<QObject *>(QString::fromLatin1(name));
+            QVERIFY(item);
+            QCOMPARE(QFontInfo(qvariant_cast<QFont>(item->property("font"))).family(), QString("Inter"));
+        }
+        QCOMPARE(root->findChild<QObject *>("heading")->property("renderedFamily").toString(), QString("Inter"));
+        QVERIFY(!QFontDatabase::styles("Inter").isEmpty());
+    }
     void projectsArePersistentGitRepos() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());
@@ -669,6 +701,7 @@ private slots:
 
 int main(int argc, char **argv) {
     QGuiApplication app(argc, argv);
+    if (!initializeTypography()) return 1;
     CoreTests tests;
     return QTest::qExec(&tests, argc, argv);
 }

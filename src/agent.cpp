@@ -212,6 +212,8 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
         "Generate Qt 6.8+ Quick/Controls/Layouts QML. Root must be an Item or Rectangle, never Window "
         "or ApplicationWindow; Centaur supplies the window. Give it width 520 and height 640, and make "
         "the layout resize properly. Use only built-in Qt modules, no web views or external assets. "
+        "The native runtime bundles Inter and sets it as the default font. Use Inter throughout "
+        "unless an author explicitly asks for a different font; no font downloads or FontLoader are needed. "
         "The app will run in a separate native process. You have no file or shell tools. "
         "Annotations use normalized canvas coordinates, include the app frame bounds, and refer "
         "to the revision they were drawn over. Only current-revision marks describe the current app. "

@@ -22,6 +22,10 @@ Revision counters remain internal for synchronization, drawing context and check
 
 The workspace omits the “Canvas” label and idle “Try the app…” hint. Its chat header is “Chat”, with the configurable agent name and last reported model in smaller grey text below. Omp runs in JSON print mode; Centaur incrementally consumes its event stream, retains only the final assistant text for the existing response contract, and reads provider/model metadata from assistant events. Model metadata is saved per project and shared between windows; no model name is guessed before the first report. Stderr and raw event transcripts stay out of shared chat. Plain JSON replies remain supported for explicit test doubles/wrappers.
 
+Centaur and the separate native example/preview/checker use bundled Inter 4.1 as their default font, with Regular, SemiBold and Bold available without installing fonts on the host. Sizes and weights are retained. Other scripts and symbols can use system fallback fonts. Explicit font choices in saved app QML are respected. The licence and upstream asset hashes are included in the repository and release package.
+
+Collaboration currently supports windows under the same OS user and data directory, not separate devices or authenticated users. [Architecture](ARCHITECTURE.md#collaboration-between-people) records the proposed next stages: a host/join flow for two devices with authenticated encrypted connections, reliable command/reconnection handling, and later persistent hosting and access beyond one network. These stages are not implemented yet.
+
 ## Deliberate boundaries
 
 - The initial app framework is Qt Quick; arbitrary native frameworks are not yet supported.

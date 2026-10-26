@@ -53,6 +53,8 @@ The first window hosts the shared session. Both windows see the same projects, c
 
 This proves authored collaboration and coordination locally. Networking between computers, authenticated family membership and shared live app interaction are not implemented yet. Display names are prototype identities.
 
+The proposed next collaboration milestone is two separate NixOS devices joining one authoritative host with project invitations, authenticated identities and encrypted connections. See [the collaboration architecture](docs/ARCHITECTURE.md#collaboration-between-people) for the staged plan and reconnection requirements.
+
 ## Connect the agent
 
 For step-by-step instructions on the Air, see [Omp NixOS Setup](docs/OMP_NIXOS_SETUP.md).
@@ -115,6 +117,8 @@ XDG_RUNTIME_DIR=/tmp/centaur-runtime QT_QPA_PLATFORM=offscreen \
 macOS builds support native interface and coordination development. The canvas clearly states that app embedding requires Linux; it does not simulate a live embedded preview.
 
 ## Modest hardware
+
+Centaur and its example app use bundled **Inter 4.1**, including Regular, SemiBold and Bold. The native shell and preview process load their own copies without a font download or system installation; other scripts and symbols retain system fallback support. Font licences and provenance are in [assets/fonts/inter](assets/fonts/inter/README.md).
 
 - C++ and Qt Quick; no Chromium, browser server or JavaScript service runtime.
 - One app process per open workspace and one agent request at a time per local host.

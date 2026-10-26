@@ -1,3 +1,4 @@
+#include "typography.h"
 #include <QGuiApplication>
 #include <QQuickView>
 #include <QQuickItem>
@@ -9,6 +10,7 @@
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
+    if (!initializeTypography()) return 1;
     QCoreApplication::setApplicationName("Centaur Native Preview");
     QQuickStyle::setStyle("Basic");
     const auto args = app.arguments();

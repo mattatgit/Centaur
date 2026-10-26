@@ -15,13 +15,21 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()
     set(PREVIEW_QML qml/PreviewUnavailable.qml)
 endif()
+add_library(centaur_typography STATIC src/typography.cpp src/typography.h)
+target_link_libraries(centaur_typography PUBLIC Qt6::Gui)
+target_include_directories(centaur_typography PUBLIC src)
+qt_add_resources(centaur_typography fonts PREFIX "/fonts" BASE assets/fonts/inter FILES
+    assets/fonts/inter/Inter-Regular.ttf
+    assets/fonts/inter/Inter-SemiBold.ttf
+    assets/fonts/inter/Inter-Bold.ttf
+    assets/fonts/inter/LICENSE.txt)
 add_library(centaur_core STATIC
     src/workspace.cpp src/workspace.h
     src/session.cpp src/session.h
     src/agent.cpp src/agent.h
     src/controller.cpp src/controller.h
     src/inkitem.cpp src/inkitem.h)
-target_link_libraries(centaur_core PUBLIC Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network)
+target_link_libraries(centaur_core PUBLIC Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network centaur_typography)
 target_include_directories(centaur_core PUBLIC src)
 target_compile_options(centaur_core PRIVATE -Wall -Wextra -Wpedantic)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -39,8 +47,9 @@ qt_add_resources(centaur ui PREFIX "/" FILES
     qml/Theme.qml qml/qmldir ${PREVIEW_QML})
 qt_add_resources(centaur probe PREFIX "/" FILES tests/fixtures/EmbeddedProbe.qml)
 qt_add_executable(centaur-preview src/preview_main.cpp)
-target_link_libraries(centaur-preview PRIVATE Qt6::Quick Qt6::QuickControls2)
+target_link_libraries(centaur-preview PRIVATE Qt6::Quick Qt6::QuickControls2 centaur_typography)
 install(TARGETS centaur centaur-preview RUNTIME DESTINATION bin BUNDLE DESTINATION .)
+install(FILES assets/fonts/inter/LICENSE.txt DESTINATION share/licenses/centaur/inter)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install(FILES packaging/centaur.desktop DESTINATION share/applications)
     install(FILES packaging/centaur.svg DESTINATION share/icons/hicolor/scalable/apps)

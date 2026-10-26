@@ -1,5 +1,6 @@
 #include "controller.h"
 #include "inkitem.h"
+#include "typography.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -15,6 +16,7 @@
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
+    if (!initializeTypography()) return 1;
     QCoreApplication::setApplicationName("Centaur");
     QCoreApplication::setOrganizationName("Centaur");
     QCoreApplication::setApplicationVersion("0.1.0");

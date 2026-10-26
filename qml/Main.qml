@@ -12,6 +12,7 @@ ApplicationWindow {
     minimumHeight: 680
     title: Backend.projectId ? Backend.project.name + " · Centaur" : "Centaur"
     color: Theme.ice
+    font.family: "Inter"
     font.pointSize: 11
     property string notification: ""
 
