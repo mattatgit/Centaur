@@ -24,6 +24,13 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
     });
     connect(&m_agent, &Agent::completed, this, &Session::finishAgent);
     connect(&m_agent, &Agent::failed, this, &Session::agentError);
+    connect(&m_agent, &Agent::modelReported, this, [this](const QString &model) {
+        if (m_agentProject.isEmpty()) return;
+        auto state = m_workspace.load(m_agentProject);
+        if (state["agentModel"] == model) return;
+        state["agentModel"] = model;
+        if (persist(m_agentProject, state)) publish(m_agentProject);
+    });
     connect(&m_validator, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart) return;
         auto state = m_workspace.load(m_validatingProject);

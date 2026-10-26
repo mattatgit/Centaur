@@ -11,6 +11,7 @@ class Controller : public QObject {
     Q_PROPERTY(QString projectId READ projectId NOTIFY changed)
     Q_PROPERTY(QString author READ author WRITE setAuthor NOTIFY changed)
     Q_PROPERTY(bool agentAvailable READ agentAvailable NOTIFY changed)
+    Q_PROPERTY(QString agentModel READ agentModel NOTIFY changed)
     Q_PROPERTY(bool agentBusy READ agentBusy NOTIFY changed)
     Q_PROPERTY(QString previewStatus READ previewStatus NOTIFY previewChanged)
     Q_PROPERTY(bool previewRunning READ previewRunning NOTIFY previewChanged)
@@ -28,6 +29,7 @@ public:
     QString author() const { return m_author; }
     void setAuthor(const QString &author);
     bool agentAvailable() const { return m_agentAvailable; }
+    QString agentModel() const { return project().value("agentModel").toString(); }
     bool agentBusy() const { return !m_busyProject.isEmpty(); }
     QString previewStatus() const { return m_previewStatus; }
     bool previewRunning() const { return m_preview.state() == QProcess::Running; }

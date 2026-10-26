@@ -18,10 +18,19 @@ public:
 signals:
     void completed(const QJsonObject &reply);
     void failed(const QString &message);
+    void modelReported(const QString &model);
 private:
     QString executable() const;
+    void readOutput();
+    void readLine(const QByteArray &line);
+    void readMessage(const QJsonObject &message, bool complete);
     QProcess m_process;
     QTimer m_timeout;
     bool m_cancelled = false;
     QString m_promptFile;
+    QByteArray m_pendingOutput;
+    QByteArray m_textOutput;
+    QByteArray m_replyOutput;
+    QString m_reportedModel;
+    bool m_structuredOutput = false;
 };

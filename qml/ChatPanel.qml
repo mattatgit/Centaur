@@ -30,11 +30,22 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             ColumnLayout {
+                Layout.fillWidth: true
                 spacing: 4
-                Text { text: "Together"; font.pointSize: 14; font.weight: Font.DemiBold; color: Theme.ink }
-                Text { text: "The conversation shapes the app."; color: Theme.muted; font.pointSize: 10.5 }
+                Text { text: "Chat"; font.pointSize: 14; font.weight: Font.DemiBold; color: Theme.ink }
+                Text {
+                    id: agentModelLabel
+                    Layout.fillWidth: true
+                    text: "@" + (Backend.project.agentName || "centaur") + " · "
+                        + (Backend.agentModel || (Backend.agentAvailable ? "Model not reported yet" : "Not connected"))
+                    textFormat: Text.PlainText
+                    color: Theme.muted; font.pointSize: 10.5
+                    elide: Text.ElideRight
+                    ToolTip.visible: modelHover.hovered
+                    ToolTip.text: agentModelLabel.text
+                    HoverHandler { id: modelHover }
+                }
             }
-            Item { Layout.fillWidth: true }
             Rectangle {
                 width: 32; height: 32; radius: 10; color: Theme.lime
                 Text { anchors.centerIn: parent; text: "c"; color: Theme.ink; font.pointSize: 17; font.weight: Font.DemiBold }

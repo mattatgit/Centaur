@@ -16,6 +16,8 @@ Making a request is approval to carry it out. Compatible proposals are checked a
 
 Revision counters remain internal for synchronization, drawing context and checkpoints. The canvas, project cards, old-message labels and routine completion messages no longer display numbered app revisions; old generated revision announcements are also rendered without their numbers. The agent receives the 100 most recent Git checkpoint descriptions/dates and can answer history questions or return a structured `restore` request. The coordinator retrieves the exact source from a reachable checkpoint in that project's Git history, validates it, and saves it as a new checkpoint. It never resets Git or substitutes model-generated source for a rewind, and conflicts still require agreement by the affected authors. All saved Git history is retained beyond the bounded model context.
 
+The workspace omits the “Canvas” label and idle “Try the app…” hint. Its chat header is “Chat”, with the configurable agent name and last reported model in smaller grey text below. Omp runs in JSON print mode; Centaur incrementally consumes its event stream, retains only the final assistant text for the existing response contract, and reads provider/model metadata from assistant events. Model metadata is saved per project and shared between windows; no model name is guessed before the first report. Stderr and raw event transcripts stay out of shared chat. Plain JSON replies remain supported for explicit test doubles/wrappers.
+
 ## Deliberate boundaries
 
 - The initial app framework is Qt Quick; arbitrary native frameworks are not yet supported.

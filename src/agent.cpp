@@ -11,6 +11,7 @@
 Agent::Agent(QObject *parent) : QObject(parent) {
     m_timeout.setSingleShot(true);
     m_timeout.setInterval(180000);
+    connect(&m_process, &QProcess::readyReadStandardOutput, this, &Agent::readOutput);
     connect(&m_timeout, &QTimer::timeout, this, [this] {
         m_cancelled = true;
         m_process.kill();
@@ -28,16 +29,80 @@ Agent::Agent(QObject *parent) : QObject(parent) {
             m_timeout.stop();
             if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
             if (m_cancelled) return;
+            readOutput();
+            if (m_cancelled) return;
+            if (!m_pendingOutput.isEmpty()) { readLine(m_pendingOutput); m_pendingOutput.clear(); }
             if (code != 0 || status != QProcess::NormalExit) {
                 // Raw provider output can contain credentials. Keep it out of shared chat.
                 emit failed("The agent could not finish. Check that omp is signed in, then try again.");
                 return;
             }
             QString error;
-            const auto reply = parseReply(m_process.readAllStandardOutput(), &error);
+            const auto reply = parseReply(m_structuredOutput ? m_replyOutput : m_textOutput, &error);
             if (reply.isEmpty()) emit failed(error);
             else emit completed(reply);
         });
+}
+
+void Agent::readOutput() {
+    if (m_cancelled) { m_process.readAllStandardOutput(); return; }
+    m_pendingOutput += m_process.readAllStandardOutput();
+    int newline;
+    while ((newline = m_pendingOutput.indexOf('\n')) >= 0) {
+        if (newline > 16 * 1024 * 1024) break;
+        const auto line = m_pendingOutput.left(newline);
+        m_pendingOutput.remove(0, newline + 1);
+        readLine(line);
+    }
+    // JSON events can contain image attachments. Keep only partial frames and
+    // the final answer, not the full event transcript or provider diagnostics.
+    if (m_pendingOutput.size() > 16 * 1024 * 1024 || m_textOutput.size() > 2 * 1024 * 1024
+        || m_replyOutput.size() > 2 * 1024 * 1024) {
+        m_cancelled = true;
+        m_timeout.stop();
+        m_process.kill();
+        emit failed("The agent returned too much output. Your app is unchanged; try a smaller request.");
+    }
+}
+
+void Agent::readLine(const QByteArray &line) {
+    const auto event = QJsonDocument::fromJson(line).object();
+    const auto type = event["type"].toString();
+    if (type.isEmpty()) {
+        if (!m_structuredOutput) m_textOutput += line + '\n';
+        return;
+    }
+    m_structuredOutput = true;
+    m_textOutput.clear();
+    if (type == "message_start") readMessage(event["message"].toObject(), false);
+    else if (type == "message_end" || type == "turn_end") readMessage(event["message"].toObject(), true);
+    else if (type == "agent_end") {
+        const auto messages = event["messages"].toArray();
+        for (int i = messages.size() - 1; i >= 0; --i) {
+            const auto message = messages[i].toObject();
+            if (message["role"] != "assistant") continue;
+            readMessage(message, true);
+            break;
+        }
+    }
+}
+
+void Agent::readMessage(const QJsonObject &message, bool complete) {
+    if (message["role"] != "assistant") return;
+    const auto id = message["model"].toString().trimmed().left(256);
+    const auto provider = message["provider"].toString().trimmed().left(100);
+    const auto model = provider.isEmpty() ? id : provider + "/" + id;
+    if (!id.isEmpty() && model != m_reportedModel) {
+        m_reportedModel = model;
+        emit modelReported(model);
+    }
+    // A new attempt (including provider/model fallback) replaces earlier output.
+    m_replyOutput.clear();
+    if (!complete || message["stopReason"] == "error" || message["stopReason"] == "aborted") return;
+    for (const auto &value : message["content"].toArray()) {
+        const auto block = value.toObject();
+        if (block["type"] == "text") m_replyOutput += block["text"].toString().toUtf8();
+    }
 }
 
 QString Agent::executable() const {
@@ -153,7 +218,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
         "If an image is attached, inspect its sketch and native app together.\n\n"
         "PROJECT AND CONVERSATION:\n%1\n\nCURRENT App.qml:\n%2\n")
         .arg(QString::fromUtf8(QJsonDocument(state).toJson(QJsonDocument::Compact)), source);
-    QStringList args{"-p", "--no-session", "--no-skills", "--no-rules", "--no-tools", "--no-title", "--no-extensions", "--no-lsp"};
+    QStringList args{"-p", "--mode", "json", "--no-session", "--no-skills", "--no-rules", "--no-tools", "--no-title", "--no-extensions", "--no-lsp"};
     const auto model = qEnvironmentVariable("CENTAUR_MODEL");
     if (!model.isEmpty()) args << "--model" << model;
     if (!imagePath.isEmpty()) args << ("@" + imagePath);
@@ -171,6 +236,8 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
     request.close();
     args << ("@" + m_promptFile) << "Follow the attached Centaur request. Return only the required JSON.";
     m_cancelled = false;
+    m_pendingOutput.clear(); m_textOutput.clear(); m_replyOutput.clear();
+    m_reportedModel.clear(); m_structuredOutput = false;
     m_process.setWorkingDirectory(projectPath);
     // omp reads non-terminal stdin to EOF before processing the argv prompt.
     // All input is in args/attachments; an open QProcess pipe would stall startup.

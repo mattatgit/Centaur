@@ -2,6 +2,7 @@
 #include "session.h"
 #include "agent.h"
 #include "inkitem.h"
+#include "controller.h"
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QFile>
@@ -18,6 +19,17 @@ static bool writeAgentReply(const QString &path, const QJsonObject &reply, const
     const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
     return !shell.isEmpty() && Workspace::writeFile(path, "#!" + shell + "\ncat >/dev/null\n" + before
         + "cat <<'CENTAUR_REPLY'\n" + QJsonDocument(reply).toJson(QJsonDocument::Compact) + "\nCENTAUR_REPLY\n")
+        && QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+}
+
+static bool writeAgentEvents(const QString &path, const QJsonArray &events) {
+    const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
+    QByteArray stream;
+    for (const auto &event : events) stream += QJsonDocument(event.toObject()).toJson(QJsonDocument::Compact) + '\n';
+    // Split the first JSON frame across reads, like a real subprocess pipe.
+    return !shell.isEmpty() && !stream.isEmpty() && Workspace::writeFile(path, "#!" + shell
+        + "\ncat >/dev/null\nprintf '{'\nsleep 0.05\ncat <<'CENTAUR_EVENTS'\n" + stream.mid(1)
+        + "CENTAUR_EVENTS\n")
         && QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
 }
 
@@ -152,6 +164,73 @@ private slots:
             QCOMPARE(completed.last().first().toJsonObject()["message"].toString(), QString("Connection test"));
             QVERIFY(!agent.busy());
         }
+    }
+    void structuredAgentOutputReportsTheActualModelAndFinalReply_data() {
+        QTest::addColumn<QJsonObject>("reply");
+        QTest::newRow("question") << QJsonObject{{"kind", "question"}, {"message", "Connection test"}};
+        QTest::newRow("proposal with escaped QML") << QJsonObject{{"kind", "proposal"},
+            {"message", "Change the title."}, {"conflict", QJsonValue::Null},
+            {"qml", "import QtQuick\nRectangle { Text { text: \"Family Planner\" } }\n"}};
+    }
+    void structuredAgentOutputReportsTheActualModelAndFinalReply() {
+        QFETCH(QJsonObject, reply);
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Structured agent", "", &error);
+        QVERIFY2(!id.isEmpty(), qPrintable(error));
+        const auto fake = dir.path() + "/event-agent";
+        const auto replyText = QString::fromUtf8(QJsonDocument(reply).toJson(QJsonDocument::Compact));
+        const QJsonObject first{{"role", "assistant"}, {"provider", "initial-provider"}, {"model", "initial-model"},
+            {"stopReason", "error"}, {"content", QJsonArray()}};
+        const QJsonObject final{{"role", "assistant"}, {"provider", "actual-provider"}, {"model", "actual-model"},
+            {"stopReason", "stop"}, {"content", QJsonArray{
+                QJsonObject{{"type", "thinking"}, {"thinking", "This must not appear in the reply."}},
+                QJsonObject{{"type", "text"}, {"text", replyText}}}}};
+        QVERIFY(writeAgentEvents(fake, {
+            QJsonObject{{"type", "session"}},
+            QJsonObject{{"type", "message_start"}, {"message", QJsonObject{{"role", "user"}, {"provider", "ignore"}, {"model", "ignore"}}}},
+            QJsonObject{{"type", "message_start"}, {"message", first}},
+            QJsonObject{{"type", "message_end"}, {"message", first}},
+            QJsonObject{{"type", "message_start"}, {"message", final}},
+            QJsonObject{{"type", "message_update"}, {"assistantMessageEvent", QJsonObject{{"type", "text_delta"}, {"delta", "partial"}}}},
+            QJsonObject{{"type", "message_end"}, {"message", final}},
+            QJsonObject{{"type", "agent_end"}, {"messages", QJsonArray{first, final}}}}));
+        const AgentOverride agentOverride(fake);
+        Agent agent;
+        QSignalSpy completed(&agent, &Agent::completed);
+        QSignalSpy failed(&agent, &Agent::failed);
+        QSignalSpy models(&agent, &Agent::modelReported);
+        agent.ask(workspace.projectPath(id), workspace.load(id), workspace.source(id));
+        QTRY_COMPARE_WITH_TIMEOUT(completed.size(), 1, 5000);
+        QVERIFY(failed.isEmpty());
+        QCOMPARE(completed.first().first().toJsonObject(), reply);
+        QCOMPARE(models.size(), 2);
+        QCOMPARE(models.last().first().toString(), QString("actual-provider/actual-model"));
+    }
+    void modelMetadataIsSharedBetweenNativeWindows() {
+        QTemporaryDir dir;
+        const auto fake = dir.path() + "/model-agent";
+        const QJsonObject message{{"role", "assistant"}, {"provider", "provider"}, {"model", "resolved-model"},
+            {"content", QJsonArray{QJsonObject{{"type", "text"},
+                {"text", "{\"kind\":\"question\",\"message\":\"Hello\"}"}}}}};
+        QVERIFY(writeAgentEvents(fake, {QJsonObject{{"type", "message_end"}, {"message", message}}}));
+        const AgentOverride agentOverride(fake);
+        Controller host(dir.path()); host.start(); host.setAuthor("Matt");
+        host.createProject("Model metadata", "");
+        QVERIFY(!host.projectId().isEmpty());
+        Controller guest(dir.path()); guest.start();
+        QTRY_VERIFY(!guest.projects().isEmpty());
+        guest.openProject(host.projectId());
+        QVERIFY(guest.agentModel().isEmpty());
+        host.sendMessage("@centaur hello");
+        QTRY_COMPARE_WITH_TIMEOUT(host.agentModel(), QString("provider/resolved-model"), 5000);
+        QTRY_COMPARE(guest.agentModel(), host.agentModel());
+        host.renameAgent("merlin");
+        QTRY_COMPARE(guest.project().value("agentName").toString(), QString("merlin"));
+        Workspace workspace(dir.path());
+        QTRY_COMPARE(workspace.load(host.projectId())["messages"].toArray().size(), 2);
+        QCOMPARE(workspace.load(host.projectId())["agentModel"].toString(), host.agentModel());
     }
     void interactionModeDoesNotInterceptAppClicks() {
         InkItem layer;

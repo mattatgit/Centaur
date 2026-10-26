@@ -24,7 +24,6 @@ Rectangle {
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
         anchors.margins: 18
         spacing: 10
-        Text { text: "Canvas"; color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold }
         Item { Layout.fillWidth: true }
         FlatButton { text: "Open repo"; tone: "plain"; onClicked: Backend.revealProject(); ToolTip.text: "Open the project folder" }
         FlatButton { text: "Restart app"; tone: "plain"; enabled: Backend.embeddingSupported; onClicked: Backend.restartPreview() }
@@ -76,10 +75,11 @@ Rectangle {
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 10
         Text {
+            visible: canvas.tool !== "interact"
             Layout.alignment: Qt.AlignHCenter
             text: canvas.tool === "draw" ? "Sketch an idea, then describe it in the chat."
                 : canvas.tool === "comment" ? "Drag an arrow to what you mean, then add a message."
-                : "Try the app, or draw an idea together."
+                : ""
             color: Theme.muted; font.pointSize: 10
         }
         Rectangle {
