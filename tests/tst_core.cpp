@@ -5,6 +5,7 @@
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QFile>
+#include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QGuiApplication>
@@ -65,6 +66,30 @@ private slots:
         QVERIFY(previous.open(QIODevice::ReadOnly));
         QCOMPARE(QString::fromUtf8(previous.readAll()), old);
     }
+    void savedHistoryPreservesExactSources() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("History", "", &error);
+        QVERIFY2(!id.isEmpty(), qPrintable(error));
+        const auto initial = workspace.source(id);
+        const auto first = workspace.history(id, &error);
+        QCOMPARE(first.size(), 1);
+        const auto initialCheckpoint = first.first().toObject()["checkpoint"].toString();
+        const auto blue = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'blue' }\n");
+        QVERIFY(workspace.applySource(id, blue, "Make the background blue", &error));
+        const auto history = workspace.history(id, &error);
+        QCOMPARE(history.size(), 2);
+        QCOMPARE(history.first().toObject()["summary"].toString(), QString("Make the background blue"));
+        QVERIFY(!history.first().toObject()["time"].toString().isEmpty());
+        QCOMPARE(workspace.sourceAt(id, initialCheckpoint, &error), initial);
+        QCOMPARE(workspace.sourceAt(id, history.first().toObject()["checkpoint"].toString(), &error), blue);
+        QVERIFY(workspace.sourceAt(id, "HEAD~1:../../outside", &error).isEmpty());
+        const auto other = workspace.createProject("Other project", "", &error);
+        const auto foreignCheckpoint = workspace.history(other).first().toObject()["checkpoint"].toString();
+        QVERIFY(workspace.sourceAt(id, foreignCheckpoint, &error).isEmpty());
+        QCOMPARE(workspace.source(id), blue);
+    }
     void agentResponsesAreValidated() {
         QString error;
         QVERIFY(Agent::parseReply("not json", &error).isEmpty());
@@ -76,6 +101,11 @@ private slots:
         auto missingClassification = compatible;
         missingClassification.remove("conflict");
         QVERIFY(Agent::parseReply(QJsonDocument(missingClassification).toJson(), &error).isEmpty());
+        QJsonObject restore{{"kind", "restore"}, {"message", "Return to the blue background"},
+            {"checkpoint", QString(40, 'a')}, {"conflict", QJsonValue::Null}};
+        QVERIFY(!Agent::parseReply(QJsonDocument(restore).toJson(), &error).isEmpty());
+        restore["checkpoint"] = "HEAD~1";
+        QVERIFY(Agent::parseReply(QJsonDocument(restore).toJson(), &error).isEmpty());
         auto conflict = compatible;
         conflict["conflict"] = QJsonObject{{"reason", "Show all tasks versus hide completed tasks"},
             {"authors", QJsonArray{"Matt", "Saori"}}};
@@ -187,6 +217,7 @@ private slots:
         QCOMPARE(decision["authors"].toArray(), QJsonArray{"Saori"});
         QCOMPARE(decision["requestedBy"].toString(), QString("Saori"));
         QVERIFY(decision["conflict"].isNull());
+        QCOMPARE(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString(), QString("Updated the app."));
         QCOMPARE(sourceChanged.size(), 1);
         QTRY_COMPARE(guestSnapshots.last().first().toJsonObject()["states"].toArray().first().toObject()["revision"].toInt(), 2);
     }
@@ -402,6 +433,110 @@ private slots:
         QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
         QCOMPARE(workspace.source(id), initial);
         QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("Ask me again"));
+    }
+    void agentCanAnswerHistoryQuestionsWithoutChangingTheApp() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("History question", "", &error);
+        const auto source = QString("import QtQuick\nRectangle { color: 'blue' }");
+        QVERIFY(workspace.applySource(id, source, "Make the background blue", &error));
+        const auto checkpoint = workspace.history(id).first().toObject()["checkpoint"].toString();
+        const auto fake = dir.path() + "/history-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "question"}, {"message", "The background was changed to blue."}}, "sleep 0.2\n"));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur what changed earlier?"}});
+        const auto requests = QDir(workspace.projectPath(id) + "/.centaur").entryList({"request-*.txt"}, QDir::Files);
+        QCOMPARE(requests.size(), 1);
+        QFile request(workspace.projectPath(id) + "/.centaur/" + requests.first());
+        QVERIFY(request.open(QIODevice::ReadOnly));
+        const auto prompt = request.readAll();
+        QVERIFY(prompt.contains("appHistory"));
+        QVERIFY(prompt.contains(checkpoint.toUtf8()));
+        QVERIFY(prompt.contains("Make the background blue"));
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().size(), 2, 5000);
+        QCOMPARE(workspace.source(id), source);
+        QCOMPARE(workspace.history(id).size(), 2);
+    }
+    void rewindsRestoreExactSourceAndKeepLaterHistory_data() {
+        QTest::addColumn<bool>("conflicting");
+        QTest::newRow("ordinary rewind") << false;
+        QTest::newRow("conflicting rewind") << true;
+    }
+    void rewindsRestoreExactSourceAndKeepLaterHistory() {
+        QFETCH(bool, conflicting);
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Rewind", "", &error);
+        const auto blue = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'blue' }\n");
+        const auto green = QString("import QtQuick\nRectangle { width: 520; height: 640; color: 'green' }\n");
+        QVERIFY(workspace.applySource(id, blue, "Make the background blue", &error));
+        const auto checkpoint = workspace.history(id).first().toObject()["checkpoint"].toString();
+        QVERIFY(workspace.applySource(id, green, "Try a green background", &error));
+        const auto laterCheckpoint = workspace.history(id).first().toObject()["checkpoint"].toString();
+        auto state = workspace.load(id);
+        state["revision"] = 3;
+        QVERIFY(workspace.save(id, state));
+        const auto fake = dir.path() + "/rewind-agent";
+        const QJsonValue conflict = conflicting
+            ? QJsonValue(QJsonObject{{"reason", "Matt wants to keep green; Saori wants the earlier blue background."},
+                {"authors", QJsonArray{"Matt", "Saori"}}}) : QJsonValue(QJsonValue::Null);
+        QVERIFY(writeAgentReply(fake, {{"kind", "restore"}, {"message", "Return to the blue background."},
+            {"conflict", conflict}, {"checkpoint", checkpoint},
+            {"qml", "import QtQuick\nRectangle { color: 'red' }"}}));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        if (conflicting) session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "Keep the green background."}});
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur go back to the blue background."}});
+        if (conflicting) {
+            QTRY_VERIFY_WITH_TIMEOUT(!workspace.load(id)["proposal"].toObject().isEmpty(), 5000);
+            const auto proposal = workspace.load(id)["proposal"].toObject();
+            QCOMPARE(proposal["qml"].toString(), blue);
+            QCOMPARE(workspace.source(id), green);
+            session.send({{"type", "accept"}, {"projectId", id}, {"author", "Matt"}, {"proposalId", proposal["id"]}});
+            QCOMPARE(workspace.source(id), green);
+            session.send({{"type", "accept"}, {"projectId", id}, {"author", "Saori"}, {"proposalId", proposal["id"]}});
+        }
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 4, 15000);
+        QCOMPARE(workspace.source(id), blue); // Ignore any QML invented in the restore response.
+        QCOMPARE(workspace.sourceAt(id, laterCheckpoint, &error), green); // Rewind adds history; it never resets Git.
+        QCOMPARE(workspace.history(id).size(), 4);
+        const auto decision = workspace.load(id)["decisions"].toArray().last().toObject();
+        QCOMPARE(decision["restoredFrom"].toString(), checkpoint);
+        QCOMPARE(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString(), QString("Restored that version of the app."));
+    }
+    void unavailableOrBrokenSavedAppsDoNotReplaceTheCurrentApp_data() {
+        QTest::addColumn<bool>("brokenSource");
+        QTest::newRow("missing checkpoint") << false;
+        QTest::newRow("historical QML fails validation") << true;
+    }
+    void unavailableOrBrokenSavedAppsDoNotReplaceTheCurrentApp() {
+        QFETCH(bool, brokenSource);
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Restore failure", "", &error);
+        QString checkpoint(40, '0');
+        if (brokenSource) {
+            QVERIFY(workspace.applySource(id, "This is not QML", "Broken experiment", &error));
+            checkpoint = workspace.history(id).first().toObject()["checkpoint"].toString();
+        }
+        const auto current = QString("import QtQuick\nRectangle { color: 'green' }");
+        QVERIFY(workspace.applySource(id, current, "Working green app", &error));
+        const auto historySize = workspace.history(id).size();
+        const auto fake = dir.path() + "/restore-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "restore"}, {"message", "Return to the earlier app."},
+            {"conflict", QJsonValue::Null}, {"checkpoint", checkpoint}}));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur restore the earlier app."}});
+        const auto expected = brokenSource ? QString("did not pass") : QString("Could not restore");
+        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains(expected), 15000);
+        QCOMPARE(workspace.source(id), current);
+        QCOMPARE(workspace.history(id).size(), historySize);
+        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
     }
 };
 

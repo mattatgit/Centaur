@@ -50,12 +50,7 @@ Item {
                             Text { text: modelData.description || "A new idea, ready to take shape."; color: Theme.muted; font.pointSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
                             Item { Layout.fillHeight: true }
                             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Text { text: "Native app"; color: Theme.muted; font.pointSize: 10 }
-                                Item { Layout.fillWidth: true }
-                                Text { text: "Revision " + modelData.revision; color: Theme.ink; font.pointSize: 10 }
-                            }
+                            Text { text: "Native app"; color: Theme.muted; font.pointSize: 10 }
                         }
                     }
                 }

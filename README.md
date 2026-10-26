@@ -65,6 +65,18 @@ For this experiment the agent receives the authored conversation, the requesting
 
 This deliberately limits the first generated apps to Qt Quick `Item` / `Rectangle` roots with built-in modules. They can also run independently with `centaur-preview /path/to/App.qml`. Generating arbitrary native application frameworks and larger compiled projects comes later.
 
+## Earlier versions, through conversation
+
+Changes are quietly saved as Git checkpoints. The canvas, project cards and older chat messages do not display numbered app revisions, and routine replies do not announce a new version number.
+
+Ask naturally, for example:
+
+- “@centaur what did we change earlier?”
+- “@centaur go back to before we changed the background.”
+- “@centaur undo the last app change.”
+
+The agent receives dates and descriptions for the 100 most recent checkpoints. Questions about history do not change the app. If the target is unclear, the agent asks for clarification. A rewind retrieves the exact saved `App.qml`, runs the same native check, and applies it with the same conflict-only agreement rule as other changes. It adds a new checkpoint instead of resetting Git, so later saved work remains recoverable. Conversation history is retained. All Git checkpoints remain on disk, including those outside the bounded model context.
+
 ## Build and test
 
 ```sh
@@ -81,7 +93,7 @@ Or build and run the package checks in Nix's sandbox:
 nix build -L
 ```
 
-Tests cover project persistence and Git checkpoints, automatic changes requested through a second native client, conflict agreement by only the affected authors, stale responses/checks, agreement across restarts, malformed classifications, and rejection of broken QML. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
+Tests cover project persistence and Git checkpoints, automatic changes requested through a second native client, conflict agreement by only the affected authors, stale responses/checks, agreement across restarts, malformed classifications, history context, exact-source rewinds that preserve later history, and rejection of unavailable or invalid saved apps. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
 
 For the older MacBook Air running NixOS, see [the target-machine test guide](docs/TESTING_ON_NIXOS.md).
 

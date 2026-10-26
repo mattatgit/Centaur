@@ -40,14 +40,7 @@ Rectangle {
         x: (canvas.width - width * scale) / 2
         y: 60 + (canvas.height - 155 - height * scale) / 2
         Rectangle { anchors.fill: parent; color: Theme.canvas }
-        Row {
-            x: 240; y: 23; spacing: 10
-            Text { text: Backend.project.name || ""; color: Theme.ink; font.pointSize: 11; font.weight: Font.DemiBold }
-            Rectangle {
-                width: revisionLabel.implicitWidth + 12; height: 22; radius: 5; color: "#e1e5db"
-                Text { id: revisionLabel; anchors.centerIn: parent; text: "V" + (Backend.project.revision || 1); color: "#5a6652"; font.pointSize: 9 }
-            }
-        }
+        Text { x: 240; y: 23; text: Backend.project.name || ""; color: Theme.ink; font.pointSize: 11; font.weight: Font.DemiBold }
         Rectangle {
             id: appFrame
             objectName: "nativeAppFrame"

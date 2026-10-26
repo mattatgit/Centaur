@@ -14,13 +14,15 @@ The agent adapter invokes omp without tools and expects a clarification or propo
 
 Making a request is approval to carry it out. Compatible proposals are checked and applied automatically, without an approval click. Only a genuine conflict between active requirements pauses for agreement by the affected authors. The model must explicitly classify each proposal as `conflict: null` or provide a conflict reason and at least two distinct known authors. The coordinator validates that metadata and enforces agreement only for those authors. Other contributors do not have a veto merely because they chatted or drew something. New contributions still invalidate pending proposals and stale agent results/checks are discarded. Old unfinished proposals made under the previous everyone-agrees policy are cleared on upgrade rather than silently applied. Model conflict detection and mediation quality still need evaluation with family conversations.
 
+Revision counters remain internal for synchronization, drawing context and checkpoints. The canvas, project cards, old-message labels and routine completion messages no longer display numbered app revisions; old generated revision announcements are also rendered without their numbers. The agent receives the 100 most recent Git checkpoint descriptions/dates and can answer history questions or return a structured `restore` request. The coordinator retrieves the exact source from a reachable checkpoint in that project's Git history, validates it, and saves it as a new checkpoint. It never resets Git or substitutes model-generated source for a rewind, and conflicts still require agreement by the affected authors. All saved Git history is retained beyond the bounded model context.
+
 ## Deliberate boundaries
 
 - The initial app framework is Qt Quick; arbitrary native frameworks are not yet supported.
 - Author names can be selected locally. No accounts or cross-computer networking yet.
 - Source, conversation and marks are shared; each window has its own live app interaction state.
 - No sandbox around generated native QML yet. Run trusted local projects as an ordinary user.
-- Canvas fitting is fixed to one app frame. Infinite panning, frame resizing and full history browsing are follow-up work.
+- Canvas fitting is fixed to one app frame. Infinite panning, frame resizing and a dedicated history browser are follow-up work; history questions and rewinds currently go through chat.
 - Test doubles validate coordination; they do not establish that the live model resolves disagreements well.
 
 ## Next evidence needed

@@ -57,13 +57,14 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                     auto decisions = state["decisions"].toArray();
                     decisions.append(QJsonObject{{"summary", proposal["message"]}, {"authors", proposal["accepted"]},
                         {"requestedBy", proposal["requestedBy"]}, {"conflict", proposal["conflict"]},
+                        {"restoredFrom", proposal["checkpoint"]},
                         {"revision", state["revision"]}, {"time", Workspace::now()}});
                     state["decisions"] = decisions;
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
                     state["proposal"] = QJsonObject();
-                    addMessage(state, state["agentName"].toString(), "Applied the change. Revision " +
-                        QString::number(state["revision"].toInt()) + " is ready to try.", "agent");
+                    addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
+                        ? "Restored that version of the app." : "Updated the app.", "agent");
                     emit sourceChanged(id);
                 } else {
                     addMessage(state, state["agentName"].toString(), "Could not save the change: " + error, "system");
@@ -231,6 +232,7 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
                     && command["imageRevision"] == state["revision"]) image = canonical;
                 auto request = state;
                 request["requestAuthor"] = author;
+                request["appHistory"] = m_workspace.history(id);
                 m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
             }
         }
@@ -317,7 +319,20 @@ void Session::finishAgent(const QJsonObject &reply) {
     if (state["epoch"].toInt() != m_agentEpoch) {
         addMessage(state, state["agentName"].toString(), "New messages or drawings arrived while I was thinking. Address me again so I can include them.", "system");
     } else {
-        if (reply["kind"] == "proposal") {
+        if (reply["kind"] == "proposal" || reply["kind"] == "restore") {
+            auto proposal = reply;
+            if (reply["kind"] == "restore") {
+                QString error;
+                const auto source = m_workspace.sourceAt(id, reply["checkpoint"].toString(), &error);
+                if (source.isEmpty()) {
+                    addMessage(state, state["agentName"].toString(), "Could not restore that saved app. Your app is unchanged. " + error, "system");
+                    persist(id, state);
+                    publish(id);
+                    return;
+                }
+                // Restore the exact checkpoint, never model-supplied replacement source.
+                proposal["qml"] = source;
+            } else proposal.remove("checkpoint");
             const auto conflict = reply["conflict"];
             QJsonArray authors{requester};
             if (conflict.isObject()) {
@@ -339,7 +354,6 @@ void Session::finishAgent(const QJsonObject &reply) {
                     return;
                 }
             }
-            auto proposal = reply;
             proposal["id"] = uid(); proposal["epoch"] = m_agentEpoch;
             proposal["requestedBy"] = requester;
             proposal["authors"] = authors;

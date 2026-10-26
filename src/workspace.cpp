@@ -10,7 +10,7 @@
 #include <QRegularExpression>
 #include <algorithm>
 
-static bool git(const QString &path, const QStringList &args, QString *error) {
+static bool git(const QString &path, const QStringList &args, QString *error, QByteArray *output = nullptr) {
     QProcess process;
     process.setWorkingDirectory(path);
     process.start("git", args);
@@ -19,6 +19,7 @@ static bool git(const QString &path, const QStringList &args, QString *error) {
         if (error && error->isEmpty()) *error = "Git is unavailable or timed out.";
         return false;
     }
+    if (output) *output = process.readAllStandardOutput();
     return true;
 }
 
@@ -109,6 +110,43 @@ QString Workspace::source(const QString &id) const {
     if (path.isEmpty()) return {};
     QFile file(path + "/App.qml");
     return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
+}
+
+QJsonArray Workspace::history(const QString &id, QString *error) const {
+    const auto path = projectPath(id);
+    if (path.isEmpty()) { if (error) *error = "Invalid project."; return {}; }
+    QByteArray output;
+    // Only metadata enters the model context. Full source stays in Git until a
+    // specific restore is requested; bound context for modest hardware.
+    if (!git(path, {"log", "-100", "--format=%H%x00%cI%x00%s%x00"}, error, &output)) return {};
+    const auto fields = output.split('\0');
+    QJsonArray history;
+    for (int i = 0; i + 2 < fields.size(); i += 3) {
+        history.append(QJsonObject{{"checkpoint", QString::fromUtf8(fields[i]).trimmed()},
+            {"time", QString::fromUtf8(fields[i + 1])}, {"summary", QString::fromUtf8(fields[i + 2])}});
+    }
+    return history;
+}
+
+QString Workspace::sourceAt(const QString &id, const QString &checkpoint, QString *error) const {
+    const auto path = projectPath(id);
+    static const QRegularExpression valid("^(?:[a-f0-9]{40}|[a-f0-9]{64})$");
+    if (path.isEmpty() || !valid.match(checkpoint).hasMatch()) {
+        if (error) *error = "That saved app could not be identified.";
+        return {};
+    }
+    if (!git(path, {"merge-base", "--is-ancestor", checkpoint, "HEAD"}, nullptr)) {
+        if (error) *error = "That saved app is not in this project's history.";
+        return {};
+    }
+    QByteArray output;
+    if (!git(path, {"show", checkpoint + ":App.qml"}, error, &output)) return {};
+    const auto source = QString::fromUtf8(output);
+    if (source.trimmed().isEmpty() || source.size() > 256000) {
+        if (error) *error = "That saved app is empty or too large for this prototype.";
+        return {};
+    }
+    return source;
 }
 
 bool Workspace::applySource(const QString &id, const QString &qml, const QString &summary, QString *error) {

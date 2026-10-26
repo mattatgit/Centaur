@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QTemporaryFile>
 #include <QSet>
+#include <QRegularExpression>
 
 Agent::Agent(QObject *parent) : QObject(parent) {
     m_timeout.setSingleShot(true);
@@ -62,7 +63,7 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
     const auto object = doc.object();
     const auto kind = object["kind"].toString();
     if (parseError.error != QJsonParseError::NoError || !doc.isObject()
-        || (kind != "question" && kind != "proposal") || object["message"].toString().trimmed().isEmpty()
+        || (kind != "question" && kind != "proposal" && kind != "restore") || object["message"].toString().trimmed().isEmpty()
         || (kind == "proposal" && object["qml"].toString().trimmed().isEmpty())) {
         if (error) *error = "The agent returned an unreadable response. Your app is unchanged; ask it to try again.";
         return {};
@@ -71,7 +72,14 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
         if (error) *error = "That change is too large for this prototype. Ask for a smaller step.";
         return {};
     }
-    if (kind == "proposal") {
+    if (kind == "restore") {
+        static const QRegularExpression valid("^(?:[a-f0-9]{40}|[a-f0-9]{64})$");
+        if (!valid.match(object["checkpoint"].toString()).hasMatch()) {
+            if (error) *error = "The agent didn't identify a saved app to restore. Your app is unchanged; ask it to clarify which earlier version you mean.";
+            return {};
+        }
+    }
+    if (kind == "proposal" || kind == "restore") {
         const auto conflict = object["conflict"];
         bool valid = conflict.isNull();
         if (conflict.isObject()) {
@@ -114,13 +122,26 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
         "For a genuine conflict, explain the incompatible requirements and propose a compromise for only "
         "the affected authors to agree on. If you need clarification before proposing a compromise, ask "
         "a focused question instead. Do not claim to have built or tested the change. "
-        "Return ONLY one JSON object. For clarification: {\"kind\":\"question\",\"message\":\"...\"}. "
+        "Keep internal revision numbers and checkpoint IDs out of routine conversation. Describe changes "
+        "naturally; don't announce or number a new version after each change. Mention numbers only if asked. "
+        "appHistory lists saved apps newest first, with checkpoint IDs, times and summaries. "
+        "For questions about previous versions, use that history and the conversation; describe them by "
+        "what changed or when. Don't invent historical details or claim access to source you haven't seen. "
+        "Return ONLY one JSON object. For clarification or an informational history answer: "
+        "{\"kind\":\"question\",\"message\":\"...\"}. "
         "For a compatible change: {\"kind\":\"proposal\",\"message\":\"Explain the change briefly\","
         "\"conflict\":null,\"qml\":\"COMPLETE App.qml source\"}. "
         "For a compromise needing agreement: {\"kind\":\"proposal\",\"message\":\"Explain the compromise\","
         "\"conflict\":{\"reason\":\"Explain the actual incompatible requests\",\"authors\":[\"Exact author name\","
         "\"Other affected author\"]},\"qml\":\"COMPLETE App.qml source\"}. "
-        "Every proposal must include conflict, either null or an object with a reason and at least two "
+        "When asked to rewind, undo an app change, or restore an earlier app, select the appropriate "
+        "checkpoint from appHistory. The first entry is the current saved app; the next is the previous one. "
+        "Do not recreate old QML yourself. Use {\"kind\":\"restore\",\"message\":\"Describe the version to return to\","
+        "\"checkpoint\":\"FULL checkpoint ID\",\"conflict\":null}. The coordinator retrieves the exact saved source "
+        "and checks it before applying. If the requested point is ambiguous or absent from the available "
+        "history, ask a focused question rather than guessing. Restores use the same conflict policy; "
+        "include a conflict object instead of null only for actual incompatible active requests. "
+        "Every proposal or restore must include conflict, either null or an object with a reason and at least two "
         "distinct affected authors from the project history. Never include uninvolved people merely "
         "because they chatted or drew something. "
         "Generate Qt 6.8+ Quick/Controls/Layouts QML. Root must be an Item or Rectangle, never Window "

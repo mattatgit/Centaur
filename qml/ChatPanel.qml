@@ -11,6 +11,12 @@ Rectangle {
     property bool hasConflict: hasProposal && !!proposal.conflict
     property bool accepted: hasProposal && proposal.accepted.indexOf(Backend.author) !== -1
     property bool contributor: hasProposal && proposal.authors.indexOf(Backend.author) !== -1
+    function messageText(message) {
+        // Keep old saved conversations readable without routine version announcements.
+        if (message.kind === "agent" && /^Applied the (agreed )?change\. Revision \d+ is ready to try\.$/.test(message.text))
+            return "Updated the app."
+        return message.text
+    }
     function focusComposer() { composer.forceActiveFocus() }
     function send() {
         const text = composer.text.trim()
@@ -64,7 +70,7 @@ Rectangle {
                         Text { text: Qt.formatTime(new Date(modelData.time), "hh:mm"); color: Theme.muted; font.pointSize: 9 }
                     }
                     TextEdit {
-                        text: modelData.text
+                        text: chat.messageText(modelData)
                         Layout.fillWidth: true
                         Layout.preferredHeight: contentHeight
                         readOnly: true; selectByMouse: true
@@ -74,7 +80,6 @@ Rectangle {
                         color: modelData.kind === "system" ? Theme.muted : Theme.ink
                         selectionColor: "#d9e4ff"
                     }
-                    Text { visible: modelData.revision < Backend.project.revision; text: "Discussed on V" + modelData.revision; font.pointSize: 9; color: Theme.muted }
                 }
             }
             ColumnLayout {

@@ -33,6 +33,8 @@ nix --refresh run 'github:mattatgit/Centaur?ref=codex/native-prototype' -- --dem
 4. Draw over and outside the app, add a Comment arrow, undo a mark, then switch back to Use app. The app should still receive clicks normally.
 5. Resize Centaur and drag the divider beside the chat. Check that the app and marks stay aligned and input still lands where expected.
 6. Restart the app and return to Projects. Reopen it; messages, source and marks should persist.
+7. Ask for two small app changes, such as a blue background followed by a green one. There should be no numbered revision badges on the canvas or project card, no version labels on earlier messages, and no routine numbered version announcements.
+8. Ask “@centaur what did we change earlier?” The reply should describe the saved changes without changing the app. Then ask to go back to before the green background. The earlier source should return after its native check, and the green version should remain in history so it can be restored later. Reopen the project and repeat a history question to check persistence.
 
 The automatic Linux test separately requires an actual client buffer and a mouse-input round trip through the canvas. It cannot establish how the physical GPU behaves or whether the app feels responsive on the Air.
 
