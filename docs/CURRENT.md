@@ -10,7 +10,7 @@ Focus on two experiments: a native app operating inside Centaur's frame, and an 
 
 Implemented as C++17 / Qt Quick 6.8+, with a separate Qt Quick client and a nested Wayland compositor on Linux. A macOS build is provided for native shell development, with an explicit Linux-only placeholder for embedding. Project state is stored locally, source versions use Git, and multiple native windows share an authoritative local session over QLocalSocket.
 
-The agent adapter invokes omp without tools and expects a clarification or proposed QML source. All contributors since the previous accepted build must agree before a proposal is checked/applied. This agreement rule is an experimental prototype policy, not an established product decision. New contributions invalidate pending proposals and stale agent results are discarded. Real model mediation quality still needs evaluation with family conversations.
+The agent adapter invokes omp without tools and expects a clarification or proposed QML source. Its stdin is redirected to `QProcess::nullDevice()` so OMP receives EOF before handling the argument/file prompt; leaving QProcess's default pipe open causes OMP startup to wait until Centaur's three-minute timeout. A regression test uses an executable that reads stdin to EOF before replying, including repeated requests on the same Agent. All contributors since the previous accepted build must agree before a proposal is checked/applied. This agreement rule is an experimental prototype policy, not an established product decision. New contributions invalidate pending proposals and stale agent results are discarded. Real model mediation quality still needs evaluation with family conversations.
 
 ## Deliberate boundaries
 
@@ -22,6 +22,8 @@ The agent adapter invokes omp without tools and expects a clarification or propo
 - Test doubles validate coordination; they do not establish that the live model resolves disagreements well.
 
 ## Next evidence needed
+
+The current interactive Linux test environment is an ARM64 NixOS VM under UTM on an Apple Silicon Mac mini. The user reports that native embedding/input and independent authenticated omp requests work there; the stdin EOF fix still needs a live request through Centaur in that VM. `docs/OMP_NIXOS_SETUP.md` covers updating and launching with an existing omp binary.
 
 On the NixOS Air, manually exercise focus, typing, checkbox input, menus/dialogs, relaunch, drawing overlays and app scaling. Then configure a real omp session and test compatible requests, contradictory requirements, mid-run corrections, and reopening a settled decision. Measure resources on target hardware.
 

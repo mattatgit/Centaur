@@ -115,6 +115,9 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
     args << ("@" + m_promptFile) << "Follow the attached Centaur request. Return only the required JSON.";
     m_cancelled = false;
     m_process.setWorkingDirectory(projectPath);
+    // omp reads non-terminal stdin to EOF before processing the argv prompt.
+    // All input is in args/attachments; an open QProcess pipe would stall startup.
+    m_process.setStandardInputFile(QProcess::nullDevice());
     m_process.start(executable(), args);
     m_timeout.start();
 }

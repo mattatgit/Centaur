@@ -1,10 +1,12 @@
 # Omp NixOS Setup
 
-Use these steps on the MacBook Air running NixOS to connect Centaur to a real agent.
+Use these steps on the MacBook Air or in a NixOS VM to connect Centaur to a real agent.
 
 Centaur currently needs **oh-my-pi (`omp`) installed and signed in separately**. There is no agent sign-in screen inside Centaur yet. Run the commands as your normal desktop user, from a terminal in the graphical desktop.
 
 ## 1. Install omp
+
+If an existing installation (including a precompiled binary) already answers requests, keep it and skip to step 3. There is no need to reinstall it through Nix.
 
 ```sh
 nix --extra-experimental-features 'nix-command flakes' \
@@ -90,6 +92,7 @@ The agent should ask a question or propose a change. When a proposal is ready, u
 
 - **`omp` is not found:** check that `omp --version` works in the terminal used to launch Centaur.
 - **The terminal request fails:** reopen omp, check `/login` and the default `/model`, then repeat step 3.
+- **The terminal request succeeds but Centaur times out after three minutes:** versions before the stdin fix left OMP's input pipe open. OMP waited for EOF before processing the request. Close all Centaur windows and use the refreshed launch command in step 4 to get the fix; reinstalling omp or signing in again is not needed for this bug. If omp is outside `PATH`, replace `$(command -v omp)` with its absolute path, for example `/home/matt/.local/bin/omp`.
 - **The terminal request works but Centaur fails:** close every Centaur window and repeat step 4. Record the exact error shown in Centaur and your `omp --version` output so we can investigate the integration.
 - **The reply is unreadable:** record Centaur's error and the selected model. Centaur requires a structured response from omp; a successful terminal conversation alone does not verify that response format.
 

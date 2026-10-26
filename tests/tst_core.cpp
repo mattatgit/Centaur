@@ -10,6 +10,7 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QPainter>
+#include <QScopeGuard>
 #include <QStandardPaths>
 
 class CoreTests : public QObject {
@@ -50,6 +51,39 @@ private slots:
         QVERIFY(Agent::parseReply(R"({"kind":"proposal","message":"Done"})", &error).isEmpty());
         QVERIFY(Agent::parseReply(R"({"kind":"anything","message":"Done"})", &error).isEmpty());
         QCOMPARE(Agent::parseReply("```json\n{\"kind\":\"question\",\"message\":\"Which is better?\"}\n```", &error)["kind"].toString(), QString("question"));
+    }
+    void agentReceivesStdinEofBeforeReplying() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Agent connection", "", &error);
+        QVERIFY2(!id.isEmpty(), qPrintable(error));
+        const auto fake = dir.path() + "/stdin-agent";
+        const auto shell = QStandardPaths::findExecutable("sh").toUtf8();
+        QVERIFY(!shell.isEmpty());
+        // Like omp's print mode, consume piped stdin before handling argv.
+        QVERIFY(Workspace::writeFile(fake, "#!" + shell + "\ncat >/dev/null\n"
+            "printf '%s\\n' '{\"kind\":\"question\",\"message\":\"Connection test\"}'\n"));
+        QVERIFY(QFile::setPermissions(fake, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const bool hadAgent = qEnvironmentVariableIsSet("CENTAUR_AGENT");
+        const auto previousAgent = qgetenv("CENTAUR_AGENT");
+        const auto restoreAgent = qScopeGuard([&] {
+            if (hadAgent) qputenv("CENTAUR_AGENT", previousAgent);
+            else qunsetenv("CENTAUR_AGENT");
+        });
+        qputenv("CENTAUR_AGENT", fake.toUtf8());
+        Agent agent;
+        QSignalSpy completed(&agent, &Agent::completed);
+        QSignalSpy failed(&agent, &Agent::failed);
+        const auto stopAgent = qScopeGuard([&] { agent.cancel(); });
+        // A reused QProcess must provide EOF on every request, not only the first.
+        for (int request = 1; request <= 2; ++request) {
+            agent.ask(workspace.projectPath(id), workspace.load(id), workspace.source(id));
+            QTRY_COMPARE_WITH_TIMEOUT(completed.size(), request, 3000);
+            QVERIFY(failed.isEmpty());
+            QCOMPARE(completed.last().first().toJsonObject()["message"].toString(), QString("Connection test"));
+            QVERIFY(!agent.busy());
+        }
     }
     void interactionModeDoesNotInterceptAppClicks() {
         InkItem layer;
