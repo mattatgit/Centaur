@@ -58,10 +58,7 @@ int main(int argc, char *argv[]) {
             || !Workspace::writeFile(workspace.projectPath(id) + "/App.qml", probe.readAll())) return 1;
     }
     controller.start();
-    if (embeddingTest || parser.isSet("demo")) {
-        if (controller.projects().isEmpty()) controller.createProject("Family board", "A little space for everyday things, made together.");
-        else controller.openProject(controller.projects().first().toMap()["id"].toString());
-    }
+    if (embeddingTest || parser.isSet("demo")) controller.openStarterProject();
     if (smoke) {
         // Exercise both main views and all their QML components.
         QTimer::singleShot(100, &app, [&] {

@@ -200,12 +200,18 @@ bool Session::persist(const QString &id, QJsonObject state) {
 void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
     const auto type = command["type"].toString();
     auto fail = [this, sender](const QString &message) { reply(sender, {{"type", "error"}, {"message", message}}); };
-    if (type == "create") {
+    if (type == "create" || type == "openStarter") {
+        // Only the host has the authoritative list at startup. Resolve this in
+        // one command so joining windows cannot each create a starter project.
+        const bool starter = type == "openStarter";
+        const auto projects = starter ? m_workspace.projects() : QVariantList();
         QString error;
-        const auto id = m_workspace.createProject(command["name"].toString(), command["description"].toString(), &error);
+        const auto id = !projects.isEmpty() ? projects.first().toMap()["id"].toString()
+            : m_workspace.createProject(starter ? "Family board" : command["name"].toString(),
+                starter ? "A little space for everyday things, made together." : command["description"].toString(), &error);
         if (id.isEmpty()) { fail(error); return; }
         publish(id);
-        reply(sender, {{"type", "created"}, {"projectId", id}});
+        reply(sender, {{"type", starter ? "opened" : "created"}, {"projectId", id}});
         return;
     }
     const auto id = command["projectId"].toString();

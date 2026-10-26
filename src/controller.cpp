@@ -36,6 +36,7 @@ Controller::Controller(QString root, QObject *parent) : QObject(parent), m_sessi
 }
 Controller::~Controller() { stopPreview(); }
 void Controller::start() { m_session.start(); }
+void Controller::openStarterProject() { m_session.send({{"type", "openStarter"}}); }
 bool Controller::embeddingSupported() const {
 #ifdef CENTAUR_WAYLAND
     return true;
@@ -51,7 +52,9 @@ void Controller::setAuthor(const QString &author) {
 }
 
 void Controller::receive(const QJsonObject &data) {
-    if (data["type"] == "created") { openProject(data["projectId"].toString()); return; }
+    if (data["type"] == "created" || data["type"] == "opened") {
+        openProject(data["projectId"].toString()); return;
+    }
     if (data["type"] != "snapshot") return;
     const auto oldRevision = project()["revision"].toInt();
     m_projects = data["projects"].toArray().toVariantList();

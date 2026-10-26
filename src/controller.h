@@ -23,6 +23,7 @@ public:
     explicit Controller(QString root, QObject *parent = nullptr);
     ~Controller() override;
     void start();
+    void openStarterProject();
     QVariantList projects() const { return m_projects; }
     QVariantMap project() const { return m_states.value(m_projectId).toVariantMap(); }
     QString projectId() const { return m_projectId; }

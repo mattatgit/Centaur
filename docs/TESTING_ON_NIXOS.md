@@ -43,6 +43,8 @@ The automatic Linux test separately requires an actual client buffer and a mouse
 
 Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. Keep the hosting window open.
 
+With a fresh data directory, start both windows with `--demo`. Both should open the same single starter project. Make an app change, return to Projects in both windows, and reopen it: there should still be one project with the saved change. Restart both windows with the same directory and `--demo` and check that the project is reused. **New project** should still create a separate app intentionally. Older unwanted starter projects remain separate saved folders; do not delete them until you have checked which contains the work you want.
+
 To connect the live agent, follow [Omp NixOS Setup](OMP_NIXOS_SETUP.md). Then try:
 
 - Matt: “Keep the navigation minimal.”

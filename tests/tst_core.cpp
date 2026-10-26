@@ -78,6 +78,52 @@ private slots:
         QVERIFY(previous.open(QIODevice::ReadOnly));
         QCOMPARE(QString::fromUtf8(previous.readAll()), old);
     }
+    void starterWindowsReuseOneProject_data() {
+        QTest::addColumn<bool>("existingProject");
+        QTest::newRow("new workspace") << false;
+        QTest::newRow("existing project") << true;
+    }
+    void starterWindowsReuseOneProject() {
+        QFETCH(bool, existingProject);
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString id;
+        {
+            Controller host(dir.path()); host.start();
+            if (existingProject) {
+                host.createProject("Family planner", "An existing app");
+                id = host.projectId();
+                QVERIFY(!id.isEmpty());
+            }
+            Controller firstGuest(dir.path()); firstGuest.start();
+            Controller secondGuest(dir.path()); secondGuest.start();
+            // Match main(): --demo runs before guests receive their first list.
+            QVERIFY(firstGuest.projects().isEmpty());
+            QVERIFY(secondGuest.projects().isEmpty());
+            firstGuest.openStarterProject();
+            secondGuest.openStarterProject();
+            host.openStarterProject();
+            if (id.isEmpty()) id = host.projectId();
+            QVERIFY(!id.isEmpty());
+            QTRY_COMPARE(firstGuest.projectId(), id);
+            QTRY_COMPARE(secondGuest.projectId(), id);
+            QCOMPARE(host.projects().size(), 1);
+            QCOMPARE(firstGuest.projects().size(), 1);
+            QCOMPARE(secondGuest.projects().size(), 1);
+            QCOMPARE(workspace.projects().size(), 1);
+            QCOMPARE(workspace.projects().first().toMap()["id"].toString(), id);
+            host.closeProject();
+            host.openStarterProject();
+            QCOMPARE(host.projectId(), id);
+        }
+        Controller reopened(dir.path()); reopened.start(); reopened.openStarterProject();
+        QCOMPARE(reopened.projectId(), id);
+        QCOMPARE(workspace.projects().size(), 1);
+        // Explicitly creating a different project remains available.
+        reopened.createProject("Another app", "");
+        QVERIFY(reopened.projectId() != id);
+        QCOMPARE(workspace.projects().size(), 2);
+    }
     void savedHistoryPreservesExactSources() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());
@@ -292,6 +338,8 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 2, 15000);
         QCOMPARE(workspace.source(id), qml);
         QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+        QCOMPARE(workspace.projects().size(), 1);
+        QCOMPARE(workspace.projects().first().toMap()["id"].toString(), id);
         const auto decision = workspace.load(id)["decisions"].toArray().last().toObject();
         QCOMPARE(decision["authors"].toArray(), QJsonArray{"Saori"});
         QCOMPARE(decision["requestedBy"].toString(), QString("Saori"));

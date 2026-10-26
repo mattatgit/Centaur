@@ -18,6 +18,8 @@ The first build downloads Qt and the compiler. Subsequent launches reuse the bui
 nix run . -- --demo
 ```
 
+`--demo` opens the most recently updated project, creating a starter only if there are no visible projects. Joining windows resolve this through the shared host, so launching another window does not create another project. App changes update the existing project's source and history.
+
 Centaur needs a graphical Linux session and its normal `XDG_RUNTIME_DIR`. It runs as your ordinary user; creating projects does not require rebuilding the operating system. Each window opens its own private Wayland socket, so Centaur can run inside an existing Wayland desktop or an X11 session.
 
 ## Try the prototype
