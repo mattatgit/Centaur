@@ -19,7 +19,7 @@ int main(int argc, char *argv[]) {
     if (!initializeTypography()) return 1;
     QCoreApplication::setApplicationName("Centaur");
     QCoreApplication::setOrganizationName("Centaur");
-    QCoreApplication::setApplicationVersion("0.1.0");
+    QCoreApplication::setApplicationVersion(CENTAUR_APP_VERSION);
     QQuickStyle::setStyle("Basic");
     Q_INIT_RESOURCE(starter);
     QCommandLineParser parser;

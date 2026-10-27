@@ -11,11 +11,12 @@
       pluginPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/plugins" (qtPackages pkgs);
       package = pkgs: pkgs.stdenv.mkDerivation {
         pname = "centaur";
-        version = "0.1.0";
+        version = "0.1.1";
         src = self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
         buildInputs = qtPackages pkgs;
-        cmakeFlags = [ "-DBUILD_TESTING=ON" ];
+        cmakeFlags = [ "-DBUILD_TESTING=ON"
+          "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ];
         nativeCheckInputs = [ pkgs.git ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
         doCheck = true;
         preCheck = ''

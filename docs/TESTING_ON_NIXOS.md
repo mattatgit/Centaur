@@ -43,6 +43,8 @@ The automatic Linux test separately requires an actual client buffer and a mouse
 
 Typography should be Inter in project cards, chat, buttons, fields, menus/dialogs and the example app, without installing Inter in NixOS. Existing app source inherits the preview runtime's default unless it explicitly selects another family. Check that larger headings and 12.5-point chat remain readable, the divider still resizes correctly, and no text is unexpectedly clipped. Shapes used as toolbar symbols may come from a fallback font.
 
+The bottom-right chat footer shows Centaur's software version and build revision on the same line as “Chatting as…”. It should remain visible when narrowing the chat panel; the author/keyboard hint can elide and its full text is available on hover. `centaur --version` should report the same identifier. This is independent of the generated app's internal revision history.
+
 Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. Keep the hosting window open.
 
 With a fresh data directory, start both windows with `--demo`. Both should open the same single starter project. Make an app change, return to Projects in both windows, and reopen it: there should still be one project with the saved change. Restart both windows with the same directory and `--demo` and check that the project is reused. **New project** should still create a separate app intentionally. Older unwanted starter projects remain separate saved folders; do not delete them until you have checked which contains the work you want.

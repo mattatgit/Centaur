@@ -159,6 +159,26 @@ Rectangle {
                 FlatButton { text: "↑"; implicitWidth: 30; implicitHeight: 30; tone: "dark"; enabled: composer.text.trim().length > 0; onClicked: chat.send(); Accessible.name: "Send message" }
             }
         }
-        Text { text: "Chatting as " + Backend.author + " · Shift + Enter for a new line"; font.pointSize: 9; color: Theme.muted; Layout.alignment: Qt.AlignHCenter }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+            Text {
+                id: footerHint
+                text: "Chatting as " + Backend.author + " · Shift + Enter for a new line"
+                font.pointSize: 9; color: Theme.muted
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+                ToolTip.visible: footerHintHover.hovered
+                ToolTip.text: footerHint.text
+                HoverHandler { id: footerHintHover }
+            }
+            Text {
+                objectName: "centaurVersion"
+                text: "v" + Qt.application.version
+                font.pointSize: 8.5; color: Theme.muted
+                Layout.minimumWidth: implicitWidth
+                Accessible.name: "Centaur version " + Qt.application.version
+            }
+        }
     }
 }
