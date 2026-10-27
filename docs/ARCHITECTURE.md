@@ -81,3 +81,11 @@ Sources: [Inter licence](https://github.com/rsms/inter/blob/master/LICENSE.txt),
 The implementation embeds unmodified Inter 4.1 Regular, SemiBold and Bold in both native executables and registers them before creating QML engines. New example apps and existing apps using the runtime's default font receive Inter; explicitly chosen font families in saved app source are respected. OMP is told to preserve Inter unless an author requests another font. Source provenance and hashes are recorded in [the font asset directory](../assets/fonts/inter/README.md). The licence is embedded and installed as a readable file with the package. Future standalone app exports must preserve those assets and notices too.
 
 Font licensing is separate from the unresolved application and Qt distribution licensing decisions noted in the README.
+
+## Native UI and Dialogue assets
+
+Centaur ports Dialogue's navigation, button states and grid controls into Qt Quick; it does not embed Dialogue's HTML or introduce a browser runtime. Original SVG files and extracted symbol geometry are bundled as resources and rendered as colour masks with Qt SVG, matching Dialogue's CSS mask approach on both hardware and software rendering paths. The original empty-state PNG is bundled unchanged. See [asset provenance](../assets/dialogue/README.md).
+
+Interact/Build is a per-window input mode, not a different collaboration session or an approval requirement. Chat stays available in both modes. The grid is a painted, non-interactive overlay; its size is measured in the native app's logical design units and its origin follows the app frame. Device preferences live in preferences.ini outside app source/history. Settings can temporarily hide a live workspace while retaining its compositor and preview; closing a project still stops the client before releasing compositor views.
+
+Design-system import and Deploy remain explicit placeholders. This UI update does not implement network collaboration, a design-system store or standalone app deployment.

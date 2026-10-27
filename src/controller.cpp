@@ -6,8 +6,14 @@
 #include <QUuid>
 #include <QFileInfo>
 
-Controller::Controller(QString root, QObject *parent) : QObject(parent), m_session(root) {
-    m_author = qEnvironmentVariable("CENTAUR_AUTHOR", qEnvironmentVariable("USER", "You"));
+Controller::Controller(QString root, QObject *parent) : QObject(parent),
+    m_preferences(root + "/preferences.ini", QSettings::IniFormat), m_session(root) {
+    m_author = qEnvironmentVariable("CENTAUR_AUTHOR", m_preferences.value("author", qEnvironmentVariable("USER", "You")).toString());
+    m_gridEnabled = m_preferences.value("grid/enabled", false).toBool();
+    m_gridSize = qBound(2, m_preferences.value("grid/size", 8).toInt(), 64);
+    m_gridOpacity = qBound(0, m_preferences.value("grid/opacity", 50).toInt(), 100);
+    const QColor savedColor(m_preferences.value("grid/color", "#BAE6FF").toString());
+    if (savedColor.isValid()) m_gridColor = savedColor;
     m_previewStatus = embeddingSupported() ? "Opening native app…" : "Native embedding requires Linux";
     connect(&m_session, &Session::snapshot, this, &Controller::receive);
     connect(&m_session, &Session::error, this, &Controller::error);
@@ -48,8 +54,37 @@ QString Controller::socketName() const { return "centaur-preview-" + QString::nu
 void Controller::setSurfaceCount(int count) { m_surfaceCount = count; emit previewChanged(); }
 void Controller::setAuthor(const QString &author) {
     if (author.trimmed().isEmpty()) return;
-    m_author = author.trimmed().left(50); emit changed();
+    m_author = author.trimmed().left(50); savePreferences(); emit changed();
 }
+
+void Controller::savePreferences() {
+    m_preferences.setValue("author", m_author);
+    m_preferences.setValue("grid/enabled", m_gridEnabled);
+    m_preferences.setValue("grid/size", m_gridSize);
+    m_preferences.setValue("grid/opacity", m_gridOpacity);
+    m_preferences.setValue("grid/color", m_gridColor.name());
+    m_preferences.sync();
+    if (m_preferences.status() != QSettings::NoError) emit error("Could not save your preferences.");
+}
+void Controller::setGridEnabled(bool value) {
+    if (m_gridEnabled == value) return;
+    m_gridEnabled = value; savePreferences(); emit preferencesChanged();
+}
+void Controller::setGridSize(int value) {
+    value = qBound(2, value, 64);
+    if (m_gridSize == value) return;
+    m_gridSize = value; savePreferences(); emit preferencesChanged();
+}
+void Controller::setGridOpacity(int value) {
+    value = qBound(0, value, 100);
+    if (m_gridOpacity == value) return;
+    m_gridOpacity = value; savePreferences(); emit preferencesChanged();
+}
+void Controller::setGridColor(const QColor &value) {
+    if (!value.isValid() || m_gridColor == value) return;
+    m_gridColor = value; savePreferences(); emit preferencesChanged();
+}
+void Controller::revealData() { QDesktopServices::openUrl(QUrl::fromLocalFile(dataRoot())); }
 
 void Controller::receive(const QJsonObject &data) {
     if (data["type"] == "created" || data["type"] == "opened") {
@@ -63,6 +98,7 @@ void Controller::receive(const QJsonObject &data) {
         const auto state = value.toObject(); m_states.insert(state["id"].toString(), state);
     }
     m_agentAvailable = data["agentAvailable"].toBool();
+    m_agentExecutable = data["agentExecutable"].toString();
     m_busyProject = data["busyProject"].toString();
     if (!m_projectId.isEmpty() && !m_states.contains(m_projectId)) closeProject();
     emit changed();

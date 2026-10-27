@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 include(CTest)
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Svg)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(Qt6 REQUIRED COMPONENTS WaylandCompositor)
     set(PREVIEW_QML qml/WaylandPreview.qml)
@@ -29,14 +29,18 @@ add_library(centaur_core STATIC
     src/session.cpp src/session.h
     src/agent.cpp src/agent.h
     src/controller.cpp src/controller.h
+    src/svgicon.cpp src/svgicon.h
+    src/designgrid.cpp src/designgrid.h
     src/inkitem.cpp src/inkitem.h)
-target_link_libraries(centaur_core PUBLIC Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network centaur_typography)
+target_link_libraries(centaur_core PUBLIC Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network Qt6::Svg centaur_typography)
 target_include_directories(centaur_core PUBLIC src)
 target_compile_options(centaur_core PRIVATE -Wall -Wextra -Wpedantic)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_compile_definitions(centaur_core PUBLIC CENTAUR_WAYLAND=1)
 endif()
 qt_add_resources(centaur_core starter PREFIX "/" FILES templates/App.qml)
+file(GLOB DIALOGUE_ASSETS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" CONFIGURE_DEPENDS assets/dialogue/*.svg assets/dialogue/*.png)
+qt_add_resources(centaur_core dialogue_assets PREFIX "/" FILES ${DIALOGUE_ASSETS})
 qt_add_executable(centaur src/main.cpp)
 target_compile_definitions(centaur PRIVATE CENTAUR_APP_VERSION="${PROJECT_VERSION}+${CENTAUR_BUILD_ID}")
 target_link_libraries(centaur PRIVATE centaur_core Qt6::QuickControls2)
@@ -46,12 +50,14 @@ endif()
 qt_add_resources(centaur ui PREFIX "/" FILES
     qml/Main.qml qml/ProjectsView.qml qml/WorkspaceView.qml
     qml/ChatPanel.qml qml/CanvasView.qml qml/FlatButton.qml
+    qml/SideNavigation.qml qml/BrandMark.qml qml/DesignSystemsView.qml qml/SettingsView.qml
     qml/Theme.qml qml/qmldir ${PREVIEW_QML})
 qt_add_resources(centaur probe PREFIX "/" FILES tests/fixtures/EmbeddedProbe.qml)
 qt_add_executable(centaur-preview src/preview_main.cpp)
 target_link_libraries(centaur-preview PRIVATE Qt6::Quick Qt6::QuickControls2 centaur_typography)
 install(TARGETS centaur centaur-preview RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 install(FILES assets/fonts/inter/LICENSE.txt DESTINATION share/licenses/centaur/inter)
+install(FILES assets/dialogue/LICENSE DESTINATION share/licenses/centaur/dialogue)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install(FILES packaging/centaur.desktop DESTINATION share/applications)
     install(FILES packaging/centaur.svg DESTINATION share/icons/hicolor/scalable/apps)

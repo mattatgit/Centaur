@@ -5,7 +5,7 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       eachSystem = nixpkgs.lib.genAttrs systems;
-      qtPackages = pkgs: with pkgs.qt6; [ qtbase qtdeclarative ]
+      qtPackages = pkgs: with pkgs.qt6; [ qtbase qtdeclarative qtsvg ]
         ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux qtwayland;
       qmlPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/qml" (qtPackages pkgs);
       pluginPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/plugins" (qtPackages pkgs);

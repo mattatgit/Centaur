@@ -1,6 +1,8 @@
 #include "controller.h"
 #include "inkitem.h"
 #include "typography.h"
+#include "svgicon.h"
+#include "designgrid.h"
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
@@ -44,6 +46,8 @@ int main(int argc, char *argv[]) {
         if (output.contains("CENTAUR_INPUT_OK")) inputForwarded = true;
     });
     qmlRegisterType<InkItem>("Centaur.Native", 1, 0, "InkLayer");
+    qmlRegisterType<SvgIcon>("Centaur.Native", 1, 0, "SvgIcon");
+    qmlRegisterType<DesignGrid>("Centaur.Native", 1, 0, "DesignGrid");
     QQmlApplicationEngine engine;
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&controller] { controller.stopPreview(); });
     engine.rootContext()->setContextProperty("Backend", &controller);
@@ -61,7 +65,17 @@ int main(int argc, char *argv[]) {
     }
     controller.start();
     if (embeddingTest || parser.isSet("demo")) controller.openStarterProject();
+    const auto saveSmokeImage = [&](const QString &name) {
+        if (!parser.isSet("screenshot")) return;
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        auto path = parser.value("screenshot");
+        const auto dot = path.lastIndexOf('.');
+        path.insert(dot >= 0 ? dot : path.size(), "-" + name);
+        if (dot < 0) path += ".png";
+        if (!window || !window->grabWindow().save(path)) qmlWarning = true;
+    };
     if (smoke) {
+        QTimer::singleShot(50, &app, [&] { saveSmokeImage("projects"); });
         // Exercise both main views and all their QML components.
         QTimer::singleShot(100, &app, [&] {
             controller.createProject("UI test", "Temporary smoke-test project");
@@ -70,6 +84,29 @@ int main(int argc, char *argv[]) {
             controller.addAnnotation({{"tool", "draw"}, {"points", QVariantList{
                 QVariantMap{{"x", 0.1}, {"y", 0.2}}, QVariantMap{{"x", 0.2}, {"y", 0.3}}}}});
         });
+        QTimer::singleShot(300, &app, [&] {
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            window->setProperty("buildMode", true);
+            controller.setGridEnabled(true);
+        });
+        QTimer::singleShot(450, &app, [&] {
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            auto *chat = window->findChild<QQuickItem *>("chatComposer");
+            auto *ink = window->findChild<InkItem *>("inkLayer");
+            if (!chat || !chat->isVisible() || !ink || ink->acceptedMouseButtons() != Qt::LeftButton) qmlWarning = true;
+            saveSmokeImage("build");
+            window->setProperty("buildMode", false);
+        });
+        QTimer::singleShot(550, &app, [&] {
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            auto *chat = window->findChild<QQuickItem *>("chatComposer");
+            auto *ink = window->findChild<InkItem *>("inkLayer");
+            if (!chat || !chat->isVisible() || !ink || ink->acceptedMouseButtons() != Qt::NoButton) qmlWarning = true;
+            saveSmokeImage("interact");
+            window->setProperty("page", "designSystems");
+        });
+        QTimer::singleShot(750, &app, [&] { saveSmokeImage("design-systems"); engine.rootObjects().first()->setProperty("page", "settings"); });
+        QTimer::singleShot(950, &app, [&] { saveSmokeImage("settings"); engine.rootObjects().first()->setProperty("page", "projects"); });
         QTimer::singleShot(1200, &app, [&] { app.exit(qmlWarning || controller.projectId().isEmpty() ? 1 : 0); });
     }
     if (embeddingTest) {
@@ -95,7 +132,7 @@ int main(int argc, char *argv[]) {
             } else { qInfo("Separate native client rendered and received canvas input."); app.exit(0); }
         });
     }
-    if (parser.isSet("screenshot")) QTimer::singleShot(1800, &app, [&] {
+    if (parser.isSet("screenshot") && !smoke) QTimer::singleShot(1800, &app, [&] {
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         const bool saved = window && window->grabWindow().save(parser.value("screenshot"));
         app.exit(saved ? 0 : 1);

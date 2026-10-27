@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QVariantMap>
 #include <QProcess>
+#include <QSettings>
+#include <QColor>
 
 class Controller : public QObject {
     Q_OBJECT
@@ -19,6 +21,11 @@ class Controller : public QObject {
     Q_PROPERTY(QString socketName READ socketName CONSTANT)
     Q_PROPERTY(int surfaceCount READ surfaceCount WRITE setSurfaceCount NOTIFY previewChanged)
     Q_PROPERTY(QString dataRoot READ dataRoot CONSTANT)
+    Q_PROPERTY(bool gridEnabled READ gridEnabled WRITE setGridEnabled NOTIFY preferencesChanged)
+    Q_PROPERTY(int gridSize READ gridSize WRITE setGridSize NOTIFY preferencesChanged)
+    Q_PROPERTY(int gridOpacity READ gridOpacity WRITE setGridOpacity NOTIFY preferencesChanged)
+    Q_PROPERTY(QColor gridColor READ gridColor WRITE setGridColor NOTIFY preferencesChanged)
+    Q_PROPERTY(QString agentExecutable READ agentExecutable NOTIFY changed)
 public:
     explicit Controller(QString root, QObject *parent = nullptr);
     ~Controller() override;
@@ -37,6 +44,15 @@ public:
     bool embeddingSupported() const;
     QString socketName() const;
     QString dataRoot() const { return m_session.root(); }
+    bool gridEnabled() const { return m_gridEnabled; }
+    int gridSize() const { return m_gridSize; }
+    int gridOpacity() const { return m_gridOpacity; }
+    QColor gridColor() const { return m_gridColor; }
+    void setGridEnabled(bool value);
+    void setGridSize(int value);
+    void setGridOpacity(int value);
+    void setGridColor(const QColor &value);
+    QString agentExecutable() const { return m_agentExecutable; }
     int surfaceCount() const { return m_surfaceCount; }
     void setSurfaceCount(int count);
     Q_INVOKABLE void createProject(const QString &name, const QString &description);
@@ -54,7 +70,9 @@ public:
     Q_INVOKABLE void restartPreview();
     Q_INVOKABLE QString capturePath() const;
     Q_INVOKABLE void revealProject();
+    Q_INVOKABLE void revealData();
 signals:
+    void preferencesChanged();
     void changed();
     void previewChanged();
     void previewStopping();
@@ -63,6 +81,8 @@ signals:
 private:
     void receive(const QJsonObject &data);
     void command(QJsonObject data);
+    void savePreferences();
+    QSettings m_preferences;
     Session m_session;
     QProcess m_preview;
     QVariantList m_projects;
@@ -71,6 +91,11 @@ private:
     QString m_author;
     QString m_busyProject;
     QString m_previewStatus;
+    QString m_agentExecutable;
+    bool m_gridEnabled = false;
+    int m_gridSize = 8;
+    int m_gridOpacity = 50;
+    QColor m_gridColor = QColor("#BAE6FF");
     bool m_agentAvailable = false;
     bool m_stopping = false;
     int m_surfaceCount = 0;

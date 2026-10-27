@@ -4,6 +4,8 @@
 #include "inkitem.h"
 #include "controller.h"
 #include "typography.h"
+#include "designgrid.h"
+#include "svgicon.h"
 #include <QtTest>
 #include <QTemporaryDir>
 #include <QFile>
@@ -55,6 +57,51 @@ class CoreTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { Q_INIT_RESOURCE(starter); }
+    void gridAndIdentityPreferencesPersist() {
+        QTemporaryDir dir;
+        {
+            Controller controller(dir.path());
+            QCOMPARE(controller.gridSize(), 8);
+            QCOMPARE(controller.gridOpacity(), 50);
+            QCOMPARE(controller.gridColor(), QColor("#BAE6FF"));
+            QVERIFY(!controller.gridEnabled());
+            controller.setAuthor("Matt");
+            controller.setGridSize(12); controller.setGridOpacity(70);
+            controller.setGridColor(QColor("#aabbcc")); controller.setGridEnabled(true);
+        }
+        Controller reopened(dir.path());
+        if (!qEnvironmentVariableIsSet("CENTAUR_AUTHOR")) QCOMPARE(reopened.author(), QString("Matt"));
+        QCOMPARE(reopened.gridSize(), 12); QCOMPARE(reopened.gridOpacity(), 70);
+        QCOMPARE(reopened.gridColor(), QColor("#aabbcc")); QVERIFY(reopened.gridEnabled());
+        reopened.setGridSize(0); QCOMPARE(reopened.gridSize(), 2);
+        reopened.setGridSize(100); QCOMPARE(reopened.gridSize(), 64);
+        reopened.setGridOpacity(-1); QCOMPARE(reopened.gridOpacity(), 0);
+        reopened.setGridOpacity(101); QCOMPARE(reopened.gridOpacity(), 100);
+        reopened.setGridColor(QColor()); QCOMPARE(reopened.gridColor(), QColor("#aabbcc"));
+    }
+    void gridAndOriginalSvgDoNotInterceptInput() {
+        DesignGrid grid;
+        grid.setSize(QSizeF(24, 24)); grid.setOrigin(QPointF(3, 5));
+        QCOMPARE(grid.acceptedMouseButtons(), Qt::NoButton);
+        QImage image(24, 24, QImage::Format_ARGB32_Premultiplied); image.fill(Qt::transparent);
+        QPainter painter(&image); grid.paint(&painter); painter.end();
+        QCOMPARE(image.pixelColor(0, 0).alpha(), 0);
+        QCOMPARE(image.pixelColor(3, 0), grid.color());
+        QCOMPARE(image.pixelColor(0, 5), grid.color());
+        SvgIcon icon;
+        icon.setSize(QSizeF(32, 32)); icon.setSource(QUrl("qrc:/assets/dialogue/project-icon-default.svg"));
+        icon.setColor(QColor("#6b6b6b"));
+        QCOMPARE(icon.acceptedMouseButtons(), Qt::NoButton);
+        QImage rendered(32, 32, QImage::Format_ARGB32_Premultiplied); rendered.fill(Qt::transparent);
+        QPainter svgPainter(&rendered); icon.paint(&svgPainter); svgPainter.end();
+        QCOMPARE(rendered.pixelColor(0, 0).alpha(), 0);
+        bool found = false;
+        for (int y = 0; y < 32; ++y) for (int x = 0; x < 32; ++x) if (rendered.pixelColor(x, y).alpha() > 200) {
+            const auto color = rendered.pixelColor(x, y);
+            QCOMPARE(color.red(), 107); QCOMPARE(color.green(), 107); QCOMPARE(color.blue(), 107); found = true;
+        }
+        QVERIFY(found);
+    }
     void interRendersTextAndControlsWithoutSystemInstallation() {
         QCOMPARE(QGuiApplication::font().family(), QString("Inter"));
         for (auto weight : {QFont::Normal, QFont::DemiBold, QFont::Bold}) {

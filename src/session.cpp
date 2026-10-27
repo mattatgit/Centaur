@@ -170,7 +170,7 @@ void Session::publish(const QString &id) {
     QJsonArray states;
     for (const auto &project : m_workspace.projects()) states.append(m_workspace.load(project.toMap()["id"].toString()));
     QJsonObject data{{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(m_workspace.projects())},
-        {"states", states}, {"agentAvailable", m_agent.available()},
+        {"states", states}, {"agentAvailable", m_agent.available()}, {"agentExecutable", m_agent.executable()},
         {"busyProject", m_agent.busy() ? m_agentProject : m_validatingProject}, {"changedProject", id}};
     emit snapshot(data);
     for (auto *peer : m_peers) reply(peer, data);

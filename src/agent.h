@@ -10,6 +10,7 @@ class Agent : public QObject {
 public:
     explicit Agent(QObject *parent = nullptr);
     bool available() const;
+    QString executable() const;
     bool busy() const;
     void ask(const QString &projectPath, const QJsonObject &state, const QString &source,
              const QString &imagePath = {});
@@ -20,7 +21,6 @@ signals:
     void failed(const QString &message);
     void modelReported(const QString &model);
 private:
-    QString executable() const;
     void readOutput();
     void readLine(const QByteArray &line);
     void readMessage(const QJsonObject &message, bool complete);

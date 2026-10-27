@@ -6,6 +6,8 @@ Rectangle {
     id: chat
     color: "white"; radius: 16
     signal sendRequested(string text)
+    signal settingsRequested()
+    function agentLabel(name) { const value = String(name || "centaur"); return value.toLowerCase() === "centaur" ? "Centaur" : value }
     property var proposal: Backend.project.proposal || ({})
     property bool hasProposal: !!proposal.id
     property bool hasConflict: hasProposal && !!proposal.conflict
@@ -36,7 +38,7 @@ Rectangle {
                 Text {
                     id: agentModelLabel
                     Layout.fillWidth: true
-                    text: "@" + (Backend.project.agentName || "centaur") + " · "
+                    text: chat.agentLabel(Backend.project.agentName || "centaur") + " · "
                         + (Backend.agentModel || (Backend.agentAvailable ? "Model not reported yet" : "Not connected"))
                     textFormat: Text.PlainText
                     color: Theme.muted; font.pointSize: 10.5
@@ -48,7 +50,7 @@ Rectangle {
             }
             Rectangle {
                 width: 32; height: 32; radius: 10; color: Theme.lime
-                Text { anchors.centerIn: parent; text: "c"; color: Theme.ink; font.pointSize: 17; font.weight: Font.DemiBold }
+                Text { anchors.centerIn: parent; text: "C"; color: Theme.ink; font.pointSize: 17; font.weight: Font.DemiBold }
                 ToolTip.visible: agentHover.hovered
                 ToolTip.text: Backend.agentAvailable ? "Agent executable available" : "Install and sign in to omp to connect the agent"
                 HoverHandler { id: agentHover }
@@ -77,7 +79,7 @@ Rectangle {
                             color: modelData.kind === "human" ? "#e7ede3" : Theme.lime
                             Text { anchors.centerIn: parent; text: modelData.author.substring(0, 1).toUpperCase(); color: Theme.ink; font.pointSize: 9; font.weight: Font.DemiBold }
                         }
-                        Text { text: modelData.kind === "human" ? modelData.author : "@" + modelData.author; color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                        Text { text: modelData.kind === "human" ? modelData.author : chat.agentLabel(modelData.author); color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
                         Text { text: Qt.formatTime(new Date(modelData.time), "hh:mm"); color: Theme.muted; font.pointSize: 9 }
                     }
                     TextEdit {
@@ -111,7 +113,7 @@ Rectangle {
             RowLayout {
                 id: busyRow
                 anchors.fill: parent; anchors.margins: 10
-                Text { text: "@" + Backend.project.agentName + " is working…"; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { text: chat.agentLabel(Backend.project.agentName) + " is working…"; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
                 FlatButton { text: "Stop"; tone: "plain"; onClicked: Backend.cancelAgent() }
             }
         }
@@ -154,9 +156,9 @@ Rectangle {
             RowLayout {
                 anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
                 anchors.margins: 8
-                FlatButton { text: "@" + Backend.project.agentName; tone: "plain"; implicitHeight: 30; font.pointSize: 9.5; onClicked: { composer.insert(composer.cursorPosition, "@" + Backend.project.agentName + " "); composer.forceActiveFocus() } }
+                FlatButton { text: "@" + Backend.project.agentName; tone: "plain"; implicitHeight: 30; onClicked: { composer.insert(composer.cursorPosition, "@" + Backend.project.agentName + " "); composer.forceActiveFocus() } }
                 Item { Layout.fillWidth: true }
-                FlatButton { text: "↑"; implicitWidth: 30; implicitHeight: 30; tone: "dark"; enabled: composer.text.trim().length > 0; onClicked: chat.send(); Accessible.name: "Send message" }
+                FlatButton { iconSource: "qrc:/assets/dialogue/comment-enter-active.svg"; iconSize: 24; leftPadding: 4; rightPadding: 4; implicitWidth: 32; implicitHeight: 30; tone: "dark"; enabled: composer.text.trim().length > 0; onClicked: chat.send(); Accessible.name: "Send message" }
             }
         }
         RowLayout {
@@ -171,6 +173,11 @@ Rectangle {
                 ToolTip.visible: footerHintHover.hovered
                 ToolTip.text: footerHint.text
                 HoverHandler { id: footerHintHover }
+                TapHandler { onTapped: chat.settingsRequested() }
+                activeFocusOnTab: true
+                Keys.onReturnPressed: chat.settingsRequested()
+                Accessible.role: Accessible.Button
+                Accessible.name: "Your name and agent settings"
             }
             Text {
                 objectName: "centaurVersion"

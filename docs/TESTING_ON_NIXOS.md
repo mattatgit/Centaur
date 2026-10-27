@@ -76,3 +76,12 @@ Software rendering is a fallback for investigation, not a claim of better perfor
 ## Resource measurements
 
 With Centaur and its native app open, inspect both processes in the system monitor. Nix's installed executables may appear as `.centaur-wrapped` and `.centaur-preview-wrapped`. Note the Air's model, RAM, desktop session and GPU, then record idle CPU/RAM and how drawing, resizing and app relaunch feel. Test both the first cold launch and a subsequent warm launch.
+
+## Dialogue navigation and input modes
+
+- Check Projects, Design Systems and Settings, including the compact sidebar on a narrow window. Compare SVG icon and label colours for default, pointer hover, keyboard focus and selection; primary buttons scale on hover, while the mode switch does not.
+- Design Systems should show the original suitcase image and empty-state text. Import stays disabled.
+- In a project, Interact keeps chat usable while clicks/typing reach the native app. Build shows only Draw, Comment and Undo in its bottom toolbar. Switch modes repeatedly and send human messages in each. Bot author labels read Centaur; @centaur mentions still address the agent.
+- Toggle the grid, edit its size (2–64), colour and opacity in Settings, and restart. Defaults on a fresh data directory are off, 8 points, #BAE6FF and 50%. The grid must not take pointer input from the app.
+- Open Settings from the chat author footer and return with Back to app. The native app should remain running. Check the reported executable/model, change your name and agent mention, and try the project actions. Names and grid preferences should survive a restart.
+- Deploy should explain that deployment is not available yet; it must not publish or install the app.

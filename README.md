@@ -26,6 +26,8 @@ Centaur needs a graphical Linux session and its normal `XDG_RUNTIME_DIR`. It run
 
 ## Try the prototype
 
+Projects, Design Systems and Settings use the native sidebar adapted from Dialogue. In a workspace, switch between **Interact** (app input with chat still visible) and **Build** (Draw, Comment and Undo). The grid button and Settings share persistent 8-point grid preferences. Click the chat author footer to open Settings and use **Back to app** to return. Design Systems import and Deploy are not available yet. Original SVG/PNG provenance is recorded in [assets/dialogue](assets/dialogue/README.md).
+
 1. Create a project. This makes a local Git repository with a working `App.qml`, initial checkpoint and README.
 2. On Linux, use the starter app inside the canvas: add a task, tick a checkbox, open the menu and dialog.
 3. Choose **Draw** to sketch, or **Comment** to drag an arrow towards a feature. Switch back to **Use app** to interact. Undo removes your last mark. Press Escape to return to the app.

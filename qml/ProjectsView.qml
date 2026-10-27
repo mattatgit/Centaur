@@ -2,37 +2,15 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Item {
+Rectangle {
     id: root
-    readonly property bool compact: width < 720
+    color: "white"; radius: 16
     signal createRequested()
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: root.compact ? 20 : 48
-        spacing: 28
-        GridLayout {
-            Layout.fillWidth: true
-            columns: root.compact ? 1 : 2
-            columnSpacing: 20; rowSpacing: 16
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                spacing: 8
-                Text { text: "A place to make things."; color: Theme.ink; font.pointSize: root.compact ? 24 : 28; font.weight: Font.DemiBold; Layout.fillWidth: true; wrapMode: Text.Wrap }
-                Text { text: "Start with an idea. Shape it together."; color: Theme.muted; font.pointSize: 12.5; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            }
-            FlatButton { text: "+  New project"; tone: "dark"; Layout.alignment: root.compact ? Qt.AlignLeft : Qt.AlignRight; onClicked: root.createRequested() }
-        }
-        Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
-        RowLayout {
-            Text { text: "Your projects"; font.pointSize: 12; font.weight: Font.DemiBold; color: Theme.ink }
-            Text { text: Backend.projects.length; color: Theme.muted; font.pointSize: 10.5 }
-            Text { text: "Saved on this computer"; color: Theme.muted; font.pointSize: 10.5; Layout.fillWidth: true; horizontalAlignment: Text.AlignRight; elide: Text.ElideRight }
-        }
         ScrollView {
             id: projectsScroll
             objectName: "projectsScroll"
-            Layout.fillWidth: true; Layout.fillHeight: true
+            anchors.fill: parent
+            anchors.margins: root.width < 720 ? 24 : 40
             clip: true
             contentWidth: availableWidth
             contentHeight: projectContent.implicitHeight
@@ -45,7 +23,7 @@ Item {
                     objectName: "projectGrid"
                     width: parent.width
                     visible: Backend.projects.length > 0
-                    spacing: 20
+                    spacing: 32
                     columns: Math.max(1, Math.min(5, Math.floor((width + spacing) / (260 + spacing))))
                     Repeater {
                         model: Backend.projects
@@ -53,7 +31,7 @@ Item {
                             required property var modelData
                             objectName: "projectCard"
                             width: Math.max(0, (projectGrid.width - (projectGrid.columns - 1) * projectGrid.spacing) / projectGrid.columns)
-                            height: 256; radius: 16; color: "white"
+                            height: 256; radius: 16; color: Theme.ice
                             border.width: hover.hovered ? 1 : 0; border.color: "#d3d7ce"
                             HoverHandler { id: hover }
                             TapHandler { onTapped: Backend.openProject(modelData.id) }
@@ -75,7 +53,7 @@ Item {
                 Rectangle {
                     objectName: "projectEmptyState"
                     visible: Backend.projects.length === 0
-                    width: Math.min(420, parent.width); height: 265; radius: 18; color: "white"; border.color: Theme.line
+                    width: Math.min(420, parent.width); height: 265; radius: 18; color: Theme.ice; border.color: Theme.line
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 28; spacing: 16
                         Text { text: "What shall we make?"; font.pointSize: 18; font.weight: Font.DemiBold; color: Theme.ink; Layout.fillWidth: true; wrapMode: Text.Wrap }
@@ -86,5 +64,4 @@ Item {
                 }
             }
         }
-    }
 }
