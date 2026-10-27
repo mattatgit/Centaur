@@ -122,6 +122,12 @@ void Controller::closeProject() { stopPreview(); m_projectId.clear(); emit chang
 void Controller::archiveProject(const QString &id) {
     m_session.send({{"type", "archive"}, {"projectId", id}, {"author", m_author}});
 }
+void Controller::renameProject(const QString &id, const QString &name) {
+    m_session.send({{"type", "rename"}, {"projectId", id}, {"author", m_author}, {"name", name}});
+}
+void Controller::deleteProject(const QString &id) {
+    m_session.send({{"type", "delete"}, {"projectId", id}, {"author", m_author}});
+}
 void Controller::sendMessage(const QString &text, const QString &image, int imageRevision) {
     command({{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}});
 }

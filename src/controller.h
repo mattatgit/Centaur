@@ -59,6 +59,8 @@ public:
     Q_INVOKABLE void openProject(const QString &id);
     Q_INVOKABLE void closeProject();
     Q_INVOKABLE void archiveProject(const QString &id);
+    Q_INVOKABLE void renameProject(const QString &id, const QString &name);
+    Q_INVOKABLE void deleteProject(const QString &id);
     Q_INVOKABLE void sendMessage(const QString &text, const QString &image = {}, int imageRevision = 0);
     Q_INVOKABLE void addAnnotation(const QVariantMap &annotation);
     Q_INVOKABLE void undoAnnotation();

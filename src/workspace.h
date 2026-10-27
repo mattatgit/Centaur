@@ -10,6 +10,7 @@ public:
     QString root() const { return m_root; }
     QVariantList projects() const;
     QString createProject(const QString &name, const QString &description, QString *error);
+    bool deleteProject(const QString &id, QString *error = nullptr);
     QJsonObject load(const QString &id) const;
     bool save(const QString &id, const QJsonObject &state, QString *error = nullptr) const;
     QString projectPath(const QString &id) const;

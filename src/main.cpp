@@ -16,6 +16,24 @@
 #include <QMouseEvent>
 #include <QFile>
 
+static QQuickItem *findVisualItem(QQuickItem *root, const QString &name) {
+    if (root->objectName() == name) return root;
+    for (auto *child : root->childItems())
+        if (auto *item = findVisualItem(child, name)) return item;
+    return nullptr;
+}
+
+static bool clickItem(QQuickWindow *window, QQuickItem *item) {
+    if (!window || !item || !item->isVisible()) return false;
+    const auto position = item->mapToScene(QPointF(item->width() / 2, item->height() / 2));
+    const QPointF global = window->mapToGlobal(position.toPoint());
+    QMouseEvent press(QEvent::MouseButtonPress, position, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, position, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(window, &press);
+    QCoreApplication::sendEvent(window, &release);
+    return true;
+}
+
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     if (!initializeTypography()) return 1;
@@ -107,7 +125,38 @@ int main(int argc, char *argv[]) {
         });
         QTimer::singleShot(750, &app, [&] { saveSmokeImage("design-systems"); engine.rootObjects().first()->setProperty("page", "settings"); });
         QTimer::singleShot(950, &app, [&] { saveSmokeImage("settings"); engine.rootObjects().first()->setProperty("page", "projects"); });
-        QTimer::singleShot(1200, &app, [&] { app.exit(qmlWarning || controller.projectId().isEmpty() ? 1 : 0); });
+        // Use actual pointer events: a card's menu must not also open the card.
+        const auto click = [&](const char *name) {
+            auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+            if (!clickItem(window, findVisualItem(window->contentItem(), QString::fromUtf8(name)))) { qCritical("Smoke test could not click %s", name); qmlWarning = true; }
+        };
+        QTimer::singleShot(1000, &app, [&] { controller.closeProject(); });
+        QTimer::singleShot(1150, &app, [&, click] { click("projectMenuButton"); });
+        QTimer::singleShot(1300, &app, [&, click] {
+            if (!controller.projectId().isEmpty()) { qCritical("Card menu also opened the project"); qmlWarning = true; }
+            saveSmokeImage("project-menu");
+            click("projectMenuEntry-Rename");
+        });
+        QTimer::singleShot(1450, &app, [&] {
+            auto *dialog = engine.rootObjects().first()->findChild<QObject *>("renameProjectDialog");
+            auto *field = engine.rootObjects().first()->findChild<QObject *>("renameProjectName");
+            if (!dialog || !dialog->property("visible").toBool() || !field) { qCritical("Rename dialog did not open"); qmlWarning = true; return; }
+            field->setProperty("text", "Renamed UI test");
+            QMetaObject::invokeMethod(field, "accepted");
+        });
+        QTimer::singleShot(1600, &app, [&, click] {
+            if (controller.projects().size() != 1 || controller.projects().first().toMap()["name"] != "Renamed UI test") { qCritical("Rename did not update the project card"); qmlWarning = true; }
+            click("projectMenuButton");
+        });
+        QTimer::singleShot(1750, &app, [&, click] { click("projectMenuEntry-Delete"); });
+        QTimer::singleShot(1900, &app, [&, click] { saveSmokeImage("delete-confirmation"); click("cancelProjectDeletion"); });
+        QTimer::singleShot(2050, &app, [&, click] {
+            if (controller.projects().size() != 1) { qCritical("Cancel deleted the project"); qmlWarning = true; }
+            click("projectMenuButton");
+        });
+        QTimer::singleShot(2200, &app, [&, click] { click("projectMenuEntry-Delete"); });
+        QTimer::singleShot(2350, &app, [&, click] { click("confirmProjectDeletion"); });
+        QTimer::singleShot(2500, &app, [&] { app.exit(qmlWarning || !controller.projects().isEmpty() ? 1 : 0); });
     }
     if (embeddingTest) {
         auto *inputTimer = new QTimer(&app);
@@ -117,12 +166,7 @@ int main(int argc, char *argv[]) {
             auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
             auto *frame = window->findChild<QQuickItem *>("nativeAppFrame");
             if (!frame) return;
-            const auto position = frame->mapToScene(QPointF(frame->width() / 2, frame->height() / 2));
-            const QPointF global = window->mapToGlobal(position.toPoint());
-            QMouseEvent press(QEvent::MouseButtonPress, position, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-            QMouseEvent release(QEvent::MouseButtonRelease, position, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-            QCoreApplication::sendEvent(window, &press);
-            QCoreApplication::sendEvent(window, &release);
+            clickItem(window, frame);
             inputTimer->stop();
         });
         inputTimer->start();

@@ -57,6 +57,50 @@ class CoreTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { Q_INIT_RESOURCE(starter); }
+    void projectCardActionsPreserveIdentityAndUpdateOtherWindows() {
+        QTemporaryDir dir;
+        Controller host(dir.path()); host.start(); host.setAuthor("Matt");
+        host.createProject("Family board", "Our app");
+        const auto id = host.projectId();
+        QVERIFY(!id.isEmpty());
+        Workspace workspace(dir.path());
+        const auto source = workspace.source(id);
+        const auto history = workspace.history(id);
+        host.sendMessage("Keep this conversation");
+        host.createProject("Another app", "");
+        const auto other = host.projectId();
+        host.openProject(id);
+        Controller guest(dir.path()); guest.start(); guest.setAuthor("Saori");
+        QTRY_COMPARE(guest.projects().size(), 2);
+        guest.openProject(id);
+        guest.renameProject(id, "  Family Planner  ");
+        QTRY_COMPARE(host.project().value("name").toString(), QString("Family Planner"));
+        QTRY_COMPARE(guest.project().value("name").toString(), QString("Family Planner"));
+        QCOMPARE(host.projectId(), id);
+        QCOMPARE(workspace.projects().size(), 2);
+        QCOMPARE(workspace.source(id), source);
+        QCOMPARE(workspace.history(id), history);
+        QCOMPARE(workspace.load(id)["messages"].toArray().size(), 1);
+        QSignalSpy errors(&host, &Controller::error);
+        host.renameProject(id, "   ");
+        host.renameProject(id, QString(101, 'x'));
+        QCOMPARE(errors.size(), 2);
+        QCOMPARE(workspace.load(id)["name"].toString(), QString("Family Planner"));
+        host.deleteProject("../projects");
+        QCOMPARE(errors.size(), 3);
+        QCOMPARE(workspace.projects().size(), 2);
+        guest.deleteProject(id);
+        QTRY_VERIFY(host.projectId().isEmpty());
+        QTRY_VERIFY(guest.projectId().isEmpty());
+        QTRY_COMPARE(guest.projects().size(), 1);
+        QCOMPARE(workspace.projects().size(), 1);
+        QVERIFY(!QFileInfo::exists(workspace.projectPath(id)));
+        QVERIFY(QFileInfo::exists(workspace.projectPath(other) + "/App.qml"));
+        QVERIFY(QFileInfo::exists(dir.path() + "/trash/" + id + "/.centaur/state.json"));
+        host.deleteProject(id); // Stale menus must not affect another project.
+        QCOMPARE(errors.size(), 4);
+        QCOMPARE(workspace.projects().size(), 1);
+    }
     void gridAndIdentityPreferencesPersist() {
         QTemporaryDir dir;
         {

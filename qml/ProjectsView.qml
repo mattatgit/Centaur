@@ -1,11 +1,83 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import Centaur.Native 1.0
 
 Rectangle {
     id: root
     color: "white"; radius: 16
     signal createRequested()
+    property string selectedProjectId: ""
+    property string selectedProjectName: ""
+    function showProjectMenu(button, project) {
+        selectedProjectId = project.id
+        selectedProjectName = project.name
+        const position = button.mapToItem(root, button.width, button.height + 8)
+        projectMenu.x = Math.max(8, Math.min(root.width - projectMenu.width - 8, position.x - projectMenu.width))
+        projectMenu.y = position.y
+        projectMenu.open()
+    }
+    function saveProjectName() {
+        if (!renameName.text.trim()) return
+        renameDialog.close()
+        Backend.renameProject(selectedProjectId, renameName.text)
+    }
+    Menu {
+        id: projectMenu
+        objectName: "projectCardMenu"
+        width: 176; padding: 4
+        background: Rectangle { color: "white"; radius: 12; border.color: Theme.dust }
+        delegate: MenuItem {
+            id: menuEntry
+            objectName: "projectMenuEntry-" + text
+            implicitHeight: 36
+            leftPadding: 12; rightPadding: 12
+            contentItem: Text { text: menuEntry.text; font.pixelSize: 12; color: Theme.ink; verticalAlignment: Text.AlignVCenter }
+            background: Rectangle { radius: 8; color: menuEntry.highlighted || menuEntry.down ? Theme.dust : "transparent" }
+        }
+        Action { text: "Rename"; onTriggered: { renameName.text = root.selectedProjectName; renameDialog.open() } }
+        Action { text: "Delete"; onTriggered: deleteDialog.open() }
+    }
+    Dialog {
+        id: renameDialog
+        objectName: "renameProjectDialog"
+        title: "Rename project"
+        parent: Overlay.overlay
+        modal: true; anchors.centerIn: parent
+        width: Math.min(400, root.width - 24); padding: 24
+        background: Rectangle { radius: 16; color: "white"; border.color: Theme.dust }
+        header: Label { text: renameDialog.title; color: Theme.ink; font.pixelSize: 16; font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
+        ColumnLayout {
+            width: parent.width; spacing: 20
+            TextField { id: renameName; objectName: "renameProjectName"; Layout.fillWidth: true; maximumLength: 100; selectByMouse: true; onAccepted: root.saveProjectName(); Accessible.name: "Project name" }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                FlatButton { text: "Cancel"; tone: "plain"; onClicked: renameDialog.close() }
+                FlatButton { text: "Save"; tone: "dark"; enabled: renameName.text.trim().length > 0; onClicked: root.saveProjectName() }
+            }
+        }
+        onOpened: { renameName.forceActiveFocus(); renameName.selectAll() }
+    }
+    Dialog {
+        id: deleteDialog
+        objectName: "deleteProjectDialog"
+        title: "Delete project?"
+        parent: Overlay.overlay
+        modal: true; anchors.centerIn: parent
+        width: Math.min(420, root.width - 24); padding: 24
+        background: Rectangle { radius: 16; color: "white"; border.color: Theme.dust }
+        header: Label { text: deleteDialog.title; color: Theme.ink; font.pixelSize: 16; font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
+        ColumnLayout {
+            width: parent.width; spacing: 20
+            Text { text: "“" + root.selectedProjectName + "” and its app and conversation will be removed from Centaur."; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
+            RowLayout {
+                Layout.alignment: Qt.AlignRight
+                FlatButton { id: cancelDelete; objectName: "cancelProjectDeletion"; text: "Cancel"; tone: "plain"; onClicked: deleteDialog.close() }
+                FlatButton { objectName: "confirmProjectDeletion"; text: "Delete project"; tone: "dark"; onClicked: { deleteDialog.close(); Backend.deleteProject(root.selectedProjectId) } }
+            }
+        }
+        onOpened: cancelDelete.forceActiveFocus()
+    }
         ScrollView {
             id: projectsScroll
             objectName: "projectsScroll"
@@ -34,7 +106,14 @@ Rectangle {
                             height: 256; radius: 16; color: Theme.ice
                             border.width: hover.hovered ? 1 : 0; border.color: "#d3d7ce"
                             HoverHandler { id: hover }
-                            TapHandler { onTapped: Backend.openProject(modelData.id) }
+                            Button {
+                                anchors.fill: parent
+                                background: Item {}
+                                contentItem: Item {}
+                                onClicked: Backend.openProject(modelData.id)
+                                Accessible.name: "Open " + modelData.name
+                                Rectangle { anchors.fill: parent; radius: 16; color: "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: Theme.blue }
+                            }
                             ColumnLayout {
                                 anchors.fill: parent; anchors.margins: 24; spacing: 12
                                 Rectangle {
@@ -46,6 +125,23 @@ Rectangle {
                                 Item { Layout.fillHeight: true }
                                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
                                 Text { text: "Native app"; color: Theme.muted; font.pointSize: 10 }
+                            }
+                            Button {
+                                id: menuButton
+                                objectName: "projectMenuButton"
+                                anchors.right: parent.right; anchors.rightMargin: 16
+                                y: 20; width: 32; height: 32
+                                padding: 0
+                                hoverEnabled: true
+                                contentItem: SvgIcon { source: "qrc:/assets/dialogue/tile-menu.svg"; color: Theme.muted }
+                                background: Rectangle {
+                                    radius: 8
+                                    color: menuButton.hovered || menuButton.down || (projectMenu.opened && root.selectedProjectId === modelData.id) ? Theme.dust : "transparent"
+                                    border.width: menuButton.visualFocus ? 2 : 0; border.color: Theme.blue
+                                }
+                                onClicked: root.showProjectMenu(menuButton, modelData)
+                                Accessible.name: "Options for " + modelData.name
+                                ToolTip.visible: hovered; ToolTip.text: "Project options"
                             }
                         }
                     }

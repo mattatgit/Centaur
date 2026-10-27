@@ -305,6 +305,16 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
         if (name.isEmpty() || name.contains(' ')) { fail("Use a single name without spaces."); return; }
         state["agentName"] = name;
         persist(id, state);
+    } else if (type == "rename") {
+        const auto name = command["name"].toString().trimmed();
+        if (name.isEmpty() || name.size() > 100) { fail("Give the project a name of up to 100 characters."); return; }
+        state["name"] = name;
+        if (!persist(id, state)) return;
+    } else if (type == "delete") {
+        if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before deleting."); return; }
+        if (m_validatingProject == id) { fail("Wait for the app check to finish before deleting."); return; }
+        QString error;
+        if (!m_workspace.deleteProject(id, &error)) { fail(error); return; }
     } else if (type == "archive") {
         if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before archiving."); return; }
         if (m_validatingProject == id) { fail("Wait for the app check to finish before archiving."); return; }

@@ -112,6 +112,22 @@ QString Workspace::source(const QString &id) const {
     return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
 }
 
+bool Workspace::deleteProject(const QString &id, QString *error) {
+    const auto path = projectPath(id);
+    if (path.isEmpty() || load(id).isEmpty()) {
+        if (error) *error = "That project is unavailable.";
+        return false;
+    }
+    // Remove the whole project atomically from the live collection, preserving
+    // source, history and conversation together for manual recovery.
+    const auto trash = m_root + "/trash";
+    if (!QDir().mkpath(trash) || !QDir().rename(path, trash + "/" + id)) {
+        if (error) *error = "Could not delete the project. Its files have been kept.";
+        return false;
+    }
+    return true;
+}
+
 QJsonArray Workspace::history(const QString &id, QString *error) const {
     const auto path = projectPath(id);
     if (path.isEmpty()) { if (error) *error = "Invalid project."; return {}; }
