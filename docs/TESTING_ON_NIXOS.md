@@ -27,6 +27,8 @@ nix --refresh run 'github:mattatgit/Centaur?ref=codex/native-prototype' -- --dem
 
 ## What to try first
 
+In Projects, create several distinct test projects and resize the window. Cards should tile left to right, from one column at narrow widths up to five on wide screens, with additional rows scrolling vertically and no horizontal scrolling. Check the compact heading, New project button and empty state at 360 logical pixels wide. Opening a project should still show the canvas/chat workspace at its existing minimum width.
+
 1. The frame should show the working **Our everyday** native app. Add a task and tick a checkbox.
 2. Switch focus between the task field and Centaur's chat field. Typing should go to the selected field.
 3. Open the app's **•••** menu and its About dialog. Dismiss them and return to the canvas.

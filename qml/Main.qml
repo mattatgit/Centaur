@@ -8,7 +8,7 @@ ApplicationWindow {
     visible: true
     width: 1440
     height: 940
-    minimumWidth: 1000
+    minimumWidth: Backend.projectId ? 1000 : 360
     minimumHeight: 680
     title: Backend.projectId ? Backend.project.name + " · Centaur" : "Centaur"
     color: Theme.ice
@@ -20,9 +20,9 @@ ApplicationWindow {
         height: 80
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 28
-            anchors.rightMargin: 28
-            spacing: 16
+            anchors.leftMargin: window.width < 600 ? 16 : 28
+            anchors.rightMargin: window.width < 600 ? 16 : 28
+            spacing: window.width < 600 ? 10 : 16
             Rectangle {
                 width: 38; height: 38; radius: 12; color: Theme.ink
                 Grid {
@@ -39,11 +39,12 @@ ApplicationWindow {
             Text { visible: !!Backend.projectId; text: Backend.project.name || ""; color: Theme.ink; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.maximumWidth: 300 }
             Item { Layout.fillWidth: true }
             Row {
+                visible: window.width >= 600
                 spacing: 8
                 Rectangle { width: 6; height: 6; radius: 3; color: Theme.green; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: "Local session"; color: Theme.muted; font.pointSize: 10 }
             }
-            FlatButton { text: Backend.author; tone: "plain"; onClicked: { nameField.text = Backend.author; agentField.text = Backend.project.agentName || "centaur"; settings.open() } }
+            FlatButton { text: Backend.author; tone: "plain"; Layout.maximumWidth: window.width < 600 ? 130 : 220; onClicked: { nameField.text = Backend.author; agentField.text = Backend.project.agentName || "centaur"; settings.open() } }
         }
     }
 
@@ -62,7 +63,7 @@ ApplicationWindow {
         title: "Make something together"
         modal: true
         anchors.centerIn: parent
-        width: 460
+        width: Math.min(460, window.width - 32)
         padding: 28
         standardButtons: Dialog.NoButton
         background: Rectangle { color: "white"; radius: 20; border.color: Theme.line }
@@ -89,7 +90,7 @@ ApplicationWindow {
     Dialog {
         id: settings
         title: "Your space"
-        modal: true; anchors.centerIn: parent; width: 460; padding: 28
+        modal: true; anchors.centerIn: parent; width: Math.min(460, window.width - 32); padding: 28
         standardButtons: Dialog.NoButton
         background: Rectangle { color: "white"; radius: 20; border.color: Theme.line }
         ColumnLayout {
