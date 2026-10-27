@@ -20,10 +20,12 @@ Rectangle {
         return message.text
     }
     function focusComposer() { composer.forceActiveFocus() }
+    property bool sending: false
+    function finishSending(text, accepted) { if (accepted && composer.text.trim() === text) composer.clear(); sending = false }
     function send() {
         const text = composer.text.trim()
-        if (!text) return
-        composer.clear()
+        if (!text || !Backend.canContribute || sending) return
+        sending = true
         sendRequested(text)
     }
 
@@ -35,6 +37,7 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: 4
                 Text { text: "Chat"; font.pointSize: 14; font.weight: Font.DemiBold; color: Theme.ink }
+                Text { visible: Backend.remoteProject; text: Backend.connectionStatus; color: Theme.muted; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
                 Text {
                     id: agentModelLabel
                     Layout.fillWidth: true
@@ -79,7 +82,7 @@ Rectangle {
                             color: modelData.kind === "human" ? "#e7ede3" : Theme.lime
                             Text { anchors.centerIn: parent; text: modelData.author.substring(0, 1).toUpperCase(); color: Theme.ink; font.pointSize: 9; font.weight: Font.DemiBold }
                         }
-                        Text { text: modelData.kind === "human" ? modelData.author : chat.agentLabel(modelData.author); color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                        Text { textFormat: Text.PlainText; text: modelData.kind === "human" ? modelData.author : chat.agentLabel(modelData.author); color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
                         Text { text: Qt.formatTime(new Date(modelData.time), "hh:mm"); color: Theme.muted; font.pointSize: 9 }
                     }
                     TextEdit {
@@ -103,7 +106,7 @@ Rectangle {
                 Text { text: "Start with a conversation."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 18; font.weight: Font.DemiBold; color: Theme.ink }
                 Text { text: "Talk to each other here. When you’re ready for help, mention @" + Backend.project.agentName + "."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 12.5; color: Theme.muted }
                 Text { text: "Sketch on the canvas or point with Comment. Your marks accompany the next request to the agent."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 12.5; color: Theme.muted }
-                Text { visible: !Backend.agentAvailable; text: "The agent needs omp installed and signed in. Project creation, chat and drawing work without it."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { visible: !Backend.agentAvailable; text: Backend.remoteProject ? "The host needs OMP installed and signed in for agent requests. Chat and drawing still work." : "The agent needs omp installed and signed in. Project creation, chat and drawing work without it."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
             }
         }
         Rectangle {
@@ -113,7 +116,7 @@ Rectangle {
             RowLayout {
                 id: busyRow
                 anchors.fill: parent; anchors.margins: 10
-                Text { text: chat.agentLabel(Backend.project.agentName) + " is working…"; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { text: chat.agentLabel(Backend.project.agentName) + " is working…" + ((Backend.project.queueCount || 0) > 0 ? " · " + Backend.project.queueCount + " queued" : ""); Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
                 FlatButton { text: "Stop"; tone: "plain"; onClicked: Backend.cancelAgent() }
             }
         }
@@ -128,7 +131,7 @@ Rectangle {
                 Text { text: "Resolve conflicting requests"; font.pointSize: 11; font.weight: Font.DemiBold; color: Theme.ink }
                 Text { text: chat.hasConflict ? chat.proposal.conflict.reason : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; font.pointSize: 10.5; color: Theme.ink }
                 Text { text: chat.hasProposal ? chat.proposal.authors.map(function(name) { return (chat.proposal.accepted.indexOf(name) !== -1 ? "✓ " : "○ ") + name }).join("   ") : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
-                FlatButton { text: chat.accepted ? "Waiting for the others involved" : "Agree to compromise"; tone: "dark"; visible: chat.contributor; enabled: !chat.accepted && !Backend.agentBusy; Layout.fillWidth: true; onClicked: Backend.acceptProposal() }
+                FlatButton { text: chat.accepted ? "Waiting for the others involved" : "Agree to compromise"; tone: "dark"; visible: chat.contributor; enabled: !chat.accepted && !Backend.agentBusy && Backend.canContribute; Layout.fillWidth: true; onClicked: Backend.acceptProposal() }
                 Text { text: "Only the people whose requests conflict need to agree. More discussion updates the proposed compromise."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: Theme.muted; font.pointSize: 9.5 }
             }
         }
@@ -158,7 +161,7 @@ Rectangle {
                 anchors.margins: 8
                 FlatButton { text: "@" + Backend.project.agentName; tone: "plain"; implicitHeight: 30; onClicked: { composer.insert(composer.cursorPosition, "@" + Backend.project.agentName + " "); composer.forceActiveFocus() } }
                 Item { Layout.fillWidth: true }
-                FlatButton { iconSource: "qrc:/assets/dialogue/comment-enter-active.svg"; iconSize: 24; leftPadding: 4; rightPadding: 4; implicitWidth: 32; implicitHeight: 30; tone: "dark"; enabled: composer.text.trim().length > 0; onClicked: chat.send(); Accessible.name: "Send message" }
+                FlatButton { iconSource: "qrc:/assets/dialogue/comment-enter-active.svg"; iconSize: 24; leftPadding: 4; rightPadding: 4; implicitWidth: 32; implicitHeight: 30; tone: "dark"; enabled: composer.text.trim().length > 0 && Backend.canContribute && !chat.sending; onClicked: chat.send(); Accessible.name: "Send message" }
             }
         }
         RowLayout {

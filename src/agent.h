@@ -17,6 +17,7 @@ public:
     void cancel();
     static QJsonObject parseReply(const QByteArray &text, QString *error);
 signals:
+    void idle();
     void completed(const QJsonObject &reply);
     void failed(const QString &message);
     void modelReported(const QString &model);

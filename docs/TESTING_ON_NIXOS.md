@@ -86,3 +86,8 @@ With Centaur and its native app open, inspect both processes in the system monit
 - Open Settings from the chat author footer and return with Back to app. The native app should remain running. Check the reported executable/model, change your name and agent mention, and try the project actions. Names and grid preferences should survive a restart.
 - Deploy should explain that deployment is not available yet; it must not publish or install the app.
 - On a project card, hover the three-dot button: a rounded background should appear. Open it by click or keyboard and check Rename/Delete; clicking it must not open the project. Outside click and Escape dismiss the menu. Rename should preserve the app and conversation, update another local window and survive restart. Delete must first show the project's name in a confirmation; Cancel/Escape must keep it. Confirm deletion while another window has that project open: that window should return to Projects and stop its preview, leaving other projects intact.
+
+
+## Collaboration across computers
+
+Follow [LAN collaboration](LAN_COLLABORATION.md) for the two-machine setup and acceptance checklist. Automated network tests use temporary data and loopback TLS, including a background host. Linux `network-native-embedding` additionally verifies the received app renders and receives input; it does not prove that a particular VM address/firewall is reachable from the Air.

@@ -1,6 +1,7 @@
 #pragma once
 #include "workspace.h"
 #include "agent.h"
+#include "collaboration.h"
 #include <QObject>
 #include <QLocalServer>
 #include <QLocalSocket>
@@ -11,13 +12,14 @@
 #include <memory>
 
 // One authoritative writer per data directory. Other native windows join over
-// an OS-user-only local socket. Remote family collaboration is a later step.
+// an OS-user-only local socket; project-scoped TLS peers join the same writer.
 class Session : public QObject {
     Q_OBJECT
 public:
     explicit Session(const QString &root, QObject *parent = nullptr);
     ~Session() override;
-    void start();
+    void start(bool background = false);
+    bool connected() const { return m_host || m_client.state() == QLocalSocket::ConnectedState; }
     void send(QJsonObject command);
     bool isHost() const { return m_host; }
     QString root() const { return m_workspace.root(); }
@@ -25,17 +27,23 @@ signals:
     void snapshot(const QJsonObject &data);
     void error(const QString &message);
     void sourceChanged(const QString &projectId);
+    void connectionChanged();
 private:
     void acceptConnection();
     void read(QLocalSocket *socket);
-    void handle(const QJsonObject &command, QLocalSocket *sender = nullptr);
+    void handle(const QJsonObject &command, QIODevice *sender = nullptr);
     void publish(const QString &id = {});
-    void reply(QLocalSocket *socket, const QJsonObject &data);
+    void reply(QIODevice *socket, const QJsonObject &data);
     void addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind = "human");
     bool persist(const QString &id, QJsonObject state);
     void finishAgent(const QJsonObject &reply);
     void agentError(const QString &message);
     void applyProposal(const QString &id, QJsonObject state);
+    void nextRequest();
+    void retryRequest(QJsonObject &state);
+    QJsonObject m_activeRequest;
+    QTimer m_reconnect;
+    std::unique_ptr<CollaborationHost> m_network;
     QString m_socketName;
     Workspace m_workspace;
     QLocalServer m_server;

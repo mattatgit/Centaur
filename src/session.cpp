@@ -7,6 +7,8 @@
 #include <QFile>
 #include <QDir>
 #include <QUuid>
+#include <QElapsedTimer>
+#include <QThread>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 static QString runner() {
@@ -18,12 +20,17 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
         QFileInfo(root).absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex().left(24));
     connect(&m_server, &QLocalServer::newConnection, this, &Session::acceptConnection);
     connect(&m_client, &QLocalSocket::readyRead, this, [this] { read(&m_client); });
-    connect(&m_client, &QLocalSocket::connected, this, [this] { m_starting = false; });
+    connect(&m_client, &QLocalSocket::connected, this, [this] { m_starting = false; m_reconnect.stop(); emit connectionChanged(); });
     connect(&m_client, &QLocalSocket::disconnected, this, [this] {
-        if (!m_starting) emit error("The hosting window closed. Reopen Centaur to resume the saved project.");
+        if (!m_starting) { m_reconnect.start(); emit connectionChanged(); }
+    });
+    m_reconnect.setInterval(1000);
+    connect(&m_reconnect, &QTimer::timeout, this, [this] {
+        if (m_client.state() == QLocalSocket::UnconnectedState) m_client.connectToServer(m_socketName);
     });
     connect(&m_agent, &Agent::completed, this, &Session::finishAgent);
     connect(&m_agent, &Agent::failed, this, &Session::agentError);
+    connect(&m_agent, &Agent::idle, this, [this] { QTimer::singleShot(0, this, &Session::nextRequest); });
     connect(&m_agent, &Agent::modelReported, this, [this](const QString &model) {
         if (m_agentProject.isEmpty()) return;
         auto state = m_workspace.load(m_agentProject);
@@ -37,20 +44,26 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
         addMessage(state, state["agentName"].toString(), "Could not start the native app checker. Your app is unchanged.", "system");
         persist(m_validatingProject, state);
         m_validatingProject.clear();
+        state.remove("activeRequest"); persist(state["id"].toString(), state);
         publish();
+        QTimer::singleShot(0, this, &Session::nextRequest);
     });
     connect(&m_validator, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
         [this](int code, QProcess::ExitStatus status) {
             const auto id = m_validatingProject;
+            if (id.isEmpty()) { QTimer::singleShot(0, this, &Session::nextRequest); return; }
             m_validatingProject.clear();
             auto state = m_workspace.load(id);
             QString error;
+            state.remove("activeRequest");
             if (state["epoch"].toInt() != m_validatingEpoch) {
-                addMessage(state, state["agentName"].toString(), "The conversation changed while I checked the app. Ask me to prepare an updated proposal.", "system");
+                retryRequest(state);
+                addMessage(state, state["agentName"].toString(), "New directions arrived during the app check. I’m updating the request.", "system");
                 state["proposal"] = QJsonObject();
             } else if (code != 0 || status != QProcess::NormalExit) {
                 // QML diagnostics are local source errors, not provider credentials.
-                const auto detail = QString::fromUtf8(m_validator.readAllStandardError()).right(1500);
+                auto detail = QString::fromUtf8(m_validator.readAllStandardError()).right(1500);
+                detail.replace(m_workspace.projectPath(id), "[project]");
                 addMessage(state, state["agentName"].toString(), "The proposed app did not pass its native QML check. Your current app is still running.\n" + detail, "system");
                 state["proposal"] = QJsonObject();
             } else {
@@ -79,6 +92,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
             }
             persist(id, state);
             publish(id);
+            QTimer::singleShot(0, this, &Session::nextRequest);
         });
 }
 
@@ -100,7 +114,25 @@ Session::~Session() {
     if (m_host) m_server.close();
 }
 
-void Session::start() {
+void Session::start(bool background) {
+    if (background) {
+        m_client.connectToServer(m_socketName);
+        if (m_client.waitForConnected(100)) return;
+        m_client.abort();
+        QProcess host;
+        host.setProgram(qEnvironmentVariable("CENTAUR_HOST", QCoreApplication::applicationDirPath() + "/centaur-host"));
+        host.setArguments({"--data-dir", m_workspace.root()});
+        host.setStandardOutputFile(QProcess::nullDevice()); host.setStandardErrorFile(QProcess::nullDevice());
+        if (!host.startDetached()) { emit error("Could not start the Centaur background host."); return; }
+        QElapsedTimer timer; timer.start();
+        while (timer.elapsed() < 5000) {
+            m_client.connectToServer(m_socketName);
+            if (m_client.waitForConnected(100)) return;
+            m_client.abort(); QThread::msleep(50);
+        }
+        emit error("Could not connect to the Centaur background host. Check its installation.");
+        return;
+    }
     m_lock = std::make_unique<QLockFile>(m_workspace.root() + "/session.lock");
     // QLockFile detects a dead host; never unlink a live host's socket.
     if (m_lock->tryLock(0)) {
@@ -109,19 +141,27 @@ void Session::start() {
         if (!m_server.listen(m_socketName)) { emit error(m_server.errorString()); return; }
         m_host = true;
         m_starting = false;
+        m_network = std::make_unique<CollaborationHost>(m_workspace.root());
+        connect(m_network.get(), &CollaborationHost::membershipChanged, this, [this] { publish(); });
+        connect(m_network.get(), &CollaborationHost::command, this, [this](const QJsonObject &command, QIODevice *sender) { handle(command, sender); });
         for (const auto &project : m_workspace.projects()) {
             const auto id = project.toMap()["id"].toString();
             auto state = m_workspace.load(id);
+            if (!state["activeRequest"].toObject().isEmpty()) {
+                auto queue = state["agentQueue"].toArray(); queue.prepend(state["activeRequest"]);
+                state["agentQueue"] = queue; state.remove("activeRequest"); persist(id, state);
+            }
             const auto proposal = state["proposal"].toObject();
             // Do not auto-apply proposals made under the old everyone-agrees
             // policy, or resume an interrupted automatic check without context.
             if (!proposal.isEmpty() && !proposal["conflict"].isObject()) {
                 state["proposal"] = QJsonObject();
-                addMessage(state, state["agentName"].toString(), "An unfinished change wasn't applied. Ask me again to continue.", "system");
+                addMessage(state, state["agentName"].toString(), state["agentQueue"].toArray().isEmpty() ? "An unfinished change wasn't applied. Ask me again to continue." : "An interrupted change is queued to continue.", "system");
                 persist(id, state);
             }
         }
         publish();
+        QTimer::singleShot(0, this, &Session::nextRequest);
     } else {
         m_client.connectToServer(m_socketName);
         if (!m_client.waitForConnected(1500)) emit error("Could not join the local project host. Close and reopen Centaur.");
@@ -140,7 +180,7 @@ void Session::acceptConnection() {
     }
 }
 
-void Session::reply(QLocalSocket *socket, const QJsonObject &data) {
+void Session::reply(QIODevice *socket, const QJsonObject &data) {
     if (socket) socket->write(QJsonDocument(data).toJson(QJsonDocument::Compact) + '\n');
     else if (data["type"] == "error") emit error(data["message"].toString());
     else emit snapshot(data);
@@ -168,12 +208,19 @@ void Session::send(QJsonObject command) {
 
 void Session::publish(const QString &id) {
     QJsonArray states;
-    for (const auto &project : m_workspace.projects()) states.append(m_workspace.load(project.toMap()["id"].toString()));
+    for (const auto &project : m_workspace.projects()) {
+        auto state = m_workspace.load(project.toMap()["id"].toString());
+        state["sharing"] = m_network ? m_network->sharing(state["id"].toString()) : QJsonObject();
+        state["queueCount"] = state["agentQueue"].toArray().size();
+        state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
+        states.append(state);
+    }
     QJsonObject data{{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(m_workspace.projects())},
         {"states", states}, {"agentAvailable", m_agent.available()}, {"agentExecutable", m_agent.executable()},
         {"busyProject", m_agent.busy() ? m_agentProject : m_validatingProject}, {"changedProject", id}};
     emit snapshot(data);
     for (auto *peer : m_peers) reply(peer, data);
+    if (m_network) m_network->publish(data);
 }
 
 void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind) {
@@ -197,9 +244,10 @@ bool Session::persist(const QString &id, QJsonObject state) {
     return false;
 }
 
-void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
+void Session::handle(const QJsonObject &command, QIODevice *sender) {
     const auto type = command["type"].toString();
     auto fail = [this, sender](const QString &message) { reply(sender, {{"type", "error"}, {"message", message}}); };
+    if (type == "shutdown") { QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return; }
     if (type == "create" || type == "openStarter") {
         // Only the host has the authoritative list at startup. Resolve this in
         // one command so joining windows cannot each create a starter project.
@@ -219,47 +267,60 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
     if (state.isEmpty()) { fail("That project is unavailable."); return; }
     const auto author = command["author"].toString().trimmed().left(50);
     if (author.isEmpty()) { fail("Choose your name before contributing."); return; }
-    if (type == "message") {
+    if (!command["_memberId"].toString().isEmpty()) {
+        auto acks = state["networkAcks"].toObject();
+        acks[command["_memberId"].toString()] = command["sequence"]; state["networkAcks"] = acks;
+    }
+    if (type == "invite" || type == "stopSharing") {
+        QString error;
+        if (type == "invite") {
+            const auto code = m_network->invite(id, author, command["address"].toString(), &error);
+            if (code.isEmpty()) { fail(error); return; }
+            reply(sender, {{"type", "invitation"}, {"projectId", id}, {"code", code}});
+        } else if (!m_network->stopSharing(id, &error)) { fail(error); return; }
+    } else if (type == "message") {
         const auto text = command["text"].toString().trimmed().left(12000);
         if (text.isEmpty()) return;
         addMessage(state, author, text);
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
-        state["epoch"] = state["epoch"].toInt() + 1;
-        state["proposal"] = QJsonObject();
-        if (!persist(id, state)) return;
-        const auto mention = "@" + state["agentName"].toString();
-        if (text.contains(mention, Qt::CaseInsensitive)) {
-            if (m_agent.busy() || !m_validatingProject.isEmpty()) {
-                fail("The agent is busy. Your message is saved; address it again when it finishes.");
-            } else {
-                m_agentProject = id;
-                m_agentAuthor = author;
-                m_agentEpoch = state["epoch"].toInt();
-                QString image;
-                const auto filename = command["image"].toString();
-                const auto expected = m_workspace.projectPath(id) + "/.centaur/";
-                const auto canonical = QFileInfo(filename).canonicalFilePath();
-                if (canonical.startsWith(expected) && canonical.endsWith(".png")
-                    && command["imageRevision"] == state["revision"]) image = canonical;
-                auto request = state;
-                request["requestAuthor"] = author;
-                request["appHistory"] = m_workspace.history(id);
-                m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
-            }
+        const bool addressed = text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
+        // Ordinary conversation can continue while the agent works. Explicit
+        // directions and sketches still invalidate stale work/agreements.
+        if (addressed || state["proposal"].toObject()["conflict"].isObject()) {
+            state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
+        if (addressed) {
+            auto queue = state["agentQueue"].toArray();
+            if (queue.size() >= 50) { fail("The request queue is full. Wait for the agent to catch up."); return; }
+            QString image;
+            const auto filename = command["image"].toString();
+            const auto expected = m_workspace.projectPath(id) + "/.centaur/";
+            const auto canonical = QFileInfo(filename).canonicalFilePath();
+            if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
+            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}});
+            state["agentQueue"] = queue;
+        }
+        if (!persist(id, state)) return;
+        nextRequest();
     } else if (type == "annotation") {
-        auto annotation = command["annotation"].toObject();
-        const auto points = annotation["points"].toArray();
+        const auto input = command["annotation"].toObject();
+        const auto points = input["points"].toArray();
         if (points.isEmpty() || points.size() > 4096) { fail("That drawing is too large."); return; }
-        if (annotation["tool"] != "draw" && annotation["tool"] != "comment") return;
+        if (input["tool"] != "draw" && input["tool"] != "comment") return;
+        QJsonArray cleanPoints;
         for (const auto &value : points) {
             const auto point = value.toObject();
             if (!point["x"].isDouble() || !point["y"].isDouble()
                 || point["x"].toDouble() < 0 || point["x"].toDouble() > 1
                 || point["y"].toDouble() < 0 || point["y"].toDouble() > 1) return;
+            cleanPoints.append(QJsonObject{{"x", point["x"]}, {"y", point["y"]}});
         }
+        QJsonObject annotation{{"tool", input["tool"]}, {"points", cleanPoints}};
+        const auto frame = input["frame"].toObject(); QJsonObject cleanFrame;
+        for (const auto &key : {"x", "y", "width", "height"}) if (frame[key].isDouble() && frame[key].toDouble() >= 0 && frame[key].toDouble() <= 1) cleanFrame[key] = frame[key];
+        if (cleanFrame.size() == 4) annotation["frame"] = cleanFrame;
         auto annotations = state["annotations"].toArray();
         int pointCount = points.size();
         for (const auto &mark : annotations) pointCount += mark.toObject()["points"].toArray().size();
@@ -299,7 +360,7 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
         if (!persist(id, state)) return;
         bool everyone = true;
         for (const auto &contributor : proposal["authors"].toArray()) if (!accepted.contains(contributor)) everyone = false;
-        if (everyone) applyProposal(id, state);
+        if (everyone) { m_activeRequest = QJsonObject(); applyProposal(id, state); }
     } else if (type == "agentName") {
         const auto name = command["name"].toString().trimmed().remove('@').left(30);
         if (name.isEmpty() || name.contains(' ')) { fail("Use a single name without spaces."); return; }
@@ -315,32 +376,37 @@ void Session::handle(const QJsonObject &command, QLocalSocket *sender) {
         if (m_validatingProject == id) { fail("Wait for the app check to finish before deleting."); return; }
         QString error;
         if (!m_workspace.deleteProject(id, &error)) { fail(error); return; }
+        if (m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
     } else if (type == "archive") {
         if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before archiving."); return; }
         if (m_validatingProject == id) { fail("Wait for the app check to finish before archiving."); return; }
         state["archived"] = true;
-        persist(id, state);
+        if (persist(id, state) && m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
     } else if (type == "cancel") {
         if (m_agentProject == id && m_agent.busy()) {
-            m_agent.cancel();
-            m_agentProject.clear();
-            m_agentAuthor.clear();
-            addMessage(state, state["agentName"].toString(), author + " stopped the agent. Your app is unchanged.", "system");
-            persist(id, state);
+            m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear();
         }
+        if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
+        state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
+        addMessage(state, state["agentName"].toString(), author + " stopped the agent. Pending requests were cleared.", "system");
+        persist(id, state);
+        QTimer::singleShot(0, this, &Session::nextRequest);
     }
     publish(id);
 }
 
 void Session::finishAgent(const QJsonObject &reply) {
+    QTimer::singleShot(0, this, &Session::nextRequest);
     const auto id = m_agentProject;
     const auto requester = m_agentAuthor;
     m_agentProject.clear();
     m_agentAuthor.clear();
     auto state = m_workspace.load(id);
     bool automatic = false;
+    state.remove("activeRequest");
     if (state["epoch"].toInt() != m_agentEpoch) {
-        addMessage(state, state["agentName"].toString(), "New messages or drawings arrived while I was thinking. Address me again so I can include them.", "system");
+        retryRequest(state);
+        addMessage(state, state["agentName"].toString(), "New directions arrived. I’m checking the request against the latest conversation.", "system");
     } else {
         if (reply["kind"] == "proposal" || reply["kind"] == "restore") {
             auto proposal = reply;
@@ -386,8 +452,10 @@ void Session::finishAgent(const QJsonObject &reply) {
         }
         addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent");
     }
+    if (automatic) state["activeRequest"] = m_activeRequest;
     if (persist(id, state) && automatic) applyProposal(id, state);
     publish(id);
+    QTimer::singleShot(0, this, &Session::nextRequest);
 }
 
 void Session::agentError(const QString &message) {
@@ -396,9 +464,11 @@ void Session::agentError(const QString &message) {
     m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
+    state.remove("activeRequest");
     addMessage(state, state["agentName"].toString(), message, "system");
     persist(id, state);
     publish(id);
+    QTimer::singleShot(0, this, &Session::nextRequest);
 }
 
 void Session::applyProposal(const QString &id, QJsonObject state) {
@@ -418,4 +488,27 @@ void Session::applyProposal(const QString &id, QJsonObject state) {
     QTimer::singleShot(10000, &m_validator, [this, id, epoch] {
         if (m_validatingProject == id && m_validatingEpoch == epoch && m_validator.state() != QProcess::NotRunning) m_validator.kill();
     });
+}
+
+void Session::retryRequest(QJsonObject &state) {
+    if (m_activeRequest.isEmpty()) return;
+    auto queue = state["agentQueue"].toArray(); queue.prepend(m_activeRequest); state["agentQueue"] = queue;
+}
+void Session::nextRequest() {
+    if (!m_host || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
+    for (const auto &project : m_workspace.projects()) {
+        const auto id = project.toMap()["id"].toString();
+        auto state = m_workspace.load(id); auto queue = state["agentQueue"].toArray();
+        if (queue.isEmpty()) continue;
+        m_activeRequest = queue.first().toObject(); queue.removeFirst(); state["agentQueue"] = queue;
+        state["activeRequest"] = m_activeRequest;
+        if (!persist(id, state)) return;
+        m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
+        auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
+        request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
+        request["appHistory"] = m_workspace.history(id);
+        const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
+        m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
+        publish(id); return;
+    }
 }

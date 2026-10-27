@@ -44,7 +44,7 @@ Rectangle {
             objectName: "inkLayer"
             anchors.fill: parent
             visible: canvas.buildMode
-            tool: canvas.buildMode && canvas.tool ? canvas.tool : "interact"
+            tool: canvas.buildMode && Backend.canContribute && canvas.tool ? canvas.tool : "interact"
             annotations: canvas.currentMarks
             onStrokeFinished: function(stroke) {
                 stroke.frame = { x: appFrame.x / board.width, y: appFrame.y / board.height, width: appFrame.width / board.width, height: appFrame.height / board.height }
@@ -71,7 +71,7 @@ Rectangle {
         Row { anchors.centerIn: parent; spacing: 8
             FlatButton { width: 80; text: "✎ Draw"; tone: "plain"; checkable: true; autoExclusive: true; checked: canvas.tool === "draw"; onClicked: canvas.tool = "draw"; Accessible.name: "Draw" }
             FlatButton { width: 104; text: "Comment"; tone: "plain"; iconSource: "qrc:/assets/dialogue/arrow.svg"; iconSize: 16; checkable: true; autoExclusive: true; checked: canvas.tool === "comment"; onClicked: canvas.tool = "comment" }
-            FlatButton { width: 80; text: "↶ Undo"; tone: "plain"; enabled: canvas.currentMarks.some(function(mark) { return mark.author === Backend.author }); onClicked: Backend.undoAnnotation(); Accessible.name: "Undo" }
+            FlatButton { width: 80; text: "↶ Undo"; tone: "plain"; enabled: Backend.canContribute && canvas.currentMarks.some(function(mark) { return mark.author === Backend.author }); onClicked: Backend.undoAnnotation(); Accessible.name: "Undo" }
         }
     }
     Shortcut { sequence: "Escape"; onActivated: canvas.tool = "" }

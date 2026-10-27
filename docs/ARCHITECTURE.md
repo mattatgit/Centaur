@@ -4,7 +4,7 @@
 
 Centaur is a native workshop for families to build native apps collaboratively. One project represents one app and one Git repository. NixOS and modest hardware are the initial targets.
 
-The current shell uses C++17 and Qt Quick. On Linux, a nested Wayland compositor embeds a separate native Qt Quick app process in the canvas and forwards input to it. Chat, drawing and comment overlays belong to Centaur; the generated app runs in its own process. Multiple Centaur windows share an authoritative local session over QLocalSocket. Accounts and collaboration between computers are not implemented yet.
+The current shell uses C++17 and Qt Quick. On Linux, a nested Wayland compositor embeds a separate native Qt Quick app process in the canvas and forwards input to it. Chat, drawing and comment overlays belong to Centaur; the generated app runs in its own process. Multiple Centaur windows share an authoritative local session over QLocalSocket. Local-network collaboration uses authenticated, certificate-pinned TLS connections to a background host. Cloud accounts and internet hosting are not implemented.
 
 App changes update the existing project. Git checkpoints preserve source history without presenting each change as a new project or announcing numbered revisions. Making a request approves an ordinary compatible change; only conflicting requirements need agreement by the affected authors.
 
@@ -14,19 +14,21 @@ See [Current state](CURRENT.md) for implemented behaviour, deliberate boundaries
 
 ### Current support
 
-Several native windows can collaborate under the same OS user on one computer, using the same data directory. Display names identify contributions but are not authenticated accounts. The first window hosts the authoritative project state, runs OMP and validates/saves changes. Other windows share chat, annotations, conflict decisions and app source. Each window runs its own native preview with independent interaction state. Keep the host window open; host loss currently requires reopening the windows to resume saved work.
+A background `centaur-host` owns each local data directory, runs OMP, validates source and saves Git history. Native windows connect over the existing OS-user-only local socket. Closing the owner's window no longer ends sharing. The host computer must remain awake; a service installation and automatic failover are outside this prototype.
 
-Separate computers, separate OS users, invitations, authenticated membership and reconnection are not implemented. The local socket is restricted to the current OS user. Changing a display name does not establish a trusted identity, and copying a project folder between devices does not create a shared live session.
+Owners create project-scoped, single-use invitations from Invite. A guest joins from Projects and receives a stable member credential, a host-assigned display name, the invited conversation/drawings and accepted app source. Duplicate display names receive a suffix. The host authenticates every connection, assigns authorship from the credential and restricts remote commands to contribution/approval/stop actions. Guests cannot manage invitations, rename/delete/archive projects or read other projects. Stop sharing revokes all credentials for that project; guests can leave independently.
 
-### Proposed implementation sequence
+Transport uses Qt Network TLS sockets with the host certificate fingerprint embedded in the invitation. Credentials are sent only after checking the pin. Acknowledged command sequences are stored with accepted mutations to prevent duplicate effects after reconnects; stale drawings and votes cannot apply to a different app revision. Guests keep private cached source/state and automatically reconnect with the same identity. One guest window per device owns the outgoing queue; additional views are read-only and can take over when that window closes. Offline contribution is disabled, drafts remain editable, and the last synced native preview remains available.
 
-The following is the proposed route beyond the local experiment, not an existing feature or a selected hosted service:
+Each participant runs a local native preview with independent interaction state. Synchronising data inside a generated/deployed app remains separate from authoring collaboration. The first network contract distributes the existing single-file Qt Quick app, not arbitrary assets or compiled frameworks.
 
-1. **Two devices on a private network:** add host/join UI and an authenticated, encrypted network transport (for example, WebSockets over TLS) around the existing command/snapshot model. One Centaur instance owns the project, Git history, agent credentials and validation. An invitation grants access to a specific project; participant identities and permissions are checked by the host rather than accepted from arbitrary client-supplied author strings. Clients do not need their own OMP credentials just to participate.
-2. **Reliable shared editing:** clients receive the accepted source and required assets and render a local native preview. Commands need identifiers, acknowledgements and ordering; reconnecting clients need a current snapshot and protection against replaying stale changes. Queue agent requests and explain what happens when discussion changes during a request. Continue applying compatible changes directly and requiring agreement only for actual conflicting requests.
-3. **Family access beyond one network:** move hosting into a persistent service so closing a window does not end the session, then add invitation management, revocation and a practical connection path across networks. Decide between self-hosting, a hosted service or a relay when this stage is scoped. Provider credentials remain on the host; distribute neither the host's credentials nor its complete data directory to participants.
+Agent requests are queued and persisted. Ordinary chat does not invalidate in-flight agent work; new explicit agent directions and sketches do. Stale work is retried against current conversation/source. Compatible changes still apply directly, and only actual conflicts require agreement from the affected authors. Pending conflict discussion can invalidate its agreements. Requests interrupted by a host restart return to the queue.
 
-The first network milestone should be two people on separate NixOS devices, with verified identities, shared chat/drawing, an agent change visible in both previews, conflict agreement, and a successful disconnect/rejoin. This is authoring collaboration; synchronising the deployed app's own family data remains a separate concern.
+See [LAN collaboration](LAN_COLLABORATION.md) for the complete host/join flow, NixOS firewall/VM prerequisites, background-host maintenance and acceptance tests. This is a trusted-family LAN milestone: native QML is not sandboxed, invitations should be shared privately, and there is no internet relay, cloud account system, per-member removal UI or host migration.
+
+### Next stages
+
+First complete the physical two-NixOS-device acceptance test, including live OMP, reconnect, independent native previews and resource use on the Air. Then improve member management and sandboxing. Internet access and always-available family hosting require a separate choice of self-hosting, a hosted service or a relay. Provider credentials remain on the host throughout.
 
 ## Deployment direction
 

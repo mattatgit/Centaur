@@ -11,13 +11,13 @@
       pluginPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/plugins" (qtPackages pkgs);
       package = pkgs: pkgs.stdenv.mkDerivation {
         pname = "centaur";
-        version = "0.1.1";
+        version = "0.2.0";
         src = self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
         buildInputs = qtPackages pkgs;
         cmakeFlags = [ "-DBUILD_TESTING=ON"
           "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ];
-        nativeCheckInputs = [ pkgs.git ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
+        nativeCheckInputs = [ pkgs.git pkgs.openssl ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
         doCheck = true;
         preCheck = ''
           export QT_QPA_PLATFORM=offscreen
@@ -48,7 +48,7 @@
           fi
         '';
         # Application projects are real local Git repositories.
-        qtWrapperArgs = [ "--prefix" "PATH" ":" (pkgs.lib.makeBinPath [ pkgs.git ])
+        qtWrapperArgs = [ "--prefix" "PATH" ":" (pkgs.lib.makeBinPath [ pkgs.git pkgs.openssl ])
           "--prefix" "QML_IMPORT_PATH" ":" (qmlPath pkgs) ];
         meta = {
           description = "Native canvas and shared conversation for building native apps";
@@ -62,7 +62,7 @@
         let pkgs = nixpkgs.legacyPackages.${system}; in {
           default = pkgs.mkShell {
             inputsFrom = [ self.packages.${system}.default ];
-            packages = [ pkgs.git ];
+            packages = [ pkgs.git pkgs.openssl ];
             shellHook = ''
               export QML_IMPORT_PATH="${qmlPath pkgs}"
               export QT_PLUGIN_PATH="${pluginPath pkgs}"

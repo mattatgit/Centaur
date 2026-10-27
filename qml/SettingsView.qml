@@ -23,7 +23,7 @@ Rectangle {
                 Layout.fillWidth: true; spacing: 14
                 Text { text: "Your space"; font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.ink }
                 Text { text: "Your name"; font.pixelSize: 14; color: Theme.ink }
-                TextField { id: authorField; objectName: "settingsAuthor"; text: Backend.author; Layout.fillWidth: true; maximumLength: 50; onEditingFinished: if (text.trim()) Backend.author = text }
+                TextField { id: authorField; objectName: "settingsAuthor"; enabled: !Backend.remoteProject; text: Backend.author; Layout.fillWidth: true; maximumLength: 50; onEditingFinished: if (text.trim()) Backend.author = text }
                 Text { text: "People in this conversation see this name."; font.pixelSize: 12; color: Theme.muted }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.dust }
@@ -31,15 +31,15 @@ Rectangle {
                 Layout.fillWidth: true; spacing: 14
                 Text { text: "Agent"; font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.ink }
                 Text { text: Backend.agentAvailable ? "OMP is available" : "OMP is not connected"; font.pixelSize: 14; color: Theme.ink }
-                Text { text: Backend.agentExecutable || "Launch Centaur with your OMP executable configured."; Layout.fillWidth: true; wrapMode: Text.WrapAnywhere; font.pixelSize: 12; color: Theme.muted }
+                Text { text: Backend.remoteProject ? "OMP runs on the project host." : Backend.agentExecutable || "Launch Centaur with your OMP executable configured."; Layout.fillWidth: true; wrapMode: Text.WrapAnywhere; font.pixelSize: 12; color: Theme.muted }
                 Text { text: Backend.agentModel || "The model is reported after an agent request."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 12; color: Theme.muted }
                 Text { text: "Sign in and select a model in OMP. Credentials stay with the agent on this device."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 12; color: Theme.muted }
                 Text { visible: !!Backend.projectId; text: "Address this project's agent as"; font.pixelSize: 14; color: Theme.ink }
-                TextField { visible: !!Backend.projectId; text: Backend.project.agentName || "centaur"; Layout.fillWidth: true; maximumLength: 30; onEditingFinished: if (text.trim()) Backend.renameAgent(text) }
+                TextField { visible: !!Backend.projectId; enabled: !Backend.remoteProject; text: Backend.project.agentName || "centaur"; Layout.fillWidth: true; maximumLength: 30; onEditingFinished: if (text.trim()) Backend.renameAgent(text) }
                 RowLayout { visible: !!Backend.projectId; Layout.fillWidth: true
-                    FlatButton { text: "Open repo"; onClicked: Backend.revealProject() }
+                    FlatButton { visible: !Backend.remoteProject; text: "Open repo"; onClicked: Backend.revealProject() }
                     FlatButton { text: "Restart app"; iconSource: "qrc:/assets/dialogue/reload.svg"; enabled: Backend.embeddingSupported; onClicked: Backend.restartPreview() }
-                    FlatButton { text: "Archive"; onClicked: archiveDialog.open() }
+                    FlatButton { visible: !Backend.remoteProject; text: "Archive"; onClicked: archiveDialog.open() }
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.dust }
@@ -75,7 +75,7 @@ Rectangle {
             Rectangle { Layout.fillWidth: true; height: 1; color: Theme.dust }
             ColumnLayout { Layout.fillWidth: true; spacing: 14
                 Text { text: "Collaboration and storage"; font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.ink }
-                Text { text: "Multiple windows can share a session under the same OS user and data folder. Joining from another computer is not available yet."; color: Theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                Text { text: "Invite people from a project to collaborate across computers on your local network. The background host keeps sharing while its Centaur window is closed. Keep the host computer awake."; color: Theme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                 Text { text: Backend.dataRoot; color: Theme.muted; font.pixelSize: 12; wrapMode: Text.WrapAnywhere; Layout.fillWidth: true }
                 FlatButton { text: "Open data folder"; onClicked: Backend.revealData() }
                 FlatButton { visible: !!Backend.projectId; text: "Back to app"; onClicked: settings.returnToApp() }

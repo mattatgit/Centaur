@@ -8,10 +8,12 @@ Rectangle {
     color: "white"; radius: 16
     signal createRequested()
     property string selectedProjectId: ""
+    property bool selectedProjectRemote: false
     property string selectedProjectName: ""
     function showProjectMenu(button, project) {
         selectedProjectId = project.id
         selectedProjectName = project.name
+        selectedProjectRemote = !!project.remote
         const position = button.mapToItem(root, button.width, button.height + 8)
         projectMenu.x = Math.max(8, Math.min(root.width - projectMenu.width - 8, position.x - projectMenu.width))
         projectMenu.y = position.y
@@ -32,11 +34,11 @@ Rectangle {
             objectName: "projectMenuEntry-" + text
             implicitHeight: 36
             leftPadding: 12; rightPadding: 12
-            contentItem: Text { text: menuEntry.text; font.pixelSize: 12; color: Theme.ink; verticalAlignment: Text.AlignVCenter }
+            contentItem: Text { text: menuEntry.text; font.pixelSize: 12; color: menuEntry.enabled ? Theme.ink : Theme.muted; verticalAlignment: Text.AlignVCenter }
             background: Rectangle { radius: 8; color: menuEntry.highlighted || menuEntry.down ? Theme.dust : "transparent" }
         }
-        Action { text: "Rename"; onTriggered: { renameName.text = root.selectedProjectName; renameDialog.open() } }
-        Action { text: "Delete"; onTriggered: deleteDialog.open() }
+        Action { text: "Rename"; enabled: !root.selectedProjectRemote; onTriggered: { renameName.text = root.selectedProjectName; renameDialog.open() } }
+        Action { text: root.selectedProjectRemote ? "Leave project" : "Delete"; onTriggered: deleteDialog.open() }
     }
     Dialog {
         id: renameDialog
@@ -61,7 +63,7 @@ Rectangle {
     Dialog {
         id: deleteDialog
         objectName: "deleteProjectDialog"
-        title: "Delete project?"
+        title: root.selectedProjectRemote ? "Leave project?" : "Delete project?"
         parent: Overlay.overlay
         modal: true; anchors.centerIn: parent
         width: Math.min(420, root.width - 24); padding: 24
@@ -69,11 +71,11 @@ Rectangle {
         header: Label { text: deleteDialog.title; color: Theme.ink; font.pixelSize: 16; font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
         ColumnLayout {
             width: parent.width; spacing: 20
-            Text { text: "“" + root.selectedProjectName + "” and its app and conversation will be removed from Centaur."; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
+            Text { text: root.selectedProjectRemote ? "Leave “" + root.selectedProjectName + "” on this device? The owner’s project stays available to the other people." : "“" + root.selectedProjectName + "” and its app and conversation will be removed from Centaur."; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
                 FlatButton { id: cancelDelete; objectName: "cancelProjectDeletion"; text: "Cancel"; tone: "plain"; onClicked: deleteDialog.close() }
-                FlatButton { objectName: "confirmProjectDeletion"; text: "Delete project"; tone: "dark"; onClicked: { deleteDialog.close(); Backend.deleteProject(root.selectedProjectId) } }
+                FlatButton { objectName: "confirmProjectDeletion"; text: root.selectedProjectRemote ? "Leave project" : "Delete project"; tone: "dark"; onClicked: { deleteDialog.close(); root.selectedProjectRemote ? Backend.leaveProject(root.selectedProjectId) : Backend.deleteProject(root.selectedProjectId) } }
             }
         }
         onOpened: cancelDelete.forceActiveFocus()
@@ -120,11 +122,11 @@ Rectangle {
                                     width: 54; height: 54; radius: 14; color: Theme.ink
                                     Text { anchors.centerIn: parent; text: modelData.name.substring(0, 1).toUpperCase(); color: Theme.lime; font.pointSize: 23; font.weight: Font.DemiBold }
                                 }
-                                Text { text: modelData.name; color: Theme.ink; font.pointSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Text { text: modelData.description || "A new idea, ready to take shape."; color: Theme.muted; font.pointSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: modelData.name; color: Theme.ink; font.pointSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: modelData.description || "A new idea, ready to take shape."; color: Theme.muted; font.pointSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
                                 Item { Layout.fillHeight: true }
                                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
-                                Text { text: "Native app"; color: Theme.muted; font.pointSize: 10 }
+                                Text { text: modelData.remote ? (modelData.connected ? "Shared project" : "Shared · host unavailable") : "Native app"; color: Theme.muted; font.pointSize: 10 }
                             }
                             Button {
                                 id: menuButton

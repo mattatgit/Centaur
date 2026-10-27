@@ -26,8 +26,8 @@ Item {
             onSettingsRequested: workspace.settingsRequested()
             onSendRequested: function(text) {
                 if (text.toLowerCase().indexOf("@" + Backend.project.agentName.toLowerCase()) !== -1)
-                    canvas.capture(function(path, revision) { Backend.sendMessage(text, path, revision) })
-                else Backend.sendMessage(text)
+                    canvas.capture(function(path, revision) { chat.finishSending(text, Backend.sendMessage(text, path, revision)) })
+                else chat.finishSending(text, Backend.sendMessage(text))
             }
         }
     }

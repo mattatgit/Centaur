@@ -47,13 +47,16 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption(); parser.addVersionOption();
     parser.addOption({"data-dir", "Project and shared session directory.", "path"});
     parser.addOption({"smoke-test", "Load the native UI and exit (temporary data only)."});
+    parser.addOption({"network-embedding-smoke-test", "Verify a shared app received from a separate host renders and accepts input."});
     parser.addOption({"embedding-smoke-test", "Verify that a separate native app maps inside the canvas."});
     parser.addOption({"screenshot", "Save a native UI screenshot and exit.", "path"});
     parser.addOption({"demo", "Create and open a starter project if no projects exist."});
     parser.process(app);
     const bool smoke = parser.isSet("smoke-test");
-    const bool embeddingTest = parser.isSet("embedding-smoke-test");
-    QTemporaryDir temporary;
+    const bool networkEmbedding = parser.isSet("network-embedding-smoke-test");
+    const bool embeddingTest = parser.isSet("embedding-smoke-test") || networkEmbedding;
+    QTemporaryDir temporary, ownerTemporary;
+    std::unique_ptr<Controller> networkOwner;
     QString root = parser.value("data-dir");
     if (smoke || embeddingTest) root = temporary.path();
     if (root.isEmpty()) root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
@@ -73,7 +76,7 @@ int main(int argc, char *argv[]) {
     QObject::connect(&engine, &QQmlEngine::warnings, &app, [&qmlWarning] { qmlWarning = true; });
     engine.load(QUrl("qrc:/qml/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
-    if (embeddingTest) {
+    if (embeddingTest && !networkEmbedding) {
         Workspace workspace(root);
         QString error;
         const auto id = workspace.createProject("Embedding test", "Temporary native client probe", &error);
@@ -81,8 +84,27 @@ int main(int argc, char *argv[]) {
         if (id.isEmpty() || !probe.open(QIODevice::ReadOnly)
             || !Workspace::writeFile(workspace.projectPath(id) + "/App.qml", probe.readAll())) return 1;
     }
-    controller.start();
-    if (embeddingTest || parser.isSet("demo")) controller.openStarterProject();
+    controller.start(!smoke && !embeddingTest);
+    if ((embeddingTest && !networkEmbedding) || parser.isSet("demo")) controller.openStarterProject();
+    if (networkEmbedding) {
+        qputenv("CENTAUR_PORT", "0");
+        networkOwner = std::make_unique<Controller>(ownerTemporary.path());
+        auto *owner = networkOwner.get();
+        auto prepared = std::make_shared<bool>(false), joining = std::make_shared<bool>(false);
+        QObject::connect(owner, &Controller::changed, &app, [&, owner, prepared, joining] {
+            if (!owner->projectId().isEmpty() && !*prepared) {
+                *prepared = true;
+                QFile probe(":/tests/fixtures/EmbeddedProbe.qml");
+                if (!probe.open(QIODevice::ReadOnly) || !Workspace::writeFile(ownerTemporary.path() + "/projects/" + owner->projectId() + "/App.qml", probe.readAll())) { app.exit(1); return; }
+                owner->invitePeople("127.0.0.1");
+            }
+            if (!owner->invitationCode().isEmpty() && !*joining) { *joining = true; controller.joinProject(owner->invitationCode(), "Remote tester"); }
+        });
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&] {
+            QProcess::execute(QCoreApplication::applicationDirPath() + "/centaur-host", {"--stop", "--data-dir", ownerTemporary.path()});
+        });
+        owner->start(true); owner->setAuthor("Host"); owner->createProject("Network embedding", "Native app over TLS");
+    }
     const auto saveSmokeImage = [&](const QString &name) {
         if (!parser.isSet("screenshot")) return;
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
@@ -156,7 +178,24 @@ int main(int argc, char *argv[]) {
         });
         QTimer::singleShot(2200, &app, [&, click] { click("projectMenuEntry-Delete"); });
         QTimer::singleShot(2350, &app, [&, click] { click("confirmProjectDeletion"); });
-        QTimer::singleShot(2500, &app, [&] { app.exit(qmlWarning || !controller.projects().isEmpty() ? 1 : 0); });
+        QTimer::singleShot(2500, &app, [&] {
+            if (!controller.projects().isEmpty()) qmlWarning = true;
+            auto *dialogs = engine.rootObjects().first()->findChild<QObject *>("collaborationDialogs");
+            if (!dialogs || !QMetaObject::invokeMethod(dialogs, "openJoin")) qmlWarning = true;
+        });
+        QTimer::singleShot(2650, &app, [&] {
+            saveSmokeImage("join-project");
+            auto *dialog = engine.rootObjects().first()->findChild<QObject *>("joinProjectDialog");
+            if (!dialog || !dialog->property("visible").toBool()) qmlWarning = true;
+            else QMetaObject::invokeMethod(dialog, "close");
+            controller.createProject("Invite UI test", "Temporary sharing controls");
+        });
+        QTimer::singleShot(2800, &app, [&] {
+            auto *dialogs = engine.rootObjects().first()->findChild<QObject *>("collaborationDialogs");
+            if (!dialogs || !QMetaObject::invokeMethod(dialogs, "openInvite")) qmlWarning = true;
+        });
+        QTimer::singleShot(2950, &app, [&] { saveSmokeImage("invite-people"); });
+        QTimer::singleShot(3100, &app, [&] { app.exit(qmlWarning || controller.projectId().isEmpty() ? 1 : 0); });
     }
     if (embeddingTest) {
         auto *inputTimer = new QTimer(&app);

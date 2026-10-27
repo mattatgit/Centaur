@@ -49,7 +49,7 @@ ApplicationWindow {
                 RowLayout {
                     anchors.left: parent.left; anchors.leftMargin: window.workspaceVisible ? 24 : 3
                     anchors.verticalCenter: parent.verticalCenter
-                    width: window.workspaceVisible ? Math.max(160, (parent.width - 280) / 2 - 48) : parent.width - 160
+                    width: window.workspaceVisible ? Math.max(160, (parent.width - 280) / 2 - 48) : Math.max(0, parent.width - headerActions.width - 32)
                     spacing: 5
                     BrandMark { visible: window.workspaceVisible; Layout.rightMargin: 3; onClicked: window.navigate("projects") }
                     FlatButton {
@@ -77,15 +77,27 @@ ApplicationWindow {
                             checkable: true; autoExclusive: true; checked: window.buildMode; onClicked: window.buildMode = true }
                     }
                 }
-                FlatButton {
-                    visible: window.workspaceVisible || window.page !== "settings"
+                Row {
+                    id: headerActions
                     anchors.right: parent.right; anchors.rightMargin: 24; anchors.verticalCenter: parent.verticalCenter
-                    text: window.workspaceVisible ? "Deploy" : window.page === "designSystems" ? "Import" : "+  New project"
-                    tone: window.workspaceVisible ? "soft" : "dark"
-                    iconSource: window.workspaceVisible ? "qrc:/assets/dialogue/share.svg" : ""
-                    enabled: window.page !== "designSystems"
-                    onClicked: window.workspaceVisible ? deployDialog.open() : createDialog.open()
-                    ToolTip.text: window.page === "designSystems" ? "Design-system import is not available yet" : ""
+                    spacing: 8
+                    FlatButton {
+                        visible: window.workspaceVisible || window.page === "projects"
+                        text: window.workspaceVisible ? (Backend.remoteProject ? "Shared" : "Invite") : "Join project"
+                        enabled: !window.workspaceVisible || !Backend.remoteProject
+                        tone: "plain"
+                        onClicked: window.workspaceVisible ? collaboration.openInvite() : collaboration.openJoin()
+                        ToolTip.text: Backend.connectionStatus
+                    }
+                    FlatButton {
+                        visible: window.workspaceVisible || window.page !== "settings"
+                        text: window.workspaceVisible ? "Deploy" : window.page === "designSystems" ? "Import" : window.width < 600 ? "+ New" : "+  New project"
+                        tone: window.workspaceVisible ? "soft" : "dark"
+                        iconSource: window.workspaceVisible ? "qrc:/assets/dialogue/share.svg" : ""
+                        enabled: window.page !== "designSystems" && !Backend.remoteProject
+                        onClicked: window.workspaceVisible ? deployDialog.open() : createDialog.open()
+                        ToolTip.text: window.page === "designSystems" ? "Design-system import is not available yet" : ""
+                    }
                 }
             }
             StackLayout {
@@ -105,6 +117,7 @@ ApplicationWindow {
     Component { id: designSystemsComponent; DesignSystemsView {} }
     Component { id: settingsComponent; SettingsView { onReturnToApp: window.page = "projects" } }
 
+    CollaborationDialogs { id: collaboration; anchors.fill: parent }
     Dialog {
         id: deployDialog
         title: "Deploy"

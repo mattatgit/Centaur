@@ -30,10 +30,10 @@ Projects, Design Systems and Settings use the native sidebar adapted from Dialog
 
 1. Create a project. This makes a local Git repository with a working `App.qml`, initial checkpoint and README.
 2. On Linux, use the starter app inside the canvas: add a task, tick a checkbox, open the menu and dialog.
-3. Choose **Draw** to sketch, or **Comment** to drag an arrow towards a feature. Switch back to **Use app** to interact. Undo removes your last mark. Press Escape to return to the app.
-4. Chat with another author. Mention **@centaur** when you want an agent response. You can change your name and the agent's name from the name button at the top right.
+3. Choose **Draw** to sketch, or **Comment** to drag an arrow towards a feature. Switch back to **Interact** to interact. Undo removes your last mark. Press Escape to return to the app.
+4. Chat with another author. Mention **@centaur** when you want an agent response. You can change your name and the agent's name in Settings (open it from the chat footer).
 5. A request to the agent is approval to make that change. Compatible requests are checked and applied automatically, with no extra approval click. If the agent identifies genuinely incompatible requirements, it explains the conflict and proposes a compromise. Only the affected authors use **Agree to compromise**; other contributors do not need to sign off. The agent may ask a clarification question before it can propose a change.
-6. Centaur checks candidate QML in another process, saves a Git checkpoint and restarts the native preview. A candidate that fails its QML check leaves the existing app untouched. New messages or drawings invalidate an outstanding response, app check or conflict proposal so outdated code is not applied.
+6. Centaur checks candidate QML in another process, saves a Git checkpoint and restarts the native preview. A candidate that fails its QML check leaves the existing app untouched. Agent requests queue automatically. New explicit agent directions and sketches cause stale work to be retried; ordinary chat can continue.
 
 The chat sidebar is resizable, starts at 430 logical pixels, and uses 12.5-point message text. There is no activity rail; decisions and progress appear in the chat.
 
@@ -51,11 +51,11 @@ In another terminal:
 CENTAUR_AUTHOR=Saori nix run . -- --data-dir "$PWD/.centaur-data"
 ```
 
-The first window hosts the shared session. Both windows see the same projects, conversation, marks, proposal and accepted app revision. Their in-app interaction state is independent. Keep the first window open; if it closes, reopen both windows to resume from disk.
+A background process hosts the shared session. Both windows see the same projects, conversation, marks, proposal and accepted app revision. Their in-app interaction state is independent. The background host keeps coordinating after the first window closes.
 
-This proves authored collaboration and coordination locally. Networking between computers, authenticated family membership and shared live app interaction are not implemented yet. Display names are prototype identities.
+Local display names remain prototype identities. Across computers, project invitations assign stable participant credentials; shared live app interaction state remains separate.
 
-The proposed next collaboration milestone is two separate NixOS devices joining one authoritative host with project invitations, authenticated identities and encrypted connections. See [the collaboration architecture](docs/ARCHITECTURE.md#collaboration-between-people) for the staged plan and reconnection requirements.
+For separate computers, choose **Invite** inside a project and **Join project** on the other machine. Only the host needs OMP. See [LAN collaboration setup and user flow](docs/LAN_COLLABORATION.md), including the NixOS firewall, VM networking and trusted-native-code boundary. Internet hosting is not included.
 
 ## Connect the agent
 

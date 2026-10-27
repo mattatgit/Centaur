@@ -526,7 +526,7 @@ private slots:
         QCOMPARE(workspace.source(id), initial);
         QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
     }
-    void newDiscussionInvalidatesAnInFlightAgentReply() {
+    void newDirectionsRetryAnInFlightAgentReply() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/slow-agent";
         const auto reply = QJsonDocument(QJsonObject{{"kind", "proposal"}, {"message", "Try blue"}, {"conflict", QJsonValue::Null},
@@ -542,12 +542,32 @@ private slots:
         Workspace workspace(dir.path());
         const auto id = workspace.projects().first().toMap()["id"].toString();
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
-        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "Wait, can we discuss the colour?"}});
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur wait, can we discuss the colour?"}});
         QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().size(), 3, 5000);
         QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
-        QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("New messages"));
+        QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("New directions"));
         QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
         qputenv("CENTAUR_AGENT", previousAgent);
+    }
+    void queuedRequestsApplyInOrderWhileOrdinaryChatContinues() {
+        QTemporaryDir dir;
+        const auto fake = dir.path() + "/queued-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "Update the app"},
+            {"conflict", QJsonValue::Null}, {"qml", "import QtQuick\nRectangle { color: 'blue' }"}}, "sleep 0.2\n"));
+        const AgentOverride agentOverride(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type", "create"}, {"name", "Queue"}});
+        Workspace workspace(dir.path()); const auto id = workspace.projects().first().toMap()["id"].toString();
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur change the colour"}});
+        for (int i = 0; i < 10; ++i) session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "Just chatting " + QString::number(i)}});
+        QCOMPARE(workspace.load(id)["epoch"].toInt(), 1);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur then improve the heading"}});
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(), 3, 15000);
+        const auto state = workspace.load(id);
+        QVERIFY(state["agentQueue"].toArray().isEmpty()); QVERIFY(state["activeRequest"].toObject().isEmpty());
+        const auto decisions = state["decisions"].toArray(); QCOMPARE(decisions.size(), 2);
+        QCOMPARE(decisions[0].toObject()["requestedBy"].toString(), QString("Matt"));
+        QCOMPARE(decisions[1].toObject()["requestedBy"].toString(), QString("Saori"));
     }
     void twoWindowsShareAuthoredMessages() {
         QTemporaryDir dir;
@@ -572,7 +592,7 @@ private slots:
         QVERIFY(hostSpy.size() > 1);
         QVERIFY(guestSpy.size() > 1);
     }
-    void newDiscussionDuringAutomaticCheckDoesNotApplyStaleCode() {
+    void newDirectionsDuringAutomaticCheckDoNotApplyStaleCode() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/agent";
         QVERIFY(writeAgentReply(fake, {{"kind", "proposal"}, {"message", "Try blue"},
@@ -597,8 +617,8 @@ private slots:
         const auto initial = workspace.source(id);
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(workspace.projectPath(id) + "/.centaur/candidate.qml.checking"), 5000);
-        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "Wait, let's discuss the colour."}});
-        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("conversation changed while"), 5000);
+        session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur wait, let's discuss the colour."}});
+        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("New directions arrived during"), 5000);
         QCOMPARE(workspace.source(id), initial);
         QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
         QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());

@@ -25,20 +25,27 @@ class Controller : public QObject {
     Q_PROPERTY(int gridSize READ gridSize WRITE setGridSize NOTIFY preferencesChanged)
     Q_PROPERTY(int gridOpacity READ gridOpacity WRITE setGridOpacity NOTIFY preferencesChanged)
     Q_PROPERTY(QColor gridColor READ gridColor WRITE setGridColor NOTIFY preferencesChanged)
+    Q_PROPERTY(bool remoteProject READ remoteProject NOTIFY changed)
+    Q_PROPERTY(bool canContribute READ canContribute NOTIFY changed)
+    Q_PROPERTY(QString connectionStatus READ connectionStatus NOTIFY changed)
+    Q_PROPERTY(QString localAddress READ localAddress CONSTANT)
+    Q_PROPERTY(QString invitationCode READ invitationCode NOTIFY changed)
+    Q_PROPERTY(QString joinStatus READ joinStatus NOTIFY changed)
+    Q_PROPERTY(bool joining READ joining NOTIFY changed)
     Q_PROPERTY(QString agentExecutable READ agentExecutable NOTIFY changed)
 public:
     explicit Controller(QString root, QObject *parent = nullptr);
     ~Controller() override;
-    void start();
+    void start(bool background = false);
     void openStarterProject();
     QVariantList projects() const { return m_projects; }
     QVariantMap project() const { return m_states.value(m_projectId).toVariantMap(); }
     QString projectId() const { return m_projectId; }
-    QString author() const { return m_author; }
+    QString author() const;
     void setAuthor(const QString &author);
-    bool agentAvailable() const { return m_agentAvailable; }
+    bool agentAvailable() const;
     QString agentModel() const { return project().value("agentModel").toString(); }
-    bool agentBusy() const { return !m_busyProject.isEmpty(); }
+    bool agentBusy() const;
     QString previewStatus() const { return m_previewStatus; }
     bool previewRunning() const { return m_preview.state() == QProcess::Running; }
     bool embeddingSupported() const;
@@ -53,6 +60,19 @@ public:
     void setGridOpacity(int value);
     void setGridColor(const QColor &value);
     QString agentExecutable() const { return m_agentExecutable; }
+    bool remoteProject() const { return m_shared.contains(m_projectId); }
+    bool canContribute() const;
+    QString connectionStatus() const;
+    QString localAddress() const { return CollaborationHost::suggestedAddress(); }
+    QString invitationCode() const { return m_invitationCode; }
+    QString joinStatus() const;
+    bool joining() const { return !m_joiningId.isEmpty(); }
+    Q_INVOKABLE void invitePeople(const QString &address);
+    Q_INVOKABLE void stopSharing();
+    Q_INVOKABLE void joinProject(const QString &code, const QString &name);
+    Q_INVOKABLE void cancelJoin();
+    Q_INVOKABLE void leaveProject(const QString &id);
+    Q_INVOKABLE void copyInvitation();
     int surfaceCount() const { return m_surfaceCount; }
     void setSurfaceCount(int count);
     Q_INVOKABLE void createProject(const QString &name, const QString &description);
@@ -61,7 +81,7 @@ public:
     Q_INVOKABLE void archiveProject(const QString &id);
     Q_INVOKABLE void renameProject(const QString &id, const QString &name);
     Q_INVOKABLE void deleteProject(const QString &id);
-    Q_INVOKABLE void sendMessage(const QString &text, const QString &image = {}, int imageRevision = 0);
+    Q_INVOKABLE bool sendMessage(const QString &text, const QString &image = {}, int imageRevision = 0);
     Q_INVOKABLE void addAnnotation(const QVariantMap &annotation);
     Q_INVOKABLE void undoAnnotation();
     Q_INVOKABLE void acceptProposal();
@@ -74,6 +94,7 @@ public:
     Q_INVOKABLE void revealProject();
     Q_INVOKABLE void revealData();
 signals:
+    void joined();
     void preferencesChanged();
     void changed();
     void previewChanged();
@@ -83,6 +104,15 @@ signals:
 private:
     void receive(const QJsonObject &data);
     void command(QJsonObject data);
+    bool route(const QString &id, QJsonObject data);
+    void refresh();
+    void addShared(SharedProject *project);
+    QString projectPath() const;
+    QJsonObject m_localSnapshot;
+    QHash<QString, SharedProject *> m_shared;
+    QString m_invitationCode;
+    QString m_joiningId;
+    QString m_joinMessage;
     void savePreferences();
     QSettings m_preferences;
     Session m_session;
