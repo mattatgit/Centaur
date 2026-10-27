@@ -1,4 +1,5 @@
 import importlib.util
+import http.server
 import json
 import pathlib
 import threading
@@ -54,8 +55,6 @@ class CacheProxyTests(unittest.TestCase):
         real_urlopen = urllib.request.urlopen
         upstream = []
         def fetch(request, **kwargs):
-            if request.full_url.startswith('http://127.0.0.1:'):
-                return real_urlopen(request, **kwargs)
             upstream.append(request)
             self.assertEqual(request.full_url, 'https://app.cachix.org/api/v1/cache/centaur-test')
             self.assertEqual(request.get_header('Authorization'), 'Bearer test-only')
@@ -65,7 +64,7 @@ class CacheProxyTests(unittest.TestCase):
             thread.start()
             try:
                 base = 'http://127.0.0.1:' + str(server.server_port)
-                with mock.patch.object(proxy.urllib.request, 'urlopen', side_effect=fetch), mock.patch.object(server, 'missing', return_value=['b' * 32]):
+                with mock.patch.object(proxy, 'open_api', side_effect=fetch), mock.patch.object(server, 'missing', return_value=['b' * 32]):
                     request = urllib.request.Request(base + server.prefix, headers={'Authorization': 'Bearer test-only'})
                     with real_urlopen(request) as response:
                         self.assertTrue(json.load(response)['isPublic'])
@@ -76,6 +75,32 @@ class CacheProxyTests(unittest.TestCase):
                         real_urlopen(base + '/api/v1/cache/other-cache')
                     self.assertEqual(denied.exception.code, 403)
                 self.assertEqual(len(upstream), 1)
+            finally:
+                server.shutdown()
+                thread.join()
+
+    def test_api_redirects_are_not_followed_with_credentials(self):
+        paths = []
+        class Redirect(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def do_GET(self):
+                paths.append(self.path)
+                self.send_response(302)
+                self.send_header('Location', '/credential-target')
+                self.end_headers()
+
+        with http.server.ThreadingHTTPServer(('127.0.0.1', 0), Redirect) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                request = urllib.request.Request('http://127.0.0.1:' + str(server.server_port) + '/original',
+                                                 headers={'Authorization': 'Bearer test-only'})
+                with self.assertRaises(urllib.error.HTTPError) as redirect:
+                    proxy.open_api(request)
+                self.assertEqual(redirect.exception.code, 302)
+                self.assertEqual(paths, ['/original'])
             finally:
                 server.shutdown()
                 thread.join()

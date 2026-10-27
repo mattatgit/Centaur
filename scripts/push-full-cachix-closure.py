@@ -18,6 +18,17 @@ import urllib.error
 import urllib.request
 
 
+class NoCredentialRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *_args, **_kwargs):
+        return None
+
+
+def open_api(request):
+    # Fail closed on redirects rather than forwarding a bearer token to a
+    # different host. The API upload routes do not need HTTP redirects.
+    return urllib.request.build_opener(NoCredentialRedirect()).open(request, timeout=120)
+
+
 class CacheProxy(http.server.ThreadingHTTPServer):
     daemon_threads = True
 
@@ -87,7 +98,7 @@ class CacheRequest(http.server.BaseHTTPRequestHandler):
                        if key.lower() not in {'host', 'content-length', 'connection', 'transfer-encoding', 'accept-encoding'}}
             request = urllib.request.Request(
                 'https://app.cachix.org' + self.path, data=body, headers=headers, method=self.command)
-            with urllib.request.urlopen(request, timeout=120) as response:
+            with open_api(request) as response:
                 self.respond(response.status, response.read(), response.headers.get('Content-Type', 'application/json'))
         except urllib.error.HTTPError as error:
             self.respond(error.code, error.read())
