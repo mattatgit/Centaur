@@ -1,12 +1,106 @@
 name: Native prototype
+
 on: [push, pull_request, workflow_dispatch]
+
 permissions:
   contents: read
+
 jobs:
-  linux:
-    runs-on: ubuntu-latest
+  distribution:
+    name: Check distribution tooling
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
-      - name: Build and test native Linux package
-        run: nix build -L
+      - name: Lint workflow and distribution scripts
+        run: |
+          nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
+            'actionlint .github/workflows/native.yml && shellcheck scripts/*binary-cache.sh'
+      - name: Test signed closure downloads without production credentials
+        run: |
+          fixture=$(nix build --inputs-from . nixpkgs#hello --no-link --print-out-paths --max-jobs 0 --builders '')
+          bash scripts/check-binary-cache.sh "$fixture"
+
+  linux:
+    name: Check ${{ matrix.system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - name: Use the public Centaur cache when configured (read only)
+        if: vars.CENTAUR_CACHIX_CACHE != ''
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          skipPush: true
+      - name: Build and test the native Linux package
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: nix build -L --no-update-lock-file ".#packages.${SYSTEM}.default"
+      - name: Explain binary publication setup
+        if: github.ref == 'refs/heads/codex/native-prototype' && vars.CENTAUR_CACHIX_CACHE == ''
+        run: |
+          echo 'Binary publication is not configured yet. Create a public Cachix cache, set CENTAUR_CACHIX_CACHE (repository variable) and CACHIX_AUTH_TOKEN (repository secret). See docs/BINARY_DISTRIBUTION.md.' >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish ${{ matrix.system }}
+    needs: [linux, distribution]
+    # Never publish pull-request code or other branches. Both architectures
+    # must pass their checks before either publication job can start.
+    if: >-
+      github.repository == 'mattatgit/Centaur' &&
+      github.ref == 'refs/heads/codex/native-prototype' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      vars.CENTAUR_CACHIX_CACHE != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require the cache write credential
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: |
+          if [ -z "$CACHIX_AUTH_TOKEN" ]; then
+            echo '::error::Set the repository secret CACHIX_AUTH_TOKEN to a write token for the configured public Cachix cache.'
+            exit 1
+          fi
+      - uses: cachix/install-nix-action@v31
+      - name: Install Cachix and configure public downloads only
+        uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          skipPush: true
+      # Fresh native runners realise the same locked package, including its
+      # checks, without moving large unsigned closures between jobs.
+      - name: Realise the checked package at this exact commit
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: nix build -L --no-update-lock-file ".#packages.${SYSTEM}.default"
+      - name: Publish the full closure and verify a fresh signed download
+        env:
+          CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          SYSTEM: ${{ matrix.system }}
+        run: bash scripts/publish-binary-cache.sh result "$RUNNER_TEMP/centaur-distribution" "$SYSTEM" "$GITHUB_SHA"
+      - name: Upload public installation metadata and closure manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: centaur-distribution-${{ matrix.system }}
+          path: ${{ runner.temp }}/centaur-distribution/metadata/
+          if-no-files-found: error
+          retention-days: 30

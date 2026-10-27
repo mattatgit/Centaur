@@ -73,3 +73,10 @@ Project cards have a small original Dialogue three-dot menu with Rename and Dele
 Version 0.2 adds Invite/Join project, single-use 20-minute invitations, private membership storage, project-scoped TLS snapshots, host-enforced permissions, sequence/acknowledgement handling, persistent queued agent requests, offline connection status/draft retention, Leave and Stop sharing. No new SVG artwork is introduced. The native preview loads synced accepted source from a separate guest cache; shared cards do not become duplicate local projects.
 
 Automated checks cover separate data directories, guest-originated agent changes, authored drawing/chat, conflict identity enforcement, cross-project denial, used-invitation rejection, certificate pin mismatch, duplicate commands, reconnect with the same member identity, and a detached host completing requests after its UI closes. Linux additionally checks that an app delivered over TLS from a separate background host renders in a guest compositor and receives mouse input. Physical VM/Air connectivity and live OMP remain manual acceptance work.
+
+
+## Binary distribution workflow — 27 October 2026
+
+GitHub Actions checks the unchanged v0.2 package on native x86_64-linux and aarch64-linux runners. After both pass, trusted pushes/manual runs on codex/native-prototype can publish each complete runtime closure to a public Cachix cache and verify a fresh signed download. The package includes Centaur, centaur-host and centaur-preview. Public installation metadata records the commit, cache key, package path and verified closure. See [Binary distribution](BINARY_DISTRIBUTION.md).
+
+First publication requires a public Cachix cache, repository variable CENTAUR_CACHIX_CACHE and per-cache write secret CACHIX_AUTH_TOKEN. Until configured, publication is skipped with a setup note; a passing CI build does not claim a cache upload. Air/VM installation commands explicitly disable builders so missing binaries cannot cause local compilation. Application functionality and flake platform outputs are unchanged.

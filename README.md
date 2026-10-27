@@ -8,6 +8,8 @@ See [Architecture](docs/ARCHITECTURE.md) for the runtime and agreed deployment d
 
 ## Run on NixOS
 
+For the Intel NixOS Air or ARM64 VM, prefer the [precompiled binary installation](docs/BINARY_DISTRIBUTION.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host and preview, without local compilation. The source-build commands below remain available for development.
+
 With Nix flakes enabled, from this repository:
 
 ```sh

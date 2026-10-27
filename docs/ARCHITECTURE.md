@@ -50,7 +50,7 @@ The next deployment milestone is **Install this app on this computer**, targetin
 - Persistent app data stored separately from the installed package and Centaur's authoring state. App updates must preserve that data.
 - A way to associate an installed release with its source project and checkpoint so authors can return to the workshop and prepare a later release.
 
-The initial packaging approach is Nix. Builds can run on a faster machine or CI and be distributed through a binary cache, reducing compilation on entry-level devices. ARM64 Linux and x86-64 Linux require appropriate builds; the UTM VM and older Air must not be assumed to use the same executable. The build service, cache hosting and update delivery are not implemented or selected yet. See [Nix binary distribution](https://nix.dev/manual/nix/stable/package-management/binary-cache-substituter.html).
+The initial packaging approach is Nix. Builds can run on a faster machine or CI and be distributed through a binary cache, reducing compilation on entry-level devices. ARM64 Linux and x86-64 Linux require appropriate builds; the UTM VM and older Air must not be assumed to use the same executable. Centaur itself now has a [GitHub Actions/Cachix distribution workflow](BINARY_DISTRIBUTION.md) for both Linux architectures, pending initial cache/account configuration. This distributes the authoring package, not standalone generated-app releases. Generated-app build/update delivery remains future work.
 
 ### App data and synchronisation
 

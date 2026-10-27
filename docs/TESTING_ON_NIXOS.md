@@ -1,29 +1,19 @@
 # Testing on the MacBook Air running NixOS
 
-Keep editing on the faster Mac. Use the Air as the native embedding and resource test machine. The prototype source is small; Nix normally substitutes the Qt dependencies from its binary caches instead of compiling Qt on the Air.
+Keep editing on the faster Mac. Use the Air as the native embedding and resource test machine.
 
-## First launch
+## Install and update a precompiled package
 
-From a terminal in the Air's graphical desktop:
+Follow [Binary distribution](BINARY_DISTRIBUTION.md) for the one-time public-cache configuration, installation, future profile updates and proof that no compilation takes place. The cache and CI write credential must be activated first; successful build checks alone do not publish binaries.
 
-```sh
-nix run 'github:mattatgit/Centaur?ref=codex/native-prototype' -- --demo
-```
-
-If flakes are not enabled in the current Nix configuration:
+After the cache is configured and the wanted commit is published, a one-off cache-only launch is:
 
 ```sh
-nix --extra-experimental-features 'nix-command flakes' \
-  run 'github:mattatgit/Centaur?ref=codex/native-prototype' -- --demo
+nix --refresh run --max-jobs 0 --builders '' --option fallback false \
+  'github:mattatgit/Centaur?ref=codex/native-prototype' -- --demo
 ```
 
-This fetches the prototype branch and builds/tests Centaur before opening it. The first download will take longer than later launches. No source checkout or ChatGPT installation is needed just to run Centaur.
-
-For updates, run the same command with `--refresh` immediately after `nix`:
-
-```sh
-nix --refresh run 'github:mattatgit/Centaur?ref=codex/native-prototype' -- --demo
-```
+This fails if the package cannot be substituted, rather than compiling on the Air. Nix chooses x86_64-linux on the Air and aarch64-linux on the ARM64 VM. No source checkout or ChatGPT installation is needed to run Centaur.
 
 ## What to try first
 
@@ -47,7 +37,7 @@ Typography should be Inter in project cards, chat, buttons, fields, menus/dialog
 
 The bottom-right chat footer shows Centaur's software version and build revision on the same line as “Chatting as…”. It should remain visible when narrowing the chat panel; the author/keyboard hint can elide and its full text is available on hover. `centaur --version` should report the same identifier. This is independent of the generated app's internal revision history.
 
-Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. Keep the hosting window open.
+Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. The background host survives closing the first window.
 
 With a fresh data directory, start both windows with `--demo`. Both should open the same single starter project. Make an app change, return to Projects in both windows, and reopen it: there should still be one project with the saved change. Restart both windows with the same directory and `--demo` and check that the project is reused. **New project** should still create a separate app intentionally. Older unwanted starter projects remain separate saved folders; do not delete them until you have checked which contains the work you want.
 
@@ -58,7 +48,7 @@ To connect the live agent, follow [Omp NixOS Setup](OMP_NIXOS_SETUP.md). Then tr
 - If the requests are compatible and the direction is clear, the agent should check/apply a small change without anyone clicking approval. A clarification question is appropriate if it needs more direction.
 - Test a genuine conflict next: Matt asks for the shared screen to be solid blue with no colour switch, then Saori asks for that same screen to be solid red with no colour switch and mentions `@centaur`.
 - The agent should explain the incompatible requirements and ask a focused question or propose a compromise. A compromise waits for **Agree to compromise** from Matt and Saori. One person's acceptance is insufficient; an unrelated third contributor should not be asked to agree.
-- Repeat, but send another message while the agent is thinking or checking the candidate app. Its old result should not be applied.
+- Repeat, but send an explicit new agent direction while it is thinking or checking the candidate app. Stale work should be retried against the latest conversation; ordinary chat should continue without starving the request.
 - Reopen Centaur with a partly accepted conflict proposal. The previous acceptance should persist; the other affected author can complete the agreement. An unfinished proposal from the older approval-every-change version is cleared on upgrade; ask for that change again.
 
 Record what the model misunderstood as well as the code result. Passing the coordination tests does not establish mediation quality.
