@@ -2,7 +2,7 @@
 
 Centaur's distribution workflow builds the existing v0.2 package on native **x86_64-linux** and **aarch64-linux** GitHub runners. The package includes **centaur**, **centaur-host** and **centaur-preview**, bundled fonts, Qt/Wayland and every other runtime dependency in its Nix closure. Application behaviour is unchanged.
 
-**Activation is required:** the workflow is committed, but a public Cachix cache and its CI write token must be configured before the first binaries can be published. A green build with skipped Publish jobs does not mean the package has been uploaded.
+The public cache is **`mattatgit-centaur`**. Its verified public URL/key are available in [the ready-to-use NixOS configuration](../packaging/centaur-cache.nix). The first publication still requires a successful Publish job: a green build with skipped Publish jobs does not mean the package has been uploaded.
 
 ## One-time maintainer setup
 
@@ -26,7 +26,7 @@ Artifacts contain no credentials. They expire after 30 days; the binaries themse
 
 ## Configure the Air to trust the cache
 
-Download the **x86_64-linux** distribution artifact from a successful Publish job on the Mac or Air. Copy its `cache-config.nix` into `/etc/nixos/centaur-cache.nix`, and add it to your existing NixOS `imports` list:
+Use [the ready-to-use configuration](../packaging/centaur-cache.nix), or download the **x86_64-linux** distribution artifact from a successful Publish job and use its `cache-config.nix`. Copy the file into `/etc/nixos/centaur-cache.nix`, and add it to your existing NixOS `imports` list:
 
 ```nix
 imports = [
