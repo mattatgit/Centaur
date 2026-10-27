@@ -16,6 +16,8 @@ jobs:
         run: |
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint .github/workflows/native.yml && shellcheck scripts/*binary-cache.sh'
+      - name: Check cache-specific upload routing
+        run: python3 -m unittest discover -s tests -p test_cachix_proxy.py
       - name: Test signed closure downloads without production credentials
         run: |
           fixture=$(nix build --inputs-from . nixpkgs#hello --no-link --print-out-paths --max-jobs 0 --builders '')

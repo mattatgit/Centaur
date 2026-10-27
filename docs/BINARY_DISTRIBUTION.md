@@ -130,6 +130,8 @@ nix path-info --store 'https://YOUR-CACHE.cachix.org' --recursive \
   /nix/store/STORE-PATH-FROM-THE-MANIFEST
 ```
 
+The uploader checks whether each dependency exists in this particular Cachix cache, rather than accepting Cachix’s bulk-query shortcut for paths in the standard Nix cache. The official Cachix client still handles compression, uploads and managed signatures.
+
 CI performs a stronger check after every upload: it downloads the whole closure directly from Cachix into an **empty isolated store**, requires valid signatures, supplies no fallback caches/builders, and compares the downloaded path list with the built closure. Publish fails if any dependency or trusted signature is missing.
 
 For a reproducible install, replace the moving branch reference in the install/run command with the manifest's immutable reference, for example `github:mattatgit/Centaur/FULL-COMMIT-SHA`. A profile installed at an immutable commit stays pinned; use the moving branch reference for automatic profile upgrades.

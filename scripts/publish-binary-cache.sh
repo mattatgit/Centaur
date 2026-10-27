@@ -55,8 +55,9 @@ version = pathlib.Path(sys.argv[1]).read_text().strip()
 build_id = version.rsplit('+', 1)[-1]
 assert len(build_id) >= 7 and sys.argv[2].startswith(build_id), 'Executable does not identify the checked source revision'
 PY_VERSION
-# cachix push includes the complete runtime closure, not just the root path.
-cachix push "$CENTAUR_CACHIX_CACHE" "$output"
+# Check existence in this cache, not in upstream caches that Cachix may
+# count as present. The official client still uploads and signs every NAR.
+python3 scripts/push-full-cachix-closure.py "$CENTAUR_CACHIX_CACHE" "$output"
 # A direct cache-to-empty-store copy must fetch every referenced object from
 # Cachix. Signature checks remain enabled; no fallback caches or builders.
 nix copy --from "$cache_url" --to "$work_directory/verification-store" \
