@@ -45,6 +45,13 @@ Agent::Agent(QObject *parent) : QObject(parent) {
         });
 }
 
+Agent::~Agent() {
+    // QProcess may emit finished while waiting in its destructor. Disconnect
+    // first, while the timeout and all other members are still alive.
+    disconnect(&m_process, nullptr, this, nullptr);
+    cancel();
+}
+
 void Agent::readOutput() {
     if (m_cancelled) { m_process.readAllStandardOutput(); return; }
     m_pendingOutput += m_process.readAllStandardOutput();
@@ -113,7 +120,10 @@ QString Agent::executable() const {
 bool Agent::available() const { return QFileInfo(executable()).isExecutable(); }
 bool Agent::busy() const { return m_process.state() != QProcess::NotRunning; }
 void Agent::cancel() {
-    m_cancelled = true; m_timeout.stop(); m_process.kill();
+    m_cancelled = true; m_timeout.stop();
+    if (m_process.state() != QProcess::NotRunning) {
+        m_process.kill(); m_process.waitForFinished(1000);
+    }
     if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
 }
 

@@ -9,6 +9,7 @@ class Agent : public QObject {
     Q_OBJECT
 public:
     explicit Agent(QObject *parent = nullptr);
+    ~Agent() override;
     bool available() const;
     QString executable() const;
     bool busy() const;

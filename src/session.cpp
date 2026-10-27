@@ -97,6 +97,8 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
 }
 
 Session::~Session() {
+    disconnect(&m_agent, nullptr, this, nullptr);
+    disconnect(&m_validator, nullptr, this, nullptr);
     m_agent.cancel();
     if (m_validator.state() != QProcess::NotRunning) { m_validator.kill(); m_validator.waitForFinished(1000); }
     // Socket destruction emits disconnected. Tear these connections down while

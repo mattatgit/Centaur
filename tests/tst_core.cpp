@@ -334,6 +334,21 @@ private slots:
             QVERIFY(!agent.busy());
         }
     }
+    void cancellingAndDestroyingARunningAgentReapsItsProcess() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path()); QString error;
+        const auto id = workspace.createProject("Shutdown", "", &error);
+        QVERIFY(!id.isEmpty());
+        const auto fake = dir.path() + "/slow-agent";
+        QVERIFY(writeAgentReply(fake, {{"kind", "question"}, {"message", "Too late"}}, "sleep 2\n"));
+        const AgentOverride agentOverride(fake);
+        Agent agent;
+        QSignalSpy completed(&agent, &Agent::completed);
+        agent.ask(workspace.projectPath(id), workspace.load(id), workspace.source(id));
+        QVERIFY(agent.busy()); agent.cancel(); QVERIFY(!agent.busy()); QVERIFY(completed.isEmpty());
+        // Destruction must reap a running child before destroying its timer.
+        { Agent running; running.ask(workspace.projectPath(id), workspace.load(id), workspace.source(id)); QVERIFY(running.busy()); }
+    }
     void structuredAgentOutputReportsTheActualModelAndFinalReply_data() {
         QTest::addColumn<QJsonObject>("reply");
         QTest::newRow("question") << QJsonObject{{"kind", "question"}, {"message", "Connection test"}};
@@ -541,12 +556,19 @@ private slots:
         session.send({{"type", "create"}, {"name", "Changing direction"}});
         Workspace workspace(dir.path());
         const auto id = workspace.projects().first().toMap()["id"].toString();
+        QJsonObject rejectedState;
+        connect(&session, &Session::snapshot, &session, [&](const QJsonObject &snapshot) {
+            for (const auto &value : snapshot["states"].toArray()) {
+                const auto state = value.toObject(); const auto messages = state["messages"].toArray();
+                if (rejectedState.isEmpty() && !messages.isEmpty() && messages.last().toObject()["text"].toString().contains("New directions")) rejectedState = state;
+            }
+        });
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur wait, can we discuss the colour?"}});
-        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().size(), 3, 5000);
-        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
-        QVERIFY(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("New directions"));
-        QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
+        QTRY_VERIFY_WITH_TIMEOUT(!rejectedState.isEmpty(), 5000);
+        QVERIFY(rejectedState["proposal"].toObject().isEmpty());
+        QCOMPARE(rejectedState["revision"].toInt(), 1);
+        disconnect(&session, &Session::snapshot, &session, nullptr);
         qputenv("CENTAUR_AGENT", previousAgent);
     }
     void queuedRequestsApplyInOrderWhileOrdinaryChatContinues() {
@@ -615,13 +637,24 @@ private slots:
         Workspace workspace(dir.path());
         const auto id = workspace.projects().first().toMap()["id"].toString();
         const auto initial = workspace.source(id);
+        QJsonObject rejectedState;
+        bool sourceUnchangedAtRejection = false;
+        connect(&session, &Session::snapshot, &session, [&](const QJsonObject &snapshot) {
+            for (const auto &value : snapshot["states"].toArray()) {
+                const auto state = value.toObject(); const auto messages = state["messages"].toArray();
+                if (rejectedState.isEmpty() && !messages.isEmpty() && messages.last().toObject()["text"].toString().contains("New directions arrived during")) {
+                    rejectedState = state; sourceUnchangedAtRejection = workspace.source(id) == initial;
+                }
+            }
+        });
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Matt"}, {"text", "@centaur make it blue"}});
         QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(workspace.projectPath(id) + "/.centaur/candidate.qml.checking"), 5000);
         session.send({{"type", "message"}, {"projectId", id}, {"author", "Saori"}, {"text", "@centaur wait, let's discuss the colour."}});
-        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("New directions arrived during"), 5000);
-        QCOMPARE(workspace.source(id), initial);
-        QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
-        QVERIFY(workspace.load(id)["proposal"].toObject().isEmpty());
+        QTRY_VERIFY_WITH_TIMEOUT(!rejectedState.isEmpty(), 5000);
+        QVERIFY(sourceUnchangedAtRejection);
+        QCOMPARE(rejectedState["revision"].toInt(), 1);
+        QVERIFY(rejectedState["proposal"].toObject().isEmpty());
+        disconnect(&session, &Session::snapshot, &session, nullptr);
     }
     void conflictAgreementsBecomeStale() {
         QTemporaryDir dir;
