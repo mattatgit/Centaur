@@ -35,6 +35,7 @@ class CacheProxyTests(unittest.TestCase):
         present, missing = 'a' * 32, 'b' * 32
         def fetch(request, **_kwargs):
             self.assertEqual(request.get_method(), 'HEAD')
+            self.assertEqual(request.get_header('User-agent'), 'centaur-cache-publisher/0.2')
             self.assertTrue(request.full_url.startswith('https://centaur-test.cachix.org/'))
             self.assertIsNone(request.get_header('Authorization'))
             if missing in request.full_url:
@@ -71,6 +72,10 @@ class CacheProxyTests(unittest.TestCase):
                     request = urllib.request.Request(base + server.prefix + '/narinfo', data=json.dumps(['b' * 32]).encode())
                     with real_urlopen(request) as response:
                         self.assertEqual(json.load(response), ['b' * 32])
+                    request = urllib.request.Request(base + server.prefix + '/' + 'b' * 32 + '.narinfo', method='HEAD')
+                    with self.assertRaises(urllib.error.HTTPError) as absent:
+                        real_urlopen(request)
+                    self.assertEqual(absent.exception.code, 404)
                     with self.assertRaises(urllib.error.HTTPError) as denied:
                         real_urlopen(base + '/api/v1/cache/other-cache')
                     self.assertEqual(denied.exception.code, 403)

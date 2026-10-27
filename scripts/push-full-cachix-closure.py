@@ -47,7 +47,8 @@ class CacheProxy(http.server.ThreadingHTTPServer):
 
         def absent(value):
             request = urllib.request.Request(
-                'https://' + self.cache + '.cachix.org/' + value + '.narinfo', method='HEAD')
+                'https://' + self.cache + '.cachix.org/' + value + '.narinfo',
+                headers={'User-Agent': 'centaur-cache-publisher/0.2'}, method='HEAD')
             try:
                 with urllib.request.urlopen(request, timeout=60) as response:
                     if response.status != 200:
@@ -91,6 +92,11 @@ class CacheRequest(http.server.BaseHTTPRequestHandler):
             if self.command == 'POST' and self.path == prefix + '/narinfo':
                 missing = self.server.missing(json.loads(body or b'null'))
                 self.respond(200, json.dumps(missing).encode())
+                return
+            # The CLI rechecks individual paths before uploading them too.
+            store_hash = self.path[len(prefix) + 1:]
+            if self.command == 'HEAD' and re.fullmatch(r'[0-9a-z]{32}\.narinfo', store_hash):
+                self.respond(404 if self.server.missing([store_hash[:-8]]) else 200)
                 return
             # Only this exact production API host receives the CLI's credential.
             # Presigned NAR uploads go directly from Cachix to its storage service.
