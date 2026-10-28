@@ -1,8 +1,18 @@
 # Current state
 
+## Review baseline
+
+Documentation review snapshot: `f2f72577b90edf23c8266b15a1a07905e017c066`, declaring v0.3.0, on `codex/native-prototype` as inspected on 28 October 2026. The handover's verified v0.2.0 build `09c573d` is an earlier baseline.
+
+The [Actions run for this exact commit](https://github.com/mattatgit/Centaur/actions/runs/40624011510) completed successfully: distribution-tooling checks, x86_64-linux and aarch64-linux package checks, and both architecture publication jobs. This is inspected CI evidence, not a new local or physical acceptance run.
+
+The owner's reported Air/ARM64 VM LAN test establishes invitation/join, shared chat and live agent requests. Existing validation notes also record automated public-relay operation. Physical use across different networks, real conflict mediation and target-device resource measurements still need acceptance evidence. Historical sections below retain their original scope and dates; their older pending-test wording is superseded by later dated results where applicable.
+
+The design-system library/import, selectable systems and standalone generated-app deployment remain unimplemented. The current app-source contract is one `App.qml`. See [Requirements](REQUIREMENTS.md), [Design systems](DESIGN_SYSTEMS.md) and [Decisions](DECISIONS.md) for agreed direction, proposals and open work.
+
 ## Agreed direction
 
-Centaur and the apps it produces are native. Target NixOS and modest hardware. One project represents one repository and one app. The two main views are projects and collaborative app building. The workspace contains a main canvas, a comfortably wide chat sidebar, Draw and Comment (Dialogue's Arrow behaviour). No activity rail. Start with Dialogue's restrained visual style and adapt it for families later. The default agent mention is @centaur and is configurable.
+Centaur and the apps it produces are native. Target Linux/NixOS and macOS clients, with NixOS and modest hardware as the initial delivery and testing focus. One project represents one repository and one app. The two main views are projects and collaborative app building. The workspace contains a main canvas, a comfortably wide chat sidebar, Draw and Comment (Dialogue's Arrow behaviour). No activity rail. Use Dialogue's restrained visual style as the current prototype reference; Centaur's final identity remains open and separate from generated-app design systems. The default agent mention is @centaur and is configurable.
 
 The agreed deployment direction is a standalone native app, beginning with **Install this app on this computer** on NixOS: its own launcher, persistent app data and an installed release that stays stable while authors continue editing. Family sharing and explicit release updates follow later; distributing an app does not itself synchronise family data. These features are not implemented yet. See [Architecture](ARCHITECTURE.md) for the deployment stages, runtime boundaries and font packaging considerations.
 

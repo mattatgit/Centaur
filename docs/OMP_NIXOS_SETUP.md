@@ -60,7 +60,16 @@ This should produce a real model response containing `Agent connected`. If it fa
 
 ## 4. Restart Centaur with omp connected
 
-Close **all** Centaur windows first. The first window hosts the shared session, so it needs to restart with the new environment.
+Centaur's background host retains the OMP executable/model environment from when it started. Coordinate the restart with collaborators, close **all** local Centaur windows and stop the old host before reopening with the new environment. Closing windows alone does not stop that host.
+
+For the precompiled profile, use the [binary distribution update procedure](BINARY_DISTRIBUTION.md#future-updates). To restart an existing installed host without changing the package:
+
+```sh
+"$HOME/.local/state/nix/profiles/centaur/bin/centaur-host" --stop \
+  --data-dir "$HOME/.local/share/Centaur/Centaur"
+```
+
+Substitute the actual data directory if using `--data-dir`. From a source checkout, use `./result/bin/centaur-host` after `nix build`. The next launch starts the background host with the new environment.
 
 Launch Centaur from the same terminal:
 
@@ -92,8 +101,8 @@ The agent should ask a question or make the change after checking its native QML
 
 - **`omp` is not found:** check that `omp --version` works in the terminal used to launch Centaur.
 - **The terminal request fails:** reopen omp, check `/login` and the default `/model`, then repeat step 3.
-- **The terminal request succeeds but Centaur times out after three minutes:** versions before the stdin fix left OMP's input pipe open. OMP waited for EOF before processing the request. Close all Centaur windows and use the refreshed launch command in step 4 to get the fix; reinstalling omp or signing in again is not needed for this bug. If omp is outside `PATH`, replace `$(command -v omp)` with its absolute path, for example `/home/matt/.local/bin/omp`.
-- **The terminal request works but Centaur fails:** close every Centaur window and repeat step 4. Record the exact error shown in Centaur and your `omp --version` output so we can investigate the integration.
+- **The terminal request succeeds but Centaur times out after three minutes:** versions before the stdin fix left OMP's input pipe open. OMP waited for EOF before processing the request. Follow step 4 to close local windows, stop the background host and launch the updated build; reinstalling omp or signing in again is not needed for this bug. If omp is outside `PATH`, replace `$(command -v omp)` with its absolute path, for example `/home/matt/.local/bin/omp`.
+- **The terminal request works but Centaur fails:** close every local Centaur window, stop the background host as described in step 4, and relaunch. Record the exact error shown in Centaur and your `omp --version` output so we can investigate the integration.
 - **The reply is unreadable:** record Centaur's error and the selected model. Centaur requires a structured response from omp; a successful terminal conversation alone does not verify that response format.
 
 For native app and collaboration checks on the Air, continue with [Testing on NixOS](TESTING_ON_NIXOS.md).

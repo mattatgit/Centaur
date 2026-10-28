@@ -2,13 +2,40 @@
 
 ## Product and runtime
 
-Centaur is a native workshop for families to build native apps collaboratively. One project represents one app and one Git repository. NixOS and modest hardware are the initial targets.
+Centaur is a native workshop for families to build native apps collaboratively. One project represents one app and one Git repository. Linux/NixOS and macOS are the intended native client platforms; NixOS and modest hardware are the initial delivery and testing focus.
 
 The current shell uses C++17 and Qt Quick. On Linux, a nested Wayland compositor embeds a separate native Qt Quick app process in the canvas and forwards input to it. Chat, drawing and comment overlays belong to Centaur; the generated app runs in its own process. Multiple Centaur windows share an authoritative local session over QLocalSocket. Collaboration uses authenticated, certificate-pinned TLS connections to a background host, carried either directly over the LAN or over native Iroh peer-to-peer streams. Cloud accounts and automatic host migration are not implemented.
 
 App changes update the existing project. Git checkpoints preserve source history without presenting each change as a new project or announcing numbered revisions. Making a request approves an ordinary compatible change; only conflicting requirements need agreement by the affected authors.
 
 See [Current state](CURRENT.md) for implemented behaviour, deliberate boundaries and validation evidence.
+
+## Platform and visual design direction
+
+Agreed in the owner's design-system handover: retain C++17 and Qt Quick. Qt's styling flexibility and the existing Linux embedding implementation favour continuing this architecture over a GTK rewrite. Centaur's own interface and the design systems used by generated apps are separate concerns; neither depends on Qt's default control appearance. The current Dialogue-derived shell is a prototype reference, and Centaur's final visual identity remains open.
+
+Linux uses Qt Wayland Compositor. macOS currently builds the native shell and coordination tools, with an explicit unavailable-preview view. Equivalent native embedding on macOS remains unresolved. Window integration, focus, popups, scaling and lifecycle behaviour need platform-specific evaluation.
+
+## Runtime responsibilities
+
+| Boundary | Responsibility and source |
+| --- | --- |
+| Native shell | QML views and `src/controller.*` expose projects, chat, drawings and preview lifecycle. |
+| Background host | `src/session.*` owns the authoritative writer per data directory, queued requests, agreement, validation and persistence. One agent/checking pipeline is serialised across that host. |
+| Agent adapter | `src/agent.*` invokes OMP without tools, rules, skills or discovered extensions. It supplies conversation, decisions, current source, revision-bound marks/image context and bounded history; it parses questions, source proposals or restore requests. |
+| App storage | `src/workspace.*` owns app source and additive Git checkpoints; JSON/JSONL collaboration records live under `.centaur/` outside the generated app's Git history. Backups must include both. |
+| Network | `src/collaboration.*`, `src/irohbridge.*` and `networking/` carry project-scoped state and commands to the same host. |
+| Preview and check | `centaur-preview` checks candidate QML in a separate process and runs accepted apps. Linux renders app surfaces through `qml/WaylandPreview.qml`; overlays belong to Centaur. |
+
+An explicit request enters the host queue. The agent returns a question, a complete source proposal, or a reference to an exact saved checkpoint. The coordinator rejects stale/invalid results, waits for affected authors only when requirements conflict, checks candidate QML, then saves a checkpoint and distributes accepted source. Clients restart their own previews. A failed check leaves the working app in place. This validation is not a sandbox for native QML.
+
+## Generated app design systems
+
+Agreed direction: separate application logic from visual implementation and allow multiple independent systems, each containing tokens, reusable components and layout/pattern rules. Projects should record their selected system/version and eventually support switching systems without losing functionality or content. Agents should generate with those components/rules, with rendered appearance validation added over time.
+
+This is a target architecture. Today the source, agent response, checker, history and collaboration contracts operate on one `App.qml`. A modular app/system contract and safe migration require changes across those boundaries. The token schema, QML module layout, composition rules, version/upgrade policy and state-transfer mechanism remain open.
+
+The proposed next design experiment compares two or three systems on one small app before building an editor. Shared data/action/component contracts and token-driven visual implementations are hypotheses to test. See [Design systems](DESIGN_SYSTEMS.md) and [Decisions](DECISIONS.md).
 
 ## Collaboration between people
 
@@ -100,4 +127,4 @@ Centaur ports Dialogue's navigation, button states and grid controls into Qt Qui
 
 Interact/Build is a per-window input mode, not a different collaboration session or an approval requirement. Chat stays available in both modes. The grid is a painted, non-interactive overlay; its size is measured in the native app's logical design units and its origin follows the app frame. Device preferences live in preferences.ini outside app source/history. Settings can temporarily hide a live workspace while retaining its compositor and preview; closing a project still stops the client before releasing compositor views.
 
-Design-system import and Deploy remain explicit placeholders. This UI update does not implement network collaboration, a design-system store or standalone app deployment.
+Design-system import and Deploy remain explicit placeholders. That UI integration did not itself add network collaboration; the current networking implementation is described above. A design-system store and standalone app deployment remain unimplemented.
