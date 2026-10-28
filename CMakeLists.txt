@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Centaur VERSION 0.2.0 LANGUAGES CXX)
+project(Centaur VERSION 0.3.0 LANGUAGES CXX)
 set(CENTAUR_BUILD_ID "dev" CACHE STRING "Source revision identifying this Centaur build")
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "14.4")
@@ -9,6 +9,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 include(CTest)
+set(CENTAUR_NETWORK_EXECUTABLE "" CACHE FILEPATH "Prebuilt native centaur-network helper")
+if(CENTAUR_NETWORK_EXECUTABLE)
+    add_custom_target(centaur-network-helper ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CENTAUR_NETWORK_EXECUTABLE}" "${CMAKE_CURRENT_BINARY_DIR}/centaur-network")
+    install(PROGRAMS "${CENTAUR_NETWORK_EXECUTABLE}" DESTINATION bin)
+endif()
+
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Quick QuickControls2 Network Svg)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(Qt6 REQUIRED COMPONENTS WaylandCompositor)
@@ -28,6 +35,7 @@ add_library(centaur_core STATIC
     src/workspace.cpp src/workspace.h
     src/session.cpp src/session.h
     src/collaboration.cpp src/collaboration.h
+    src/irohbridge.cpp src/irohbridge.h
     src/agent.cpp src/agent.h
     src/controller.cpp src/controller.h
     src/svgicon.cpp src/svgicon.h
@@ -71,6 +79,13 @@ if(BUILD_TESTING)
     target_link_libraries(centaur-tests PRIVATE centaur_core Qt6::Test)
     qt_add_executable(centaur-network-tests tests/tst_network.cpp)
     target_link_libraries(centaur-network-tests PRIVATE centaur_core Qt6::Test)
+    if(CENTAUR_NETWORK_EXECUTABLE)
+        qt_add_executable(centaur-iroh-tests tests/tst_iroh.cpp)
+        target_link_libraries(centaur-iroh-tests PRIVATE centaur_core Qt6::Test)
+        add_dependencies(centaur-iroh-tests centaur-network-helper)
+        add_test(NAME iroh COMMAND centaur-iroh-tests)
+        set_tests_properties(iroh PROPERTIES TIMEOUT 180 ENVIRONMENT "CENTAUR_IROH_LOCAL=1;QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    endif()
     add_test(NAME network COMMAND centaur-network-tests)
     set_tests_properties(network PROPERTIES TIMEOUT 90)
     add_test(NAME core COMMAND centaur-tests)

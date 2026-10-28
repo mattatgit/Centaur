@@ -16,6 +16,8 @@ jobs:
         run: |
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint .github/workflows/native.yml && shellcheck scripts/*binary-cache.sh'
+      - name: Check native helper formatting
+        run: nix shell --inputs-from . nixpkgs#rustfmt -c rustfmt --edition 2024 --check networking/src/main.rs
       - name: Check cache-specific upload routing
         run: python3 -m unittest discover -s tests -p test_cachix_proxy.py
       - name: Test signed closure downloads without production credentials

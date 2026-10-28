@@ -27,7 +27,7 @@ if [ "$current_system" != "$system" ]; then
   echo "Expected native runner $system, got $current_system." >&2
   exit 1
 fi
-for executable in centaur centaur-host centaur-preview; do
+for executable in centaur centaur-host centaur-preview centaur-network; do
   test -x "$output/bin/$executable"
 done
 # Refuse a reused verification directory: its store must genuinely be empty.

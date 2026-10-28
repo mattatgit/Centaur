@@ -5,7 +5,7 @@ import QtQuick.Layouts
 Item {
     id: collaboration
     objectName: "collaborationDialogs"
-    function openInvite() { inviteAddress.text = Backend.localAddress; inviteDialog.open() }
+    function openInvite() { inviteAddress.text = Backend.localAddress; localOnly.checked = false; inviteDialog.open() }
     function openJoin() { joinName.text = Backend.author; joinDialog.open() }
     Connections { target: Backend; function onJoined() { joinDialog.close(); invitationInput.clear() } }
     Dialog {
@@ -17,10 +17,11 @@ Item {
         header: Label { text: "Invite people"; font.pixelSize: 16; font.weight: Font.DemiBold; color: Theme.ink; padding: 24; bottomPadding: 0 }
         ColumnLayout {
             width: parent.width; spacing: 16
-            Text { text: "Share this project with people on the same local network. Keep this computer awake; sharing continues when you close its Centaur window."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
-            Text { text: "This computer’s reachable address"; font.pixelSize: 12; color: Theme.muted }
-            TextField { id: inviteAddress; objectName: "inviteAddress"; Layout.fillWidth: true; placeholderText: "192.168.1.10"; Accessible.name: "Host address" }
-            FlatButton { text: "Create invitation"; tone: "dark"; enabled: inviteAddress.text.trim().length > 0 && Backend.canContribute; onClicked: Backend.invitePeople(inviteAddress.text) }
+            Text { text: "Invite people nearby or on another network. Keep this computer awake; sharing continues when you close its Centaur window."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
+            CheckBox { id: localOnly; text: "Local network only"; enabled: !Backend.inviting; Accessible.name: "Local network only" }
+            Text { visible: localOnly.checked; text: "This computer’s reachable address"; font.pixelSize: 12; color: Theme.muted }
+            TextField { visible: localOnly.checked; id: inviteAddress; objectName: "inviteAddress"; Layout.fillWidth: true; placeholderText: "192.168.1.10"; Accessible.name: "Host address" }
+            FlatButton { text: Backend.inviting ? "Preparing invitation…" : "Create invitation"; tone: "dark"; enabled: !Backend.inviting && (!localOnly.checked || inviteAddress.text.trim().length > 0) && Backend.canContribute; onClicked: Backend.invitePeople(localOnly.checked ? inviteAddress.text : "iroh") }
             Text { visible: Backend.invitationCode.length > 0; text: "Send this code to one person. It can be used once and expires in 20 minutes."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 12; color: Theme.muted }
             ScrollView {
                 visible: Backend.invitationCode.length > 0

@@ -14,6 +14,9 @@
 #include <QSslConfiguration>
 #include <QSslKey>
 #include <QUuid>
+#include <QRegularExpression>
+#include <QUrl>
+#include <utility>
 
 namespace {
 constexpr int maxFrame = 8 * 1024 * 1024;
@@ -48,10 +51,30 @@ void TlsServer::incomingConnection(qintptr descriptor) {
     if (accepted) accepted(socket); else socket->deleteLater();
 }
 
-CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QObject(parent), m_workspace(root) {
+CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QObject(parent), m_workspace(root), m_iroh(root) {
     m_shares = readObject(root + "/network/shares.json");
     m_server.accepted = [this](QSslSocket *socket) { accept(socket); };
-    if (!m_shares.isEmpty()) { QString error; listen(&error); }
+    m_internetServer.accepted = m_server.accepted;
+    connect(&m_iroh, &IrohBridge::prepared, this, [this] {
+        const auto pending = std::exchange(m_invitations, {});
+        for (const auto &request : pending) {
+            QString error; const auto code = invite(request.id, request.owner, "iroh", &error);
+            request.reply(code, error);
+        }
+        emit membershipChanged();
+    });
+    connect(&m_iroh, &IrohBridge::failed, this, [this](const QString &error) {
+        const auto pending = std::exchange(m_invitations, {});
+        for (const auto &request : pending) request.reply({}, error);
+        emit membershipChanged();
+    });
+    connect(&m_iroh, &IrohBridge::unavailable, this, &CollaborationHost::membershipChanged);
+    bool lan = false, internet = false;
+    for (const auto &value : m_shares) {
+        const auto share = value.toObject();
+        lan |= share["lan"].toBool(!share.contains("iroh")); internet |= share["iroh"].toBool();
+    }
+    QString error; if (lan) listen(&error); if (internet) listenInternet(&error);
     m_watchdog.setInterval(5000);
     connect(&m_watchdog, &QTimer::timeout, this, [this] {
         const auto sockets = m_peers.keys();
@@ -76,8 +99,7 @@ QString CollaborationHost::suggestedAddress() {
     }
     return {};
 }
-bool CollaborationHost::listen(QString *error) {
-    if (m_server.isListening()) return true;
+bool CollaborationHost::certificate(QString *error) {
     if (!QSslSocket::supportsSsl()) { if (error) *error = "TLS support is unavailable in this installation."; return false; }
     const auto folder = m_workspace.root() + "/network";
     if (!QDir().mkpath(folder)) return false;
@@ -93,21 +115,54 @@ bool CollaborationHost::listen(QString *error) {
         }
         QFile::setPermissions(key, QFile::ReadOwner | QFile::WriteOwner);
     }
+    return true;
+}
+bool CollaborationHost::listen(QString *error) {
+    if (m_server.isListening()) return true;
+    if (!certificate(error)) return false;
     if (!m_server.listen(QHostAddress::AnyIPv4, quint16(qEnvironmentVariableIsSet("CENTAUR_PORT") ? qEnvironmentVariableIntValue("CENTAUR_PORT") : 43177))) {
         if (error) *error = "Could not start sharing on port 43177: " + m_server.errorString();
         return false;
     }
     return true;
 }
+bool CollaborationHost::listenInternet(QString *error) {
+    if (!m_internetServer.isListening()) {
+        if (!certificate(error)) return false;
+        if (!m_internetServer.listen(QHostAddress::LocalHost, 0)) {
+            if (error) *error = "Could not start the local project listener.";
+            return false;
+        }
+        m_iroh.listen(m_internetServer.serverPort());
+    }
+    return true;
+}
+void CollaborationHost::inviteInternet(const QString &id, const QString &owner, std::function<void(QString, QString)> reply) {
+    QString error;
+    if (m_workspace.load(id).isEmpty()) { reply({}, "This project is unavailable."); return; }
+    if (m_invitations.size() >= 8) { reply({}, "Wait for the current invitations to finish."); return; }
+    if (!listenInternet(&error)) { reply({}, error); return; }
+    const auto serial = ++m_invitationSerial;
+    m_invitations.insert(serial, {id, owner, std::move(reply)});
+    QTimer::singleShot(20000, this, [this, serial] {
+        if (!m_invitations.contains(serial)) return;
+        const auto request = m_invitations.take(serial);
+        request.reply({}, "The networking helper is not ready. Check the installation and try again.");
+    });
+    m_iroh.refresh();
+}
 QString CollaborationHost::invite(const QString &id, const QString &owner, const QString &address, QString *error) {
+    const bool internet = address == "iroh";
     const QHostAddress ip(address.trimmed());
-    if (m_workspace.load(id).isEmpty() || ip.isNull() || ip == QHostAddress::AnyIPv4 || ip.protocol() != QAbstractSocket::IPv4Protocol) {
+    if (m_workspace.load(id).isEmpty() || (!internet && (ip.isNull() || ip == QHostAddress::AnyIPv4 || ip.protocol() != QAbstractSocket::IPv4Protocol))) {
         if (error) *error = "Choose this computer's reachable local IPv4 address.";
         return {};
     }
-    if (!listen(error)) return {};
+    if (internet ? !m_iroh.ready() : !listen(error)) return {};
     auto share = m_shares[id].toObject();
+    if (!share.isEmpty() && !share.contains("iroh") && !share.contains("lan")) share["lan"] = true;
     share["owner"] = owner;
+    share[internet ? "iroh" : "lan"] = true;
     auto invites = share["invites"].toObject();
     for (const auto &hash : invites.keys()) if (invites[hash].toDouble() < now()) invites.remove(hash);
     const auto token = secret();
@@ -118,17 +173,25 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
     QFile certificate(m_workspace.root() + "/network/certificate.pem");
     if (!certificate.open(QIODevice::ReadOnly)) { if (error) *error = "Could not read the host certificate."; return {}; }
     const QSslCertificate cert(certificate.readAll());
-    const QJsonObject invitation{{"version", 1}, {"host", address.trimmed()}, {"port", m_server.serverPort()},
+    QJsonObject invitation{{"version", 1}, {"host", address.trimmed()}, {"port", m_server.serverPort()},
         {"project", id}, {"pin", QString::fromLatin1(cert.digest(QCryptographicHash::Sha256).toHex())}, {"invite", token}};
-    return "centaur1:" + QString::fromLatin1(QJsonDocument(invitation).toJson(QJsonDocument::Compact).toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+    if (internet) {
+        invitation.remove("host"); invitation.remove("port");
+        invitation["version"] = 2; invitation["transport"] = "iroh";
+        invitation["endpoint"] = m_iroh.address();
+    }
+    return (internet ? "centaur2:" : "centaur1:") + QString::fromLatin1(QJsonDocument(invitation).toJson(QJsonDocument::Compact).toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
 }
 QJsonObject CollaborationHost::sharing(const QString &id) const {
     const auto share = m_shares[id].toObject();
     QJsonArray names;
     for (const auto &value : share["members"].toObject()) names.append(value.toObject()["name"]);
-    return {{"enabled", !share.isEmpty() && m_server.isListening()}, {"members", names}};
+    return {{"enabled", !share.isEmpty() && (m_server.isListening() || m_internetServer.isListening())}, {"internetReady", m_iroh.ready()}, {"members", names}};
 }
 bool CollaborationHost::stopSharing(const QString &id, QString *error) {
+    for (const auto serial : m_invitations.keys()) if (m_invitations[serial].id == id) {
+        const auto pending = m_invitations.take(serial); pending.reply({}, "Sharing was stopped before the invitation was created.");
+    }
     const auto previous = m_shares;
     m_shares.remove(id);
     if (!save(error)) { m_shares = previous; return false; }
@@ -136,7 +199,13 @@ bool CollaborationHost::stopSharing(const QString &id, QString *error) {
         write(socket, {{"type", "removed"}, {"message", "The owner stopped sharing this project."}});
         socket->disconnectFromHost();
     }
-    if (m_shares.isEmpty()) m_server.close();
+    bool internet = false, lan = false;
+    for (const auto &value : m_shares) {
+        const auto share = value.toObject(); internet |= share["iroh"].toBool();
+        lan |= share["lan"].toBool(!share.contains("iroh"));
+    }
+    if (!lan) m_server.close();
+    if (!internet) { m_iroh.unlisten(); m_internetServer.close(); }
     return true;
 }
 void CollaborationHost::accept(QSslSocket *socket) {
@@ -289,6 +358,20 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     if (m_editLock->tryLock(0)) m_outbox = m_connection["outbox"].toArray();
     m_snapshot = readObject(path() + "/snapshot.json");
     if (!m_snapshot.isEmpty()) Workspace::writeFile(path() + "/App.qml", m_snapshot["source"].toString().toUtf8());
+    if (m_connection["transport"] == "iroh") {
+        m_iroh = std::make_unique<IrohBridge>(m_root);
+        connect(m_iroh.get(), &IrohBridge::tunnelReady, this, [this](quint16 port) {
+            if (!m_tunnelling || m_terminal) return;
+            m_tunnelling = false;
+            m_socket.connectToHostEncrypted("127.0.0.1", port);
+        });
+        auto unavailable = [this] {
+            m_tunnelling = false; m_socket.abort(); m_connected = false; m_inflight = false;
+            if (!m_terminal) { status("Host unavailable · reconnecting through Iroh"); m_retry.start(m_delay); m_delay = qMin(15000, m_delay * 2); }
+        };
+        connect(m_iroh.get(), &IrohBridge::unavailable, this, unavailable);
+        connect(m_iroh.get(), &IrohBridge::failed, this, [unavailable](const QString &) { unavailable(); });
+    }
     m_retry.setSingleShot(true);
     connect(&m_retry, &QTimer::timeout, this, &SharedProject::connectHost);
     m_socket.setReadBufferSize(maxFrame + 1);
@@ -298,7 +381,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     m_socket.setPeerVerifyMode(QSslSocket::VerifyNone);
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
-        if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); return; }
+        if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
         write(&m_socket, {{"type", "hello"}, {"version", 1}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
@@ -327,17 +410,33 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
 SharedProject::~SharedProject() { disconnect(&m_socket, nullptr, this, nullptr); m_socket.abort(); }
 QJsonObject SharedProject::parseInvitation(const QString &code, QString *error) {
     const auto text = code.trimmed();
-    auto data = text.startsWith("centaur1:") && text.size() < 2048 ? QJsonDocument::fromJson(QByteArray::fromBase64(text.mid(9).toLatin1(), QByteArray::Base64UrlEncoding)).object() : QJsonObject();
+    const bool internet = text.startsWith("centaur2:");
+    auto data = (text.startsWith("centaur1:") || internet) && text.size() < 4096 ? QJsonDocument::fromJson(QByteArray::fromBase64(text.mid(9).toLatin1(), QByteArray::Base64UrlEncoding)).object() : QJsonObject();
     const auto id = data["project"].toString();
     const auto pin = data["pin"].toString();
     const auto ip = QHostAddress(data["host"].toString());
-    if (data["version"] != 1 || id.size() != 36 || QUuid(id).isNull() || pin.size() != 64 || QByteArray::fromHex(pin.toLatin1()).size() != 32
-        || data["invite"].toString().size() != 43 || ip.isNull() || ip.protocol() != QAbstractSocket::IPv4Protocol || data["port"].toInt() < 1 || data["port"].toInt() > 65535) {
+    const QRegularExpression hex("^[0-9a-f]{64}$"), token("^[A-Za-z0-9_-]{43}$");
+    const auto endpoint = data["endpoint"].toObject();
+    bool validEndpoint = hex.match(endpoint["node"].toString()).hasMatch() && endpoint["addresses"].isArray() && endpoint["addresses"].toArray().size() <= 16;
+    const auto relay = endpoint["relay"].toString(); const QUrl relayUrl(relay);
+    validEndpoint &= relay.isEmpty() || (relay.size() <= 256 && relayUrl.isValid() && relayUrl.scheme() == "https" && !relayUrl.host().isEmpty() && relayUrl.userInfo().isEmpty() && !relayUrl.hasQuery() && !relayUrl.hasFragment());
+    for (const auto &value : endpoint["addresses"].toArray()) {
+        const QUrl url("tcp://" + value.toString()); const QHostAddress direct(url.host());
+        validEndpoint &= value.isString() && value.toString().size() < 128 && !direct.isNull() && !direct.isMulticast() && direct != QHostAddress::AnyIPv4 && direct != QHostAddress::AnyIPv6 && url.port() > 0 && url.port() <= 65535 && url.path().isEmpty() && url.userInfo().isEmpty() && !url.hasQuery() && !url.hasFragment();
+    }
+    if (id.size() != 36 || QUuid(id).isNull() || !hex.match(pin).hasMatch() || !token.match(data["invite"].toString()).hasMatch()
+        || (internet ? data["version"] != 2 || data["transport"] != "iroh" || !validEndpoint
+                     : data["version"] != 1 || ip.isNull() || ip.protocol() != QAbstractSocket::IPv4Protocol || data["port"].toInt() < 1 || data["port"].toInt() > 65535)) {
         if (error) *error = "That invitation is not valid. Paste the complete code from the project owner.";
         return {};
     }
     // Never accept arbitrary fields or filesystem paths from an invitation.
-    return {{"project", id}, {"host", ip.toString()}, {"port", data["port"]}, {"pin", pin}, {"invite", data["invite"]}, {"memberToken", secret()}};
+    QJsonObject result{{"project", id}, {"pin", pin}, {"invite", data["invite"]}, {"memberToken", secret()}};
+    if (internet) {
+        result["transport"] = "iroh";
+        result["endpoint"] = QJsonObject{{"node", endpoint["node"]}, {"relay", relay.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(relay)}, {"addresses", endpoint["addresses"]}};
+    } else { result["host"] = ip.toString(); result["port"] = data["port"]; }
+    return result;
 }
 bool SharedProject::save(QString *error) {
     if (m_editLock && !m_editLock->isLocked()) return true; // Another window owns this device’s outgoing queue.
@@ -349,15 +448,18 @@ bool SharedProject::save(QString *error) {
 }
 void SharedProject::release() {
     m_terminal = true; m_connected = false; m_retry.stop(); m_heartbeat.stop();
+    if (m_iroh) m_iroh->disconnectTunnel();
     disconnect(&m_socket, nullptr, this, nullptr); m_socket.abort(); m_editLock.reset();
 }
 void SharedProject::start() { if (!m_terminal) connectHost(); }
 void SharedProject::status(const QString &text) { m_status = text; emit changed(); }
 void SharedProject::connectHost() {
-    if (m_terminal || m_socket.state() != QAbstractSocket::UnconnectedState) return;
+    if (m_terminal || m_tunnelling || m_socket.state() != QAbstractSocket::UnconnectedState) return;
     m_buffer.clear(); m_connected = false; status("Connecting to project host…");
-    m_socket.connectToHostEncrypted(m_connection["host"].toString(), quint16(m_connection["port"].toInt()));
-    QTimer::singleShot(10000, this, [this] { if (!m_connected && m_socket.state() != QAbstractSocket::UnconnectedState) m_socket.abort(); });
+    if (m_iroh) { m_tunnelling = true; m_iroh->tunnel(m_connection["endpoint"].toObject()); }
+    else m_socket.connectToHostEncrypted(m_connection["host"].toString(), quint16(m_connection["port"].toInt()));
+    const auto attempt = ++m_connectSerial;
+    QTimer::singleShot(m_iroh ? 45000 : 10000, this, [this, attempt] { if (attempt == m_connectSerial && !m_connected && m_socket.state() != QAbstractSocket::UnconnectedState) m_socket.abort(); });
 }
 void SharedProject::read() {
     m_buffer += m_socket.readAll();
@@ -392,7 +494,7 @@ void SharedProject::receive(const QJsonObject &data) {
         m_terminal = true; m_connected = false; m_removed = type == "removed";
         status(data["message"].toString()); emit error(m_status);
         // Keep cached source for recovery, but revoke the saved credential.
-        QFile::remove(path() + "/connection.json"); m_socket.disconnectFromHost();
+        QFile::remove(path() + "/connection.json"); m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
     }
 }
 bool SharedProject::send(QJsonObject command) {

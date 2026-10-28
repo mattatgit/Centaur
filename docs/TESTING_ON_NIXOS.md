@@ -81,3 +81,20 @@ With Centaur and its native app open, inspect both processes in the system monit
 ## Collaboration across computers
 
 Follow [LAN collaboration](LAN_COLLABORATION.md) for the two-machine setup and acceptance checklist. Automated network tests use temporary data and loopback TLS, including a background host. Linux `network-native-embedding` additionally verifies the received app renders and receives input; it does not prove that a particular VM address/firewall is reachable from the Air.
+
+
+## Iroh collaboration (v0.3)
+
+The Nix package builds and tests the pinned native Rust helper before running the Qt suite. The `iroh` CTest uses real Iroh QUIC connections with `CENTAUR_IROH_LOCAL=1`, so Nix sandbox checks need no public relay or internet discovery. It covers multiple guests, the existing LAN transport in the same project, an agent-applied source change, invitation replay, wrong certificate pins, revocation and host restart/membership reuse. The original network/core/UI/native embedding checks still run.
+
+For a source build, build the helper and pass its path when configuring CMake:
+
+```sh
+cargo build --locked --manifest-path networking/Cargo.toml
+cmake -S . -B build -G Ninja \
+  -DCENTAUR_NETWORK_EXECUTABLE="$PWD/networking/target/debug/centaur-network"
+cmake --build build -j 4
+ctest --test-dir build --output-on-failure
+```
+
+Use [the internet acceptance test](LAN_COLLABORATION.md#internet-acceptance-test) across separate physical networks and in relay-only mode before treating internet operation as field-verified.

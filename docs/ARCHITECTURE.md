@@ -4,7 +4,7 @@
 
 Centaur is a native workshop for families to build native apps collaboratively. One project represents one app and one Git repository. NixOS and modest hardware are the initial targets.
 
-The current shell uses C++17 and Qt Quick. On Linux, a nested Wayland compositor embeds a separate native Qt Quick app process in the canvas and forwards input to it. Chat, drawing and comment overlays belong to Centaur; the generated app runs in its own process. Multiple Centaur windows share an authoritative local session over QLocalSocket. Local-network collaboration uses authenticated, certificate-pinned TLS connections to a background host. Cloud accounts and internet hosting are not implemented.
+The current shell uses C++17 and Qt Quick. On Linux, a nested Wayland compositor embeds a separate native Qt Quick app process in the canvas and forwards input to it. Chat, drawing and comment overlays belong to Centaur; the generated app runs in its own process. Multiple Centaur windows share an authoritative local session over QLocalSocket. Collaboration uses authenticated, certificate-pinned TLS connections to a background host, carried either directly over the LAN or over native Iroh peer-to-peer streams. Cloud accounts and automatic host migration are not implemented.
 
 App changes update the existing project. Git checkpoints preserve source history without presenting each change as a new project or announcing numbered revisions. Making a request approves an ordinary compatible change; only conflicting requirements need agreement by the affected authors.
 
@@ -24,11 +24,21 @@ Each participant runs a local native preview with independent interaction state.
 
 Agent requests are queued and persisted. Ordinary chat does not invalidate in-flight agent work; new explicit agent directions and sketches do. Stale work is retried against current conversation/source. Compatible changes still apply directly, and only actual conflicts require agreement from the affected authors. Pending conflict discussion can invalidate its agreements. Requests interrupted by a host restart return to the queue.
 
-See [LAN collaboration](LAN_COLLABORATION.md) for the complete host/join flow, NixOS firewall/VM prerequisites, background-host maintenance and acceptance tests. This is a trusted-family LAN milestone: native QML is not sandboxed, invitations should be shared privately, and there is no internet relay, cloud account system, per-member removal UI or host migration.
+See [LAN collaboration](LAN_COLLABORATION.md) for the complete host/join flow, NixOS firewall/VM prerequisites, background-host maintenance and acceptance tests. Native QML remains trusted code and invitations should be shared privately. Internet connections use Iroh with relay fallback; there is no cloud account system, per-member removal UI or host migration.
+
+### Iroh transport (v0.3)
+
+`centaur-network` is a native Rust helper using pinned Iroh 1.4.1. One helper and persistent endpoint key serve each data directory, shared by the background host and local UI windows. A private, owner-only Unix socket controls it. Exclusive locking prevents duplicate endpoints; the helper exits after all local clients leave and an idle grace period. It uses two worker threads, bounded control frames, a maximum of 24 tunnels and streaming socket backpressure.
+
+The helper maps a dedicated Centaur ALPN and bidirectional QUIC stream to a loopback TLS connection. The existing certificate pin and project-scoped credential checks remain end to end, including on the local loopback hops. The QUIC initiator sends a short protocol preface before announcing its local tunnel, avoiding a stream-opening deadlock. Stream FIN and acknowledgement handling preserve final rejection and revocation messages. No project state or provider credentials are decoded by the helper.
+
+Version 2 (`centaur2:`) invitations contain the project, single-use expiring credential, pinned TLS certificate and host Iroh endpoint identity/address hints. Iroh authenticates that endpoint; Qt checks the certificate before sending project credentials. The default n0 preset supplies relay and endpoint lookup services, with automatic direct paths where available. Relays carry encrypted traffic; availability still depends on network access and service reachability. No public TCP listener is needed for Iroh sharing. Version 1 LAN invitations and memberships continue to work, including alongside Iroh in the same project. Saved legacy sharing is retained when adding Iroh.
+
+The host remains authoritative for membership, source, agent requests and conflict decisions. Each participant renders their own native preview. Peer-to-peer transport does not introduce a replicated database, offline authoring, automatic host election or synchronisation of generated-app runtime data.
 
 ### Next stages
 
-First complete the physical two-NixOS-device acceptance test, including live OMP, reconnect, independent native previews and resource use on the Air. Then improve member management and sandboxing. Internet access and always-available family hosting require a separate choice of self-hosting, a hosted service or a relay. Provider credentials remain on the host throughout.
+The owner confirmed the LAN flow on the Intel NixOS Air and ARM64 NixOS VM on 28 October 2026: invitation/join, shared chat and live agent requests work. The next physical acceptance test uses different internet connections and relay fallback, followed by member management and sandboxing. Provider credentials remain on the host throughout.
 
 ## Deployment direction
 
@@ -50,7 +60,7 @@ The next deployment milestone is **Install this app on this computer**, targetin
 - Persistent app data stored separately from the installed package and Centaur's authoring state. App updates must preserve that data.
 - A way to associate an installed release with its source project and checkpoint so authors can return to the workshop and prepare a later release.
 
-The initial packaging approach is Nix. Builds can run on a faster machine or CI and be distributed through a binary cache, reducing compilation on entry-level devices. ARM64 Linux and x86-64 Linux require appropriate builds; the UTM VM and older Air must not be assumed to use the same executable. Centaur itself now has a [GitHub Actions/Cachix distribution workflow](BINARY_DISTRIBUTION.md) for both Linux architectures, pending initial cache/account configuration. This distributes the authoring package, not standalone generated-app releases. Generated-app build/update delivery remains future work.
+The initial packaging approach is Nix. Builds can run on a faster machine or CI and be distributed through a binary cache, reducing compilation on entry-level devices. ARM64 Linux and x86-64 Linux require appropriate builds; the UTM VM and older Air must not be assumed to use the same executable. Centaur itself now has a [GitHub Actions/Cachix distribution workflow](BINARY_DISTRIBUTION.md) for both Linux architectures; the initial complete signed publications were verified on 27 October 2026. This distributes the authoring package, not standalone generated-app releases. Generated-app build/update delivery remains future work.
 
 ### App data and synchronisation
 

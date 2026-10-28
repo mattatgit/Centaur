@@ -10,7 +10,7 @@ The agreed deployment direction is a standalone native app, beginning with **Ins
 
 Focus on two experiments: a native app operating inside Centaur's frame, and an agent negotiating instructions from multiple authors. The intended complete loop is conversation → clarified direction → accepted change → native app revision inside the canvas.
 
-Implemented as C++17 / Qt Quick 6.8+, with a separate Qt Quick client and a nested Wayland compositor on Linux. A macOS build is provided for native shell development, with an explicit Linux-only placeholder for embedding. Project state is stored locally, source versions use Git, and native windows connect over QLocalSocket to an authoritative background host; invited computers join individual projects over pinned TLS.
+Implemented as C++17 / Qt Quick 6.8+, with a separate Qt Quick client and a nested Wayland compositor on Linux. A macOS build is provided for native shell development, with an explicit Linux-only placeholder for embedding. Project state is stored locally, source versions use Git, and native windows connect over QLocalSocket to an authoritative background host; invited computers join individual projects over pinned TLS, directly on the LAN or carried by the native Iroh helper.
 
 App edits and rewinds keep the same project identity. Starter opening (`--demo`) is resolved atomically by the shared host: reuse the most recently updated visible project, or create one only when the host has none. This fixes additional windows creating unwanted starter projects before their initial project list arrived. Existing project folders are retained; projects with matching names may contain different work.
 
@@ -28,7 +28,13 @@ A small Centaur software version appears at the bottom right of the chat footer,
 
 Centaur and the separate native example/preview/checker use bundled Inter 4.1 as their default font, with Regular, SemiBold and Bold available without installing fonts on the host. Sizes and weights are retained. Other scripts and symbols can use system fallback fonts. Explicit font choices in saved app QML are respected. The licence and upstream asset hashes are included in the repository and release package.
 
-Collaboration now supports project invitations across reachable local-network computers, authenticated identities, encrypted transport, cached local previews and reconnects. A separate background host survives UI closure. Only the host needs OMP. [LAN collaboration](LAN_COLLABORATION.md) records the user flow, setup, recovery and limitations. Native QML remains trusted code; internet access, accounts and generated-app data synchronisation are not implemented.
+Centaur v0.3 adds Iroh internet connectivity alongside the working LAN transport. Invite defaults to peer-to-peer, with a Local network only option. A bundled native Rust helper shares one persistent endpoint per data directory, uses direct/relay connections and carries the existing pinned TLS/project authentication protocol. A separate background host survives UI closure; only that host needs OMP. [Collaboration](LAN_COLLABORATION.md) records invitations, installation, recovery and the cross-network acceptance test. Native QML remains trusted code; cloud accounts, host migration, offline authoring and generated-app data synchronisation are not implemented.
+
+## Iroh validation (28 October 2026)
+
+The macOS development build passes the existing core, network and UI suites plus the new Iroh suite. Real helper processes exercise concurrent guests, a second window sharing one guest endpoint, mixed LAN/Iroh participation, a source change through a test agent, invitation replay, wrong TLS pins, revocation, reconnect, background-host survival and legacy membership upgrades. The Rust helper's frame/address/private-key tests and strict Clippy checks pass. The Nix package builds and installs all four executables.
+
+An additional integration run with direct IP transports disabled passed through the public n0 relays: multiple guests, a test-agent source change, rejection/revocation and host restart. No provider credentials or real project data were used. Physical operation on different networks with the Air and NixOS VM remains the next user acceptance test; Linux CI verifies the native Wayland paths separately.
 
 ## Deliberate boundaries
 
@@ -40,6 +46,8 @@ Collaboration now supports project invitations across reachable local-network co
 - Test doubles validate coordination; they do not establish that the live model resolves disagreements well.
 
 ## Next evidence needed
+
+On 28 October 2026 the owner confirmed invitation/join, chat and live agent requests between the Intel NixOS Air and ARM64 NixOS VM over the local network. Test the Iroh build across two different networks next, including relay fallback and recovery.
 
 The current interactive Linux test environment is an ARM64 NixOS VM under UTM on an Apple Silicon Mac mini. The user confirmed that native embedding/input and a live authenticated omp request through Centaur work after the stdin EOF fix. Next, test compatible requests applying automatically and real conflicts requiring only the affected authors' agreement. `docs/OMP_NIXOS_SETUP.md` covers updating and launching with an existing omp binary.
 

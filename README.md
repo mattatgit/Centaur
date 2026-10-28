@@ -8,7 +8,7 @@ See [Architecture](docs/ARCHITECTURE.md) for the runtime and agreed deployment d
 
 ## Run on NixOS
 
-For the Intel NixOS Air or ARM64 VM, prefer the [precompiled binary installation](docs/BINARY_DISTRIBUTION.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host and preview, without local compilation. The source-build commands below remain available for development.
+For the Intel NixOS Air or ARM64 VM, prefer the [precompiled binary installation](docs/BINARY_DISTRIBUTION.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host, preview and native Iroh helper, without local compilation. The source-build commands below remain available for development.
 
 With Nix flakes enabled, from this repository:
 
@@ -57,7 +57,7 @@ A background process hosts the shared session. Both windows see the same project
 
 Local display names remain prototype identities. Across computers, project invitations assign stable participant credentials; shared live app interaction state remains separate.
 
-For separate computers, choose **Invite** inside a project and **Join project** on the other machine. Only the host needs OMP. See [LAN collaboration setup and user flow](docs/LAN_COLLABORATION.md), including the NixOS firewall, VM networking and trusted-native-code boundary. Internet hosting is not included.
+For separate computers, choose **Invite** inside a project and **Join project** on the other machine. Only the host needs OMP. Invite now defaults to Iroh peer-to-peer connections, with encrypted relay fallback when needed. Choose **Local network only** for the original LAN transport. See [collaboration setup and user flow](docs/LAN_COLLABORATION.md). The project host must stay awake; only the host needs OMP.
 
 ## Connect the agent
 
@@ -93,7 +93,9 @@ The agent receives dates and descriptions for the 100 most recent checkpoints. Q
 
 ```sh
 nix develop
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
+cargo build --locked --manifest-path networking/Cargo.toml
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
+  -DCENTAUR_NETWORK_EXECUTABLE="$PWD/networking/target/debug/centaur-network"
 cmake --build build -j 4
 ctest --test-dir build --output-on-failure
 ./build/centaur --demo

@@ -1,5 +1,6 @@
 #pragma once
 #include "workspace.h"
+#include "irohbridge.h"
 #include <QObject>
 #include <QIODevice>
 #include <QSslSocket>
@@ -26,6 +27,7 @@ public:
     explicit CollaborationHost(const QString &root, QObject *parent = nullptr);
     ~CollaborationHost() override;
     QString invite(const QString &id, const QString &owner, const QString &address, QString *error);
+    void inviteInternet(const QString &id, const QString &owner, std::function<void(QString, QString)> reply);
     bool stopSharing(const QString &id, QString *error);
     void publish(const QJsonObject &snapshot);
     QJsonObject sharing(const QString &id) const;
@@ -36,6 +38,8 @@ signals:
     void membershipChanged();
 private:
     bool listen(QString *error);
+    bool certificate(QString *error);
+    bool listenInternet(QString *error);
     bool save(QString *error);
     void accept(QSslSocket *socket);
     void read(QSslSocket *socket);
@@ -44,6 +48,11 @@ private:
     void acknowledge(QSslSocket *socket, qint64 sequence);
     Workspace m_workspace;
     TlsServer m_server;
+    TlsServer m_internetServer;
+    IrohBridge m_iroh;
+    struct Invitation { QString id, owner; std::function<void(QString, QString)> reply; };
+    QHash<quint64, Invitation> m_invitations;
+    quint64 m_invitationSerial = 0;
     QJsonObject m_shares;
     QJsonObject m_snapshot;
     struct Peer { QByteArray buffer; QString project; QString member; QString name; qint64 lastSeen = 0; };
@@ -88,6 +97,9 @@ private:
     QJsonObject m_snapshot;
     QJsonArray m_outbox;
     QSslSocket m_socket;
+    std::unique_ptr<IrohBridge> m_iroh;
+    bool m_tunnelling = false;
+    quint64 m_connectSerial = 0;
     QByteArray m_buffer;
     QTimer m_retry;
     QTimer m_heartbeat;

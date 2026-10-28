@@ -9,13 +9,21 @@
         ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux qtwayland;
       qmlPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/qml" (qtPackages pkgs);
       pluginPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/plugins" (qtPackages pkgs);
+      network = pkgs: pkgs.rustPlatform.buildRustPackage {
+        pname = "centaur-network";
+        version = "0.3.0";
+        src = ./networking;
+        cargoLock.lockFile = ./networking/Cargo.lock;
+        doCheck = true;
+      };
       package = pkgs: pkgs.stdenv.mkDerivation {
         pname = "centaur";
-        version = "0.2.0";
+        version = "0.3.0";
         src = self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
         buildInputs = qtPackages pkgs;
         cmakeFlags = [ "-DBUILD_TESTING=ON"
+          "-DCENTAUR_NETWORK_EXECUTABLE=${network pkgs}/bin/centaur-network"
           "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ];
         nativeCheckInputs = [ pkgs.git pkgs.openssl ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
         doCheck = true;
@@ -62,7 +70,7 @@
         let pkgs = nixpkgs.legacyPackages.${system}; in {
           default = pkgs.mkShell {
             inputsFrom = [ self.packages.${system}.default ];
-            packages = [ pkgs.git pkgs.openssl ];
+            packages = [ pkgs.git pkgs.openssl pkgs.cargo pkgs.rustc pkgs.rustfmt pkgs.clippy ];
             shellHook = ''
               export QML_IMPORT_PATH="${qmlPath pkgs}"
               export QT_PLUGIN_PATH="${pluginPath pkgs}"

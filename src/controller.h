@@ -32,6 +32,7 @@ class Controller : public QObject {
     Q_PROPERTY(QString invitationCode READ invitationCode NOTIFY changed)
     Q_PROPERTY(QString joinStatus READ joinStatus NOTIFY changed)
     Q_PROPERTY(bool joining READ joining NOTIFY changed)
+    Q_PROPERTY(bool inviting READ inviting NOTIFY changed)
     Q_PROPERTY(QString agentExecutable READ agentExecutable NOTIFY changed)
 public:
     explicit Controller(QString root, QObject *parent = nullptr);
@@ -66,6 +67,7 @@ public:
     QString localAddress() const { return CollaborationHost::suggestedAddress(); }
     QString invitationCode() const { return m_invitationCode; }
     QString joinStatus() const;
+    bool inviting() const { return m_inviting; }
     bool joining() const { return !m_joiningId.isEmpty(); }
     Q_INVOKABLE void invitePeople(const QString &address);
     Q_INVOKABLE void stopSharing();
@@ -110,6 +112,7 @@ private:
     QString projectPath() const;
     QJsonObject m_localSnapshot;
     QHash<QString, SharedProject *> m_shared;
+    bool m_inviting = false;
     QString m_invitationCode;
     QString m_joiningId;
     QString m_joinMessage;

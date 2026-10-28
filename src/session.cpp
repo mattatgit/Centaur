@@ -9,6 +9,7 @@
 #include <QUuid>
 #include <QElapsedTimer>
 #include <QThread>
+#include <QPointer>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 static QString runner() {
@@ -276,6 +277,17 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     if (type == "invite" || type == "stopSharing") {
         QString error;
         if (type == "invite") {
+            if (command["address"] == "iroh") {
+                const QPointer<QIODevice> recipient(sender);
+                const bool local = sender == nullptr;
+                m_network->inviteInternet(id, author, [this, recipient, local, id](const QString &code, const QString &error) {
+                    if (!local && !recipient) return;
+                    reply(recipient, code.isEmpty() ? QJsonObject{{"type", "error"}, {"message", error}}
+                                                   : QJsonObject{{"type", "invitation"}, {"projectId", id}, {"code", code}});
+                    publish(id);
+                });
+                return;
+            }
             const auto code = m_network->invite(id, author, command["address"].toString(), &error);
             if (code.isEmpty()) { fail(error); return; }
             reply(sender, {{"type", "invitation"}, {"projectId", id}, {"code", code}});

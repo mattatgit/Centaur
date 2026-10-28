@@ -21,8 +21,8 @@ Controller::Controller(QString root, QObject *parent) : QObject(parent),
     if (savedColor.isValid()) m_gridColor = savedColor;
     m_previewStatus = embeddingSupported() ? "Opening native app…" : "Native embedding requires Linux";
     connect(&m_session, &Session::snapshot, this, &Controller::receive);
-    connect(&m_session, &Session::error, this, &Controller::error);
-    connect(&m_session, &Session::connectionChanged, this, &Controller::changed);
+    connect(&m_session, &Session::error, this, [this](const QString &message) { m_inviting = false; emit changed(); emit error(message); });
+    connect(&m_session, &Session::connectionChanged, this, [this] { if (!m_session.connected()) m_inviting = false; emit changed(); });
     connect(&m_preview, &QProcess::started, this, [this] {
         m_previewStatus = "Connecting native app…"; emit previewChanged();
     });
@@ -65,7 +65,8 @@ bool Controller::agentBusy() const { return remoteProject() ? m_shared.value(m_p
 QString Controller::connectionStatus() const { return remoteProject() ? m_shared.value(m_projectId)->status() : m_session.connected() ? "Local project" : "Local host unavailable"; }
 QString Controller::joinStatus() const { return m_shared.contains(m_joiningId) ? m_shared.value(m_joiningId)->status() : m_joinMessage; }
 void Controller::invitePeople(const QString &address) {
-    m_invitationCode.clear(); emit changed(); command({{"type", "invite"}, {"address", address}});
+    if (m_inviting) return;
+    m_inviting = true; m_invitationCode.clear(); emit changed(); command({{"type", "invite"}, {"address", address}});
 }
 void Controller::stopSharing() { m_invitationCode.clear(); command({{"type", "stopSharing"}}); }
 void Controller::copyInvitation() { QGuiApplication::clipboard()->setText(m_invitationCode); }
@@ -147,7 +148,7 @@ void Controller::receive(const QJsonObject &data) {
     if (data["type"] == "created" || data["type"] == "opened") {
         openProject(data["projectId"].toString()); return;
     }
-    if (data["type"] == "invitation") { if (data["projectId"] != m_projectId) return; m_invitationCode = data["code"].toString(); emit changed(); return; }
+    if (data["type"] == "invitation") { m_inviting = false; if (data["projectId"] != m_projectId) { emit changed(); return; } m_invitationCode = data["code"].toString(); emit changed(); return; }
     if (data["type"] != "snapshot") return;
     m_localSnapshot = data; refresh();
 }

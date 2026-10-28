@@ -1,6 +1,6 @@
 # Precompiled Centaur for NixOS
 
-Centaur's distribution workflow builds the existing v0.2 package on native **x86_64-linux** and **aarch64-linux** GitHub runners. The package includes **centaur**, **centaur-host** and **centaur-preview**, bundled fonts, Qt/Wayland and every other runtime dependency in its Nix closure. Application behaviour is unchanged.
+Centaur's distribution workflow builds the current native package on native **x86_64-linux** and **aarch64-linux** GitHub runners. The package includes **centaur**, **centaur-host**, **centaur-preview** and the native **centaur-network** Iroh helper, bundled fonts, Qt/Wayland and every other runtime dependency in its Nix closure. No separate Rust, Cargo or Iroh installation is needed on downloading machines.
 
 The public cache is **`mattatgit-centaur`**. Its verified public URL/key are available in [the ready-to-use NixOS configuration](../packaging/centaur-cache.nix). The first publication still requires a successful Publish job: a green build with skipped Publish jobs does not mean the package has been uploaded.
 
@@ -74,7 +74,7 @@ Launch the installed app:
 "$HOME/.local/state/nix/profiles/centaur/bin/centaur" --demo
 ```
 
-The dedicated profile also contains `centaur-host` and `centaur-preview`. Qt, Wayland, fonts, Git and OpenSSL are downloaded as runtime dependencies; they do not need separate installation. The current user's projects and preferences remain in their existing data directory.
+The dedicated profile also contains `centaur-host`, `centaur-preview` and `centaur-network`. Qt, Wayland, fonts, Git and OpenSSL are downloaded as runtime dependencies; they do not need separate installation. The current user's projects and preferences remain in their existing data directory.
 
 `--max-jobs 0` disables local builds and `--builders ''` disables remote builders for this command. If the required binary is missing, the command fails rather than compiling. A pending or failed publication therefore cannot unexpectedly make the Air compile Centaur. Nix still fetches the small flake source/lock data to identify the exact package; that is evaluation, not compilation.
 
