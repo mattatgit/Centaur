@@ -15,6 +15,6 @@ https://code.qt.io/cgit/qt/qtwayland.git/tree/src/plugins/decorations/adwaita/qw
 Qt release/source hashes remain pinned by flake.lock and the selected nixpkgs
 package. Rebuilds fail if the patch no longer applies to an upgraded Qt version.
 
-The native decoration reports `_centaurSquareFrame` on its window. A small
+The native decoration queues `_centaurSquareFrame` updates onto its window’s GUI thread, since frame painting may occur on a render thread. A small
 application observer uses this to turn off the client corner alpha while tiled
 or maximized, preserving opaque square edges and normal native snapping.

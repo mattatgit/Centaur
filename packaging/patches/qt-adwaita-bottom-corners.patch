@@ -1,6 +1,6 @@
 --- a/src/plugins/decorations/adwaita/qwaylandadwaitadecoration.cpp
 +++ b/src/plugins/decorations/adwaita/qwaylandadwaitadecoration.cpp
-@@ -139,18 +139,10 @@
+@@ -139,18 +139,12 @@
  
 -    // Maximized or tiled won't have rounded corners
 -    if (waylandWindow()->windowStates() & Qt::WindowMaximized
@@ -8,7 +8,9 @@
 +    // Match the client background to the native frame when maximized/tiled.
 +    const bool squareFrame = waylandWindow()->windowStates() & Qt::WindowMaximized
 +        || waylandWindow()->toplevelWindowTilingStates() != QWaylandWindow::WindowNoState;
-+    window()->setProperty("_centaurSquareFrame", squareFrame);
++    QMetaObject::invokeMethod(window(), [target = window(), squareFrame] {
++        target->setProperty("_centaurSquareFrame", squareFrame);
++    }, Qt::QueuedConnection);
 +    if (squareFrame)
          path.addRect(fullFrameRect);
 -    } else {
