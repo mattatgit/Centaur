@@ -173,6 +173,31 @@ private slots:
         QCOMPARE(root->findChild<QObject *>("heading")->property("renderedFamily").toString(), QString("Inter"));
         QVERIFY(!QFontDatabase::styles("Inter").isEmpty());
     }
+    void typefacesSwitchAboveTwelvePointsWithoutChangingSizeOrWeight() {
+        TypefaceSelector selector;
+        QCOMPARE(selector.familyForSize(12, -1), QString("Inter"));
+        QCOMPARE(selector.familyForSize(12.5, -1), QString("Inter Tight"));
+        for (auto weight : {QFont::Normal, QFont::DemiBold, QFont::Bold}) {
+            QFont font("Inter Tight"); font.setWeight(weight); font.setPointSizeF(14);
+            const QFontInfo resolved(font);
+            QCOMPARE(resolved.family(), QString("Inter Tight")); QCOMPARE(resolved.weight(), weight);
+        }
+        QQmlEngine engine; QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        QQmlComponent component(&engine);
+        component.setData("import QtQuick\nimport Centaur.Typography 1.0\n"
+            "Item { property real textSize: 12; TypefaceSelector { id: fonts } "
+            "Text { objectName: 'text'; text: 'Family planner'; font.pointSize: parent.textSize; "
+            "font.family: fonts.familyForSize(parent.textSize, -1); font.weight: Font.DemiBold } }", QUrl("qrc:/typeface-check.qml"));
+        QScopedPointer<QObject> root(component.create()); QVERIFY2(root, qPrintable(component.errorString()));
+        const auto text = root->findChild<QObject *>("text"); QVERIFY(text);
+        QCOMPARE(qvariant_cast<QFont>(text->property("font")).family(), QString("Inter"));
+        root->setProperty("textSize", 12.5);
+        auto font = qvariant_cast<QFont>(text->property("font"));
+        QCOMPARE(QFontInfo(font).family(), QString("Inter Tight")); QCOMPARE(font.pointSizeF(), 12.5); QCOMPARE(font.weight(), QFont::DemiBold);
+        root->setProperty("textSize", 12);
+        QCOMPARE(qvariant_cast<QFont>(text->property("font")).family(), QString("Inter"));
+        QVERIFY(warnings.isEmpty());
+    }
     void projectsArePersistentGitRepos() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());

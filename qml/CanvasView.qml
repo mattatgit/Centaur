@@ -39,7 +39,7 @@ Rectangle {
             step: Backend.gridSize; color: Backend.gridColor; opacity: Backend.gridOpacity / 100
             origin: Qt.point(appFrame.x, appFrame.y)
         }
-        Text { x: 240; y: 718; width: 520; horizontalAlignment: Text.AlignHCenter; text: Backend.previewStatus; color: Theme.muted; font.pointSize: 10; wrapMode: Text.Wrap }
+        Text { x: 240; y: 718; width: 520; horizontalAlignment: Text.AlignHCenter; text: Backend.previewStatus; color: Theme.muted; readonly property real typeSize: 10; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); wrapMode: Text.Wrap }
         InkLayer {
             objectName: "inkLayer"
             anchors.fill: parent

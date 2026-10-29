@@ -1,0 +1,16 @@
+--- a/src/plugins/decorations/adwaita/qwaylandadwaitadecoration.cpp
++++ b/src/plugins/decorations/adwaita/qwaylandadwaitadecoration.cpp
+@@ -144,12 +144,3 @@
+     } else {
+-        const QSizeF radiusRectSize = QSizeF(ceCornerRadius * 2, ceCornerRadius * 2);
+-        path.moveTo(fullFrameRect.bottomLeft());
+-        path.lineTo(fullFrameRect.topLeft() + QPointF(0, ceCornerRadius));
+-        path.arcTo(QRectF(fullFrameRect.topLeft(), radiusRectSize), 180, -90);
+-        path.lineTo(fullFrameRect.topRight() - QPointF(ceCornerRadius, 0));
+-        path.arcTo(QRectF(fullFrameRect.topRight() - QPointF(ceCornerRadius * 2, 0),
+-                          radiusRectSize),
+-                    90, -90);
+-        path.lineTo(fullFrameRect.bottomRight());
+-        path.closeSubpath();
++        path.addRoundedRect(fullFrameRect, ceCornerRadius, ceCornerRadius);
+     }

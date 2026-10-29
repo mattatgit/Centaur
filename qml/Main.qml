@@ -11,7 +11,13 @@ ApplicationWindow {
     minimumWidth: workspaceVisible ? 1000 : 360
     minimumHeight: 680
     title: Backend.projectId ? Backend.project.name + " · Centaur" : "Centaur"
-    color: Theme.ice
+    color: "transparent"
+    readonly property real bottomCornerRadius: visibility === Window.Windowed ? 12 : 0
+    background: Rectangle {
+        color: Theme.ice
+        bottomLeftRadius: window.bottomCornerRadius
+        bottomRightRadius: window.bottomCornerRadius
+    }
     font.family: "Inter"; font.pointSize: 11
     property string page: "projects"
     property bool buildMode: false
@@ -37,6 +43,7 @@ ApplicationWindow {
         SideNavigation {
             visible: !window.workspaceVisible
             compact: window.width < 760
+            bottomCornerRadius: window.bottomCornerRadius
             page: window.page
             Layout.preferredWidth: implicitWidth
             Layout.fillHeight: true
@@ -60,7 +67,7 @@ ApplicationWindow {
                     SvgIcon { visible: window.workspaceVisible; source: "qrc:/assets/dialogue/breadcrumb-arrow.svg"; color: Theme.muted; Layout.preferredWidth: 18; Layout.preferredHeight: 20 }
                     Text {
                         text: window.workspaceVisible ? Backend.project.name : window.page === "designSystems" ? "Design Systems" : window.page === "settings" ? "Settings" : "Projects"
-                        color: Theme.ink; font.pixelSize: window.workspaceVisible ? 12 : 16; font.weight: Font.DemiBold
+                        color: Theme.ink; readonly property real typeSize: window.workspaceVisible ? 12 : 16; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.DemiBold
                         elide: Text.ElideRight; Layout.fillWidth: true
                     }
                 }
@@ -134,9 +141,9 @@ ApplicationWindow {
         background: Rectangle { color: "white"; radius: 20; border.color: Theme.line }
         ColumnLayout {
             width: parent.width; spacing: 16
-            Text { text: "One project, one native app."; color: Theme.muted; font.pointSize: 11 }
-            TextField { id: projectName; objectName: "projectName"; placeholderText: "Project name"; Layout.fillWidth: true; maximumLength: 100; font.pointSize: 12; onAccepted: if (text.trim()) createButton.clicked() }
-            TextArea { id: projectDescription; placeholderText: "What would you like to make?"; Layout.fillWidth: true; Layout.preferredHeight: 100; wrapMode: TextEdit.Wrap; font.pointSize: 12; background: Rectangle { color: Theme.ice; radius: 10 } }
+            Text { text: "One project, one native app."; color: Theme.muted; readonly property real typeSize: 11; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); }
+            TextField { id: projectName; objectName: "projectName"; placeholderText: "Project name"; Layout.fillWidth: true; maximumLength: 100; readonly property real typeSize: 12; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); onAccepted: if (text.trim()) createButton.clicked() }
+            TextArea { id: projectDescription; placeholderText: "What would you like to make?"; Layout.fillWidth: true; Layout.preferredHeight: 100; wrapMode: TextEdit.Wrap; readonly property real typeSize: 12; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); background: Rectangle { color: Theme.ice; radius: 10 } }
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
@@ -152,8 +159,20 @@ ApplicationWindow {
         anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; anchors.bottomMargin: 24
         width: Math.min(parent.width - 80, notice.implicitWidth + 48); height: notice.implicitHeight + 30
         radius: 12; color: Theme.ink
-        Text { id: notice; anchors.fill: parent; anchors.margins: 15; text: window.notification; wrapMode: Text.Wrap; color: "white"; font.pointSize: 11 }
+        Text { id: notice; anchors.fill: parent; anchors.margins: 15; text: window.notification; wrapMode: Text.Wrap; color: "white"; readonly property real typeSize: 11; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); }
         TapHandler { onTapped: window.notification = "" }
         Timer { id: noticeTimer; interval: 8000; onTriggered: window.notification = "" }
     }
+    // Let the compositor handle the drag, including native snapping and limits.
+    MouseArea {
+        objectName: "windowResizeCorner"
+        anchors.right: parent.right; anchors.bottom: parent.bottom
+        width: 20; height: 20; z: 1000
+        enabled: window.visibility === Window.Windowed
+        hoverEnabled: true
+        cursorShape: Qt.SizeFDiagCursor
+        acceptedButtons: Qt.LeftButton
+        onPressed: function(mouse) { window.startSystemResize(Qt.RightEdge | Qt.BottomEdge) }
+    }
+
 }

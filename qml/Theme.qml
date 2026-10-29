@@ -1,7 +1,8 @@
 pragma Singleton
 import QtQuick
+import Centaur.Typography 1.0
 
-QtObject {
+TypefaceSelector {
     readonly property color ink: "#171717"
     readonly property color muted: "#9ea39e"
     readonly property color hover: "#6b6b6b"

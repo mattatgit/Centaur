@@ -18,7 +18,7 @@ Button {
     leftPadding: text.length === 0 ? 6 : tone === "dark" ? 16 : 8
     rightPadding: leftPadding
     hoverEnabled: true
-    font.pixelSize: 12
+    readonly property real typeSize: 12; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize)
     font.weight: Font.DemiBold
     opacity: enabled ? 1 : 0.45
     scale: enabled && hovered && scaleOnHover && tone !== "mode" ? 1.05 : 1

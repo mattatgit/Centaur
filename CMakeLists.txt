@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Centaur VERSION 0.3.0 LANGUAGES CXX)
+project(Centaur VERSION 0.3.1 LANGUAGES CXX)
 set(CENTAUR_BUILD_ID "dev" CACHE STRING "Source revision identifying this Centaur build")
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "14.4")
@@ -24,13 +24,16 @@ else()
     set(PREVIEW_QML qml/PreviewUnavailable.qml)
 endif()
 add_library(centaur_typography STATIC src/typography.cpp src/typography.h)
-target_link_libraries(centaur_typography PUBLIC Qt6::Gui)
+target_link_libraries(centaur_typography PUBLIC Qt6::Gui Qt6::Qml)
 target_include_directories(centaur_typography PUBLIC src)
 qt_add_resources(centaur_typography fonts PREFIX "/fonts" BASE assets/fonts/inter FILES
     assets/fonts/inter/Inter-Regular.ttf
     assets/fonts/inter/Inter-SemiBold.ttf
     assets/fonts/inter/Inter-Bold.ttf
     assets/fonts/inter/LICENSE.txt)
+qt_add_resources(centaur_typography tight_fonts PREFIX "/fonts" BASE assets/fonts/inter-tight FILES
+    assets/fonts/inter-tight/InterTight-Variable.ttf
+    assets/fonts/inter-tight/OFL.txt)
 add_library(centaur_core STATIC
     src/workspace.cpp src/workspace.h
     src/session.cpp src/session.h
@@ -68,6 +71,7 @@ qt_add_executable(centaur-preview src/preview_main.cpp)
 target_link_libraries(centaur-preview PRIVATE Qt6::Quick Qt6::QuickControls2 centaur_typography)
 install(TARGETS centaur centaur-preview centaur-host RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 install(FILES assets/fonts/inter/LICENSE.txt DESTINATION share/licenses/centaur/inter)
+install(FILES assets/fonts/inter-tight/OFL.txt DESTINATION share/licenses/centaur/inter-tight)
 install(FILES assets/dialogue/LICENSE DESTINATION share/licenses/centaur/dialogue)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     install(FILES packaging/centaur.desktop DESTINATION share/applications)

@@ -8,6 +8,16 @@ Rectangle {
     signal sendRequested(string text)
     signal settingsRequested()
     function agentLabel(name) { const value = String(name || "centaur"); return value.toLowerCase() === "centaur" ? "Centaur" : value }
+    function modelLabel(model) {
+        if (!model) return "Model not reported yet"
+        const parts = String(model).split("/")
+        const providers = { "openai-codex": "OpenAI Codex", "openai": "OpenAI", "anthropic": "Anthropic", "google": "Google" }
+        const provider = parts.length > 1 ? (providers[parts[0]] || parts[0]) : ""
+        const name = parts.slice(parts.length > 1 ? 1 : 0).join("/")
+            .replace(/^gpt-/i, "GPT ").replace(/^claude-/i, "Claude ").replace(/-/g, " ")
+            .replace(/\bsol\b/g, "Sol").replace(/\bterra\b/g, "Terra").replace(/\bastra\b/g, "Astra").replace(/\bluna\b/g, "Luna")
+        return provider ? provider + " · " + name : name
+    }
     property var proposal: Backend.project.proposal || ({})
     property bool hasProposal: !!proposal.id
     property bool hasConflict: hasProposal && !!proposal.conflict
@@ -36,28 +46,23 @@ Rectangle {
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 4
-                Text { text: "Chat"; font.pointSize: 14; font.weight: Font.DemiBold; color: Theme.ink }
-                Text { visible: Backend.remoteProject; text: Backend.connectionStatus; color: Theme.muted; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+                Text { objectName: "chatHeading"; text: "Chat"; readonly property real typeSize: 14; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; color: Theme.ink }
+                Text { visible: Backend.remoteProject; text: Backend.connectionStatus; color: Theme.muted; readonly property real typeSize: 11; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); Layout.fillWidth: true; elide: Text.ElideRight }
                 Text {
                     id: agentModelLabel
+                    objectName: "agentModelLabel"
                     Layout.fillWidth: true
-                    text: chat.agentLabel(Backend.project.agentName || "centaur") + " · "
-                        + (Backend.agentModel || (Backend.agentAvailable ? "Model not reported yet" : "Not connected"))
+                    text: !Backend.agentAvailable ? "Agent unavailable"
+                        : chat.modelLabel(Backend.agentModel)
                     textFormat: Text.PlainText
-                    color: Theme.muted; font.pointSize: 10.5
+                    color: Theme.muted; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1)
                     elide: Text.ElideRight
                     ToolTip.visible: modelHover.hovered
-                    ToolTip.text: agentModelLabel.text
+                    ToolTip.text: Backend.agentAvailable && Backend.agentModel ? Backend.agentModel : agentModelLabel.text
                     HoverHandler { id: modelHover }
                 }
             }
-            Rectangle {
-                width: 32; height: 32; radius: 10; color: Theme.lime
-                Text { anchors.centerIn: parent; text: "C"; color: Theme.ink; font.pointSize: 17; font.weight: Font.DemiBold }
-                ToolTip.visible: agentHover.hovered
-                ToolTip.text: Backend.agentAvailable ? "Agent executable available" : "Install and sign in to omp to connect the agent"
-                HoverHandler { id: agentHover }
-            }
+
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
         ListView {
@@ -80,10 +85,10 @@ Rectangle {
                         Rectangle {
                             width: 26; height: 26; radius: 8
                             color: modelData.kind === "human" ? "#e7ede3" : Theme.lime
-                            Text { anchors.centerIn: parent; text: modelData.author.substring(0, 1).toUpperCase(); color: Theme.ink; font.pointSize: 9; font.weight: Font.DemiBold }
+                            Text { anchors.centerIn: parent; text: modelData.author.substring(0, 1).toUpperCase(); color: Theme.ink; readonly property real typeSize: 9; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold }
                         }
-                        Text { textFormat: Text.PlainText; text: modelData.kind === "human" ? modelData.author : chat.agentLabel(modelData.author); color: Theme.ink; font.pointSize: 10.5; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Text { text: Qt.formatTime(new Date(modelData.time), "hh:mm"); color: Theme.muted; font.pointSize: 9 }
+                        Text { textFormat: Text.PlainText; text: modelData.kind === "human" ? modelData.author : chat.agentLabel(modelData.author); color: Theme.ink; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                        Text { text: Qt.formatTime(new Date(modelData.time), "hh:mm"); color: Theme.muted; readonly property real typeSize: 9; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); }
                     }
                     TextEdit {
                         text: chat.messageText(modelData)
@@ -92,7 +97,7 @@ Rectangle {
                         readOnly: true; selectByMouse: true
                         wrapMode: TextEdit.Wrap
                         textFormat: TextEdit.PlainText
-                        font.pointSize: 12.5
+                        readonly property real typeSize: 12.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1)
                         color: modelData.kind === "system" ? Theme.muted : Theme.ink
                         selectionColor: "#d9e4ff"
                     }
@@ -103,10 +108,10 @@ Rectangle {
                 width: parent.width
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 14
-                Text { text: "Start with a conversation."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 18; font.weight: Font.DemiBold; color: Theme.ink }
-                Text { text: "Talk to each other here. When you’re ready for help, mention @" + Backend.project.agentName + "."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 12.5; color: Theme.muted }
-                Text { text: "Sketch on the canvas or point with Comment. Your marks accompany the next request to the agent."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 12.5; color: Theme.muted }
-                Text { visible: !Backend.agentAvailable; text: Backend.remoteProject ? "The host needs OMP installed and signed in for agent requests. Chat and drawing still work." : "The agent needs omp installed and signed in. Project creation, chat and drawing work without it."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { text: "Start with a conversation."; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 18; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; color: Theme.ink }
+                Text { text: "Talk to each other here. When you’re ready for help, mention @" + Backend.project.agentName + "."; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 12.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
+                Text { text: "Sketch on the canvas or point with Comment. Your marks accompany the next request to the agent."; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 12.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
+                Text { visible: !Backend.agentAvailable; text: Backend.remoteProject ? "The host needs OMP installed and signed in for agent requests. Chat and drawing still work." : "The agent needs omp installed and signed in. Project creation, chat and drawing work without it."; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
             }
         }
         Rectangle {
@@ -116,7 +121,7 @@ Rectangle {
             RowLayout {
                 id: busyRow
                 anchors.fill: parent; anchors.margins: 10
-                Text { text: chat.agentLabel(Backend.project.agentName) + " is working…" + ((Backend.project.queueCount || 0) > 0 ? " · " + Backend.project.queueCount + " queued" : ""); Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { text: chat.agentLabel(Backend.project.agentName) + " is working…" + ((Backend.project.queueCount || 0) > 0 ? " · " + Backend.project.queueCount + " queued" : ""); Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
                 FlatButton { text: "Stop"; tone: "plain"; onClicked: Backend.cancelAgent() }
             }
         }
@@ -128,11 +133,11 @@ Rectangle {
             ColumnLayout {
                 id: proposalColumn
                 anchors.fill: parent; anchors.margins: 14; spacing: 10
-                Text { text: "Resolve conflicting requests"; font.pointSize: 11; font.weight: Font.DemiBold; color: Theme.ink }
-                Text { text: chat.hasConflict ? chat.proposal.conflict.reason : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; font.pointSize: 10.5; color: Theme.ink }
-                Text { text: chat.hasProposal ? chat.proposal.authors.map(function(name) { return (chat.proposal.accepted.indexOf(name) !== -1 ? "✓ " : "○ ") + name }).join("   ") : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 10.5; color: Theme.muted }
+                Text { text: "Resolve conflicting requests"; readonly property real typeSize: 11; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; color: Theme.ink }
+                Text { text: chat.hasConflict ? chat.proposal.conflict.reason : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 4; elide: Text.ElideRight; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.ink }
+                Text { text: chat.hasProposal ? chat.proposal.authors.map(function(name) { return (chat.proposal.accepted.indexOf(name) !== -1 ? "✓ " : "○ ") + name }).join("   ") : ""; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
                 FlatButton { text: chat.accepted ? "Waiting for the others involved" : "Agree to compromise"; tone: "dark"; visible: chat.contributor; enabled: !chat.accepted && !Backend.agentBusy && Backend.canContribute; Layout.fillWidth: true; onClicked: Backend.acceptProposal() }
-                Text { text: "Only the people whose requests conflict need to agree. More discussion updates the proposed compromise."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: Theme.muted; font.pointSize: 9.5 }
+                Text { text: "Only the people whose requests conflict need to agree. More discussion updates the proposed compromise."; Layout.fillWidth: true; wrapMode: Text.Wrap; color: Theme.muted; readonly property real typeSize: 9.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); }
             }
         }
         Rectangle {
@@ -146,7 +151,7 @@ Rectangle {
                     id: composer
                     objectName: "chatComposer"
                     placeholderText: "Message, or ask @" + Backend.project.agentName
-                    font.pointSize: 12.5
+                    readonly property real typeSize: 12.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1)
                     color: Theme.ink
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
@@ -170,7 +175,7 @@ Rectangle {
             Text {
                 id: footerHint
                 text: "Chatting as " + Backend.author + " · Shift + Enter for a new line"
-                font.pointSize: 9; color: Theme.muted
+                readonly property real typeSize: 9; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted
                 Layout.fillWidth: true
                 elide: Text.ElideRight
                 ToolTip.visible: footerHintHover.hovered
@@ -185,7 +190,7 @@ Rectangle {
             Text {
                 objectName: "centaurVersion"
                 text: "v" + Qt.application.version
-                font.pointSize: 8.5; color: Theme.muted
+                readonly property real typeSize: 8.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted
                 Layout.minimumWidth: implicitWidth
                 Accessible.name: "Centaur version " + Qt.application.version
             }

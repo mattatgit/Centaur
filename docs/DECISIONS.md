@@ -16,6 +16,7 @@ This register separates established direction from implementation choices and ex
 | D08 | A compatible explicit request authorises a change; only genuine conflicts require agreement from affected authors. | Repository record: CURRENT and ARCHITECTURE. Preserve this distinction through future generation/deployment work. |
 | D09 | Finished apps should run independently of Centaur/OMP, beginning with local NixOS installation and later family sharing and explicit release updates. | Repository record: ARCHITECTURE, agreed 27 October 2026. Installed releases/data have separate lifecycles from workshop edits. |
 | D10 | Prioritise modest hardware and precompiled NixOS delivery. | Repository record and handover. Keep the public Cachix path; measure before setting a hardware floor. |
+| D11 | Use Inter at 12 pt or smaller and Inter Tight above 12 pt for Centaur’s default typography, retaining current sizes/weights pending review. | Owner request, 29 October 2026. Bundle both families and licences in the native runtimes; this default does not prescribe fonts for every future design system. |
 
 ## Current implementation choices
 

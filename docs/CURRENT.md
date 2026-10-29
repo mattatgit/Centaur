@@ -98,3 +98,10 @@ Automated checks cover separate data directories, guest-originated agent changes
 GitHub Actions checks the unchanged v0.2 package on native x86_64-linux and aarch64-linux runners. After both pass, trusted pushes/manual runs on codex/native-prototype can publish each complete runtime closure to a public Cachix cache and verify a fresh signed download. The package includes Centaur, centaur-host and centaur-preview. Public installation metadata records the commit, cache key, package path and verified closure. See [Binary distribution](BINARY_DISTRIBUTION.md).
 
 First publication requires a public Cachix cache, repository variable CENTAUR_CACHIX_CACHE and per-cache write secret CACHIX_AUTH_TOKEN. Until configured, publication is skipped with a setup note; a passing CI build does not claim a cache upload. Air/VM installation commands explicitly disable builders so missing binaries cannot cause local compilation. Application functionality and flake platform outputs are unchanged.
+
+
+## Typography and window tidy-up (29 October 2026)
+
+The chat header no longer has the standalone C badge. The model line formats names such as `openai-codex/gpt-6.1-sol` as “OpenAI Codex · GPT 6.1 Sol”; unavailable runtime status takes priority over saved model details. Message avatars remain. Text sizes and weights are retained pending design review: heading 14 pt/600, model 10.5 pt/400, messages and composer 12.5 pt/400, author 10.5 pt/600, time/footer 9 pt/400 and version 8.5 pt/400.
+
+Inter Tight is bundled for text above 12 pt; Inter remains at or below 12 pt. The starter and agent guidance follow the same split. The GNOME/Wayland frame patch matches bottom corners to the existing native 12 px top corners, and a bottom-right hover target invokes native diagonal resizing. The OS title bar and controls remain native.

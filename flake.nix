@@ -5,8 +5,18 @@
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       eachSystem = nixpkgs.lib.genAttrs systems;
+      # Keep GNOME's native Qt title bar, buttons, shadows and resize handling.
+      # Patch only the frame path so its bottom uses the same 12 px radius.
+      wayland = pkgs: pkgs.qt6.qtwayland.overrideAttrs (old: {
+        patches = (old.patches or [ ]) ++ [ ./packaging/patches/qt-adwaita-bottom-corners.patch ];
+        buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.qt6.qtsvg ];
+        cmakeFlags = (old.cmakeFlags or [ ]) ++ [ "-DFEATURE_wayland_decoration_adwaita=ON" ];
+        postInstall = (old.postInstall or "") + ''
+          test -f "$out/lib/qt-6/plugins/wayland-decoration-client/libadwaita.so"
+        '';
+      });
       qtPackages = pkgs: with pkgs.qt6; [ qtbase qtdeclarative qtsvg ]
-        ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux qtwayland;
+        ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux (wayland pkgs);
       qmlPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/qml" (qtPackages pkgs);
       pluginPath = pkgs: pkgs.lib.makeSearchPath "lib/qt-6/plugins" (qtPackages pkgs);
       network = pkgs: pkgs.rustPlatform.buildRustPackage {
@@ -18,7 +28,7 @@
       };
       package = pkgs: pkgs.stdenv.mkDerivation {
         pname = "centaur";
-        version = "0.3.0";
+        version = "0.3.1";
         src = self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
         buildInputs = qtPackages pkgs;

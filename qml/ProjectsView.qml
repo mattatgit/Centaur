@@ -34,7 +34,7 @@ Rectangle {
             objectName: "projectMenuEntry-" + text
             implicitHeight: 36
             leftPadding: 12; rightPadding: 12
-            contentItem: Text { text: menuEntry.text; font.pixelSize: 12; color: menuEntry.enabled ? Theme.ink : Theme.muted; verticalAlignment: Text.AlignVCenter }
+            contentItem: Text { text: menuEntry.text; readonly property real typeSize: 12; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); color: menuEntry.enabled ? Theme.ink : Theme.muted; verticalAlignment: Text.AlignVCenter }
             background: Rectangle { radius: 8; color: menuEntry.highlighted || menuEntry.down ? Theme.dust : "transparent" }
         }
         Action { text: "Rename"; enabled: !root.selectedProjectRemote; onTriggered: { renameName.text = root.selectedProjectName; renameDialog.open() } }
@@ -48,7 +48,7 @@ Rectangle {
         modal: true; anchors.centerIn: parent
         width: Math.min(400, root.width - 24); padding: 24
         background: Rectangle { radius: 16; color: "white"; border.color: Theme.dust }
-        header: Label { text: renameDialog.title; color: Theme.ink; font.pixelSize: 16; font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
+        header: Label { text: renameDialog.title; color: Theme.ink; readonly property real typeSize: 16; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
         ColumnLayout {
             width: parent.width; spacing: 20
             TextField { id: renameName; objectName: "renameProjectName"; Layout.fillWidth: true; maximumLength: 100; selectByMouse: true; onAccepted: root.saveProjectName(); Accessible.name: "Project name" }
@@ -68,10 +68,10 @@ Rectangle {
         modal: true; anchors.centerIn: parent
         width: Math.min(420, root.width - 24); padding: 24
         background: Rectangle { radius: 16; color: "white"; border.color: Theme.dust }
-        header: Label { text: deleteDialog.title; color: Theme.ink; font.pixelSize: 16; font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
+        header: Label { text: deleteDialog.title; color: Theme.ink; readonly property real typeSize: 16; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.DemiBold; leftPadding: 24; rightPadding: 24; topPadding: 24; wrapMode: Text.Wrap }
         ColumnLayout {
             width: parent.width; spacing: 20
-            Text { text: root.selectedProjectRemote ? "Leave “" + root.selectedProjectName + "” on this device? The owner’s project stays available to the other people." : "“" + root.selectedProjectName + "” and its app and conversation will be removed from Centaur."; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 14; color: Theme.ink }
+            Text { text: root.selectedProjectRemote ? "Leave “" + root.selectedProjectName + "” on this device? The owner’s project stays available to the other people." : "“" + root.selectedProjectName + "” and its app and conversation will be removed from Centaur."; textFormat: Text.PlainText; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 14; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); color: Theme.ink }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
                 FlatButton { id: cancelDelete; objectName: "cancelProjectDeletion"; text: "Cancel"; tone: "plain"; onClicked: deleteDialog.close() }
@@ -120,13 +120,13 @@ Rectangle {
                                 anchors.fill: parent; anchors.margins: 24; spacing: 12
                                 Rectangle {
                                     width: 54; height: 54; radius: 14; color: Theme.ink
-                                    Text { anchors.centerIn: parent; text: modelData.name.substring(0, 1).toUpperCase(); color: Theme.lime; font.pointSize: 23; font.weight: Font.DemiBold }
+                                    Text { anchors.centerIn: parent; text: modelData.name.substring(0, 1).toUpperCase(); color: Theme.lime; readonly property real typeSize: 23; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold }
                                 }
-                                Text { textFormat: Text.PlainText; text: modelData.name; color: Theme.ink; font.pointSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
-                                Text { textFormat: Text.PlainText; text: modelData.description || "A new idea, ready to take shape."; color: Theme.muted; font.pointSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: modelData.name; color: Theme.ink; readonly property real typeSize: 14; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; Layout.fillWidth: true; elide: Text.ElideRight }
+                                Text { textFormat: Text.PlainText; text: modelData.description || "A new idea, ready to take shape."; color: Theme.muted; readonly property real typeSize: 11; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
                                 Item { Layout.fillHeight: true }
                                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.line }
-                                Text { text: modelData.remote ? (modelData.connected ? "Shared project" : "Shared · host unavailable") : "Native app"; color: Theme.muted; font.pointSize: 10 }
+                                Text { text: modelData.remote ? (modelData.connected ? "Shared project" : "Shared · host unavailable") : "Native app"; color: Theme.muted; readonly property real typeSize: 10; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); }
                             }
                             Button {
                                 id: menuButton
@@ -154,8 +154,8 @@ Rectangle {
                     width: Math.min(420, parent.width); height: 265; radius: 18; color: Theme.ice; border.color: Theme.line
                     ColumnLayout {
                         anchors.fill: parent; anchors.margins: 28; spacing: 16
-                        Text { text: "What shall we make?"; font.pointSize: 18; font.weight: Font.DemiBold; color: Theme.ink; Layout.fillWidth: true; wrapMode: Text.Wrap }
-                        Text { text: "A family planner, a little game, a shared collection. Every project becomes its own native app."; Layout.fillWidth: true; wrapMode: Text.Wrap; font.pointSize: 12; color: Theme.muted }
+                        Text { text: "What shall we make?"; readonly property real typeSize: 18; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; color: Theme.ink; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                        Text { text: "A family planner, a little game, a shared collection. Every project becomes its own native app."; Layout.fillWidth: true; wrapMode: Text.Wrap; readonly property real typeSize: 12; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); color: Theme.muted }
                         Item { Layout.fillHeight: true }
                         FlatButton { text: "Create your first project"; tone: "lime"; onClicked: root.createRequested() }
                     }

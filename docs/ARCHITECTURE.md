@@ -105,7 +105,7 @@ Export, independent app packaging, family installation links and release updates
 
 ## Fonts and packaged assets
 
-Inter is the default typography in Centaur and its native example/preview runtime. It is bundled under the SIL Open Font License 1.1. Other open-source fonts can be used when their individual licences permit redistribution.
+Inter is the default small-text typography in Centaur and its native example/preview runtime. Centaur v0.3.1 uses bundled Inter Tight above 12 pt and Inter at 12 pt or smaller, keeping existing sizes and weights. Both licences are bundled and installed. The upright variable Inter Tight file and its upstream commit/checksum are recorded in [font provenance](../assets/fonts/inter-tight/README.md). Pixel-based UI sizes are resolved through Qt font metrics for the same cutoff. Existing saved apps with explicit font choices retain those choices; the starter and future agent changes use the new split. It is bundled under the SIL Open Font License 1.1. Other open-source fonts can be used when their individual licences permit redistribution.
 
 For an Inter-based implementation:
 
@@ -128,3 +128,13 @@ Centaur ports Dialogue's navigation, button states and grid controls into Qt Qui
 Interact/Build is a per-window input mode, not a different collaboration session or an approval requirement. Chat stays available in both modes. The grid is a painted, non-interactive overlay; its size is measured in the native app's logical design units and its origin follows the app frame. Device preferences live in preferences.ini outside app source/history. Settings can temporarily hide a live workspace while retaining its compositor and preview; closing a project still stops the client before releasing compositor views.
 
 Design-system import and Deploy remain explicit placeholders. That UI integration did not itself add network collaboration; the current networking implementation is described above. A design-system store and standalone app deployment remain unimplemented.
+
+
+## GNOME window frame and chat header (v0.3.1)
+
+The chat header removes its standalone C badge. The secondary line shows a readable provider/model name when available, or **Agent unavailable** even when model metadata was saved earlier. The tooltip retains the exact provider/model identifier. Agent availability here remains the existing OMP/runtime availability signal; the UI does not claim a separate provider connectivity check.
+
+Centaur preserves native desktop window decorations. Its Linux Nix package applies [a small Qt Adwaita patch](../packaging/patches/qt-adwaita-bottom-corners.patch) to use the existing 12 px top radius at the bottom too. Maximized/tiled frames retain Qt's square treatment. The client background has transparent 12 px bottom corners so it does not cover the native frame shape; the sidebar follows the same bottom-left curve. No custom title bar or window-control icons are introduced. This patch affects the Qt package shipped with Centaur, not the desktop's global theme.
+
+A 20 px bottom-right hit area displays the desktop's diagonal resize cursor and calls Qt's `startSystemResize(RightEdge | BottomEdge)`. GNOME handles the actual resize, constraints and snapping. The corner handle is disabled when maximized/fullscreen. A physical GNOME/Wayland check is still required for the system decoration and drag behaviour; headless UI checks cover client alpha, fonts, header state and the cursor target.
+

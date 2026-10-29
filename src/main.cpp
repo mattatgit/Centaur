@@ -15,6 +15,7 @@
 #include <QCommandLineParser>
 #include <QMouseEvent>
 #include <QFile>
+#include <QFontInfo>
 
 static QQuickItem *findVisualItem(QQuickItem *root, const QString &name) {
     if (root->objectName() == name) return root;
@@ -35,6 +36,11 @@ static bool clickItem(QQuickWindow *window, QQuickItem *item) {
 }
 
 int main(int argc, char *argv[]) {
+    // Use Qt's native GNOME decoration (bundled with matching bottom corners).
+    // Leave explicit desktop/user decoration overrides alone.
+    if (qEnvironmentVariable("XDG_CURRENT_DESKTOP").contains("GNOME", Qt::CaseInsensitive)
+        && !qEnvironmentVariableIsSet("QT_WAYLAND_DECORATION")) qputenv("QT_WAYLAND_DECORATION", "adwaita");
+    QQuickWindow::setDefaultAlphaBuffer(true);
     QGuiApplication app(argc, argv);
     if (!initializeTypography()) return 1;
     QCoreApplication::setApplicationName("Centaur");
@@ -119,6 +125,11 @@ int main(int argc, char *argv[]) {
         // Exercise both main views and all their QML components.
         QTimer::singleShot(100, &app, [&] {
             controller.createProject("UI test", "Temporary smoke-test project");
+            // A cached model must not hide an unavailable agent in the header.
+            Workspace workspace(root);
+            auto state = workspace.load(controller.projectId());
+            state["agentModel"] = "openai-codex/gpt-6.1-sol";
+            workspace.save(controller.projectId(), state);
             controller.setAuthor("Matt"); controller.sendMessage("Let's make something simple.");
             controller.setAuthor("Saori"); controller.sendMessage("And easy for everyone to use.");
             controller.addAnnotation({{"tool", "draw"}, {"points", QVariantList{
@@ -134,6 +145,16 @@ int main(int argc, char *argv[]) {
             auto *chat = window->findChild<QQuickItem *>("chatComposer");
             auto *ink = window->findChild<InkItem *>("inkLayer");
             if (!chat || !chat->isVisible() || !ink || ink->acceptedMouseButtons() != Qt::LeftButton) qmlWarning = true;
+            auto *heading = window->findChild<QObject *>("chatHeading");
+            auto *model = window->findChild<QObject *>("agentModelLabel");
+            const auto expected = controller.agentAvailable() ? "OpenAI Codex · GPT 6.1 Sol" : "Agent unavailable";
+            if (!heading || QFontInfo(qvariant_cast<QFont>(heading->property("font"))).family() != "Inter Tight"
+                || !model || model->property("text").toString() != expected) qmlWarning = true;
+            auto *corner = window->findChild<QQuickItem *>("windowResizeCorner");
+            if (!corner || corner->property("cursorShape").toInt() != Qt::SizeFDiagCursor) qmlWarning = true;
+            const auto image = window->grabWindow();
+            if (!image.isNull() && (image.pixelColor(0, image.height() - 1).alpha() != 0
+                || image.pixelColor(image.width() - 1, image.height() - 1).alpha() != 0)) qmlWarning = true;
             saveSmokeImage("build");
             window->setProperty("buildMode", false);
         });

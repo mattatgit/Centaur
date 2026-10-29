@@ -7,6 +7,8 @@ Rectangle {
     id: sidebar
     property string page: "projects"
     property bool compact: false
+    property real bottomCornerRadius: 0
+    bottomLeftRadius: bottomCornerRadius
     signal navigate(string destination)
     color: Theme.ice
     implicitWidth: compact ? 72 : 216
@@ -32,7 +34,7 @@ Rectangle {
                 contentItem: RowLayout {
                     spacing: 8
                     SvgIcon { source: "qrc:/assets/dialogue/" + entry.modelData.icon; color: entry.foreground; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
-                    Text { visible: !sidebar.compact; text: entry.modelData.label; color: entry.foreground; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.fillWidth: true }
+                    Text { visible: !sidebar.compact; text: entry.modelData.label; color: entry.foreground; readonly property real typeSize: 14; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.DemiBold; Layout.fillWidth: true }
                 }
                 onClicked: sidebar.navigate(modelData.key)
                 Accessible.name: modelData.label
@@ -50,10 +52,10 @@ Rectangle {
         background: Rectangle { color: "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: Theme.blue; radius: 8 }
         contentItem: RowLayout {
             spacing: 12
-            Rectangle { Layout.preferredWidth: 40; Layout.preferredHeight: 40; radius: 10; color: "#669e68"; Text { anchors.centerIn: parent; text: Backend.author.slice(0,1).toUpperCase(); color: "#102010"; font.pixelSize: 12; font.weight: Font.Bold } }
+            Rectangle { Layout.preferredWidth: 40; Layout.preferredHeight: 40; radius: 10; color: "#669e68"; Text { anchors.centerIn: parent; text: Backend.author.slice(0,1).toUpperCase(); color: "#102010"; readonly property real typeSize: 12; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.Bold } }
             ColumnLayout { visible: !sidebar.compact; spacing: 2; Layout.fillWidth: true
-                Text { text: Backend.author; color: Theme.ink; font.pixelSize: 14; font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
-                Text { text: "This device"; color: Theme.muted; font.pixelSize: 12 }
+                Text { text: Backend.author; color: Theme.ink; readonly property real typeSize: 14; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); font.weight: Font.DemiBold; elide: Text.ElideRight; Layout.fillWidth: true }
+                Text { text: "This device"; color: Theme.muted; readonly property real typeSize: 12; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); }
             }
         }
         onClicked: sidebar.navigate("settings")
