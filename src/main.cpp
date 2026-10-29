@@ -16,6 +16,26 @@
 #include <QMouseEvent>
 #include <QFile>
 #include <QFontInfo>
+#include <QDynamicPropertyChangeEvent>
+
+// The bundled native decoration reports tiling without exposing Qt's private
+// Wayland types to the application. Keep the client alpha corners in sync.
+class NativeFrameObserver : public QObject {
+public:
+    explicit NativeFrameObserver(QQuickWindow *window) : QObject(window), m_window(window) {
+        window->installEventFilter(this);
+        update();
+    }
+protected:
+    bool eventFilter(QObject *, QEvent *event) override {
+        if (event->type() == QEvent::DynamicPropertyChange
+            && static_cast<QDynamicPropertyChangeEvent *>(event)->propertyName() == "_centaurSquareFrame") update();
+        return false;
+    }
+private:
+    void update() { m_window->setProperty("nativeFrameSquare", m_window->property("_centaurSquareFrame").toBool()); }
+    QQuickWindow *m_window;
+};
 
 static QQuickItem *findVisualItem(QQuickItem *root, const QString &name) {
     if (root->objectName() == name) return root;
@@ -82,6 +102,9 @@ int main(int argc, char *argv[]) {
     QObject::connect(&engine, &QQmlEngine::warnings, &app, [&qmlWarning] { qmlWarning = true; });
     engine.load(QUrl("qrc:/qml/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
+    auto *mainWindow = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+    if (!mainWindow) return 1;
+    new NativeFrameObserver(mainWindow);
     if (embeddingTest && !networkEmbedding) {
         Workspace workspace(root);
         QString error;
@@ -152,6 +175,10 @@ int main(int argc, char *argv[]) {
                 || !model || model->property("text").toString() != expected) qmlWarning = true;
             auto *corner = window->findChild<QQuickItem *>("windowResizeCorner");
             if (!corner || corner->property("cursorShape").toInt() != Qt::SizeFDiagCursor) qmlWarning = true;
+            window->setProperty("_centaurSquareFrame", true);
+            if (window->property("bottomCornerRadius").toInt() != 0) qmlWarning = true;
+            window->setProperty("_centaurSquareFrame", false);
+            if (window->property("bottomCornerRadius").toInt() != 12) qmlWarning = true;
             const auto image = window->grabWindow();
             if (!image.isNull() && (image.pixelColor(0, image.height() - 1).alpha() != 0
                 || image.pixelColor(image.width() - 1, image.height() - 1).alpha() != 0)) qmlWarning = true;

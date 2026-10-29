@@ -12,7 +12,8 @@ ApplicationWindow {
     minimumHeight: 680
     title: Backend.projectId ? Backend.project.name + " · Centaur" : "Centaur"
     color: "transparent"
-    readonly property real bottomCornerRadius: visibility === Window.Windowed ? 12 : 0
+    property bool nativeFrameSquare: false
+    readonly property real bottomCornerRadius: visibility === Window.Windowed && !nativeFrameSquare ? 12 : 0
     background: Rectangle {
         color: Theme.ice
         bottomLeftRadius: window.bottomCornerRadius

@@ -1,2 +1,4 @@
 # Preserve the unmodified upstream font licence, including its whitespace.
 assets/fonts/inter-tight/OFL.txt whitespace=-blank-at-eol
+# Unified diff context uses a space on otherwise empty lines.
+packaging/patches/*.patch whitespace=-blank-at-eol,-blank-at-eof
