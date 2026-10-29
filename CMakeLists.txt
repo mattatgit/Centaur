@@ -74,6 +74,8 @@ install(FILES assets/fonts/inter/LICENSE.txt DESTINATION share/licenses/centaur/
 install(FILES assets/fonts/inter-tight/OFL.txt DESTINATION share/licenses/centaur/inter-tight)
 install(FILES assets/dialogue/LICENSE DESTINATION share/licenses/centaur/dialogue)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    install(PROGRAMS scripts/centaur-update.sh DESTINATION bin RENAME centaur-update)
+    install(PROGRAMS scripts/centaur-cache-setup.sh DESTINATION bin RENAME centaur-cache-setup)
     install(FILES packaging/centaur.desktop DESTINATION share/applications)
     install(FILES packaging/centaur.svg DESTINATION share/icons/hicolor/scalable/apps)
 endif()

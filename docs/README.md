@@ -29,6 +29,7 @@ The source snapshot used for this review is `f2f72577b90edf23c8266b15a1a07905e01
 
 Keep these procedures in their existing locations:
 
+- [Easy NixOS installation and updates](NIXOS_INSTALL.md)
 - [Precompiled NixOS distribution](BINARY_DISTRIBUTION.md)
 - [Collaboration over LAN and Iroh](LAN_COLLABORATION.md)
 - [OMP setup on NixOS](OMP_NIXOS_SETUP.md)

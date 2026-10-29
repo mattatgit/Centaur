@@ -4,7 +4,7 @@ Keep editing on the faster Mac. Use the Air as the native embedding and resource
 
 ## Install and update a precompiled package
 
-Follow [Binary distribution](BINARY_DISTRIBUTION.md) for the one-time public-cache configuration, installation, future profile updates and proof that no compilation takes place. The cache and CI write credential must be activated first; successful build checks alone do not publish binaries.
+Follow [Easy installation and updates](NIXOS_INSTALL.md) for the one-time public-cache configuration, installation and download-only updates. See [Binary distribution](BINARY_DISTRIBUTION.md) for publication and signature verification. The cache and CI write credential must be activated first; successful build checks alone do not publish binaries.
 
 After the cache is configured and the wanted commit is published, a one-off cache-only launch is:
 

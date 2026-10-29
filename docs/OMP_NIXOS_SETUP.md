@@ -62,7 +62,7 @@ This should produce a real model response containing `Agent connected`. If it fa
 
 Centaur's background host retains the OMP executable/model environment from when it started. Coordinate the restart with collaborators, close **all** local Centaur windows and stop the old host before reopening with the new environment. Closing windows alone does not stop that host.
 
-For the precompiled profile, use the [binary distribution update procedure](BINARY_DISTRIBUTION.md#future-updates). To restart an existing installed host without changing the package:
+For the precompiled profile, use the [installation/update helper](NIXOS_INSTALL.md). To restart an existing installed host without changing the package:
 
 ```sh
 "$HOME/.local/state/nix/profiles/centaur/bin/centaur-host" --stop \

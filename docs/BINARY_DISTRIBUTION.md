@@ -24,87 +24,17 @@ Each successful Publish job uploads a small artifact named `centaur-distribution
 
 Artifacts contain no credentials. They expire after 30 days; the binaries themselves live in Cachix independently of GitHub artifact retention.
 
-## Configure the Air to trust the cache
+## Install or update on NixOS
 
-Use [the ready-to-use configuration](../packaging/centaur-cache.nix), or download the **x86_64-linux** distribution artifact from a successful Publish job and use its `cache-config.nix`. Copy the file into `/etc/nixos/centaur-cache.nix`, and add it to your existing NixOS `imports` list:
+Use [the step-by-step installation guide](NIXOS_INSTALL.md). It covers the Air's missing NixOS source configuration, checks each machine independently, enables permanent daemon trust without a system rebuild, and installs the download-only update helper. Future updates use `~/.local/bin/centaur-update`; it keeps the existing data directory and OMP executable.
 
-```nix
-imports = [
-  ./hardware-configuration.nix
-  ./centaur-cache.nix
-];
-```
+The helper manages the existing dedicated profile at `~/.local/state/nix/profiles/centaur` with Nix's atomic single-package profile switch. This also supports installations originally pinned to an older immutable commit. After migration, use the helper rather than `nix profile upgrade`. Download failures leave the old host running; a realised candidate is selected before the host stops and the exact package is activated offline. Standard signature verification stays enabled, with local and remote builders disabled.
 
-Keep any other existing imports. The generated file enables flakes and adds the public substituter and signing key without replacing the standard NixOS cache. Its structure is:
+Only a machine hosting agent requests needs OMP. The Air can use the VM's shared agent without installing OMP; see [collaboration](LAN_COLLABORATION.md).
 
-```nix
-{ ... }: {
-  nix.settings = {
-    experimental-features = [ "nix-command" "flakes" ];
-    extra-substituters = [ "https://YOUR-CACHE.cachix.org?priority=30" ];
-    extra-trusted-public-keys = [ "YOUR-ACTUAL-CACHIX-PUBLIC-KEY" ];
-  };
-}
-```
+### Alternative for a machine with a known, maintained NixOS configuration
 
-Use the real values from the artifact or Cachix's cache settings; the placeholders above are not valid configuration. Apply the configuration:
-
-```sh
-sudo nixos-rebuild switch
-```
-
-This is a one-time Nix daemon configuration step. Subsequent Centaur installs/updates run as your ordinary user. A public signing key is safe to share; its corresponding private write/signing credentials stay off the Air. Signature checking remains enabled.
-
-The same cache configuration also works on the ARM64 NixOS VM. Nix chooses that machine's ARM64 package automatically.
-
-## Initial installation without compiling
-
-Wait for publication of the branch revision you want. In the Air's graphical desktop, install into a dedicated Centaur profile:
-
-```sh
-nix --refresh profile install \
-  --profile "$HOME/.local/state/nix/profiles/centaur" \
-  --max-jobs 0 --builders '' --option fallback false \
-  'github:mattatgit/Centaur?ref=codex/native-prototype'
-```
-
-Launch the installed app:
-
-```sh
-"$HOME/.local/state/nix/profiles/centaur/bin/centaur" --demo
-```
-
-The dedicated profile also contains `centaur-host`, `centaur-preview` and `centaur-network`. Qt, Wayland, fonts, Git and OpenSSL are downloaded as runtime dependencies; they do not need separate installation. The current user's projects and preferences remain in their existing data directory.
-
-`--max-jobs 0` disables local builds and `--builders ''` disables remote builders for this command. If the required binary is missing, the command fails rather than compiling. A pending or failed publication therefore cannot unexpectedly make the Air compile Centaur. Nix still fetches the small flake source/lock data to identify the exact package; that is evaluation, not compilation.
-
-Only a machine hosting agent requests needs a working OMP installation. The Air can join the VM's shared project without installing OMP; see [LAN collaboration](LAN_COLLABORATION.md).
-
-For a one-off launch without installing a profile, after configuring the cache:
-
-```sh
-nix --refresh run --max-jobs 0 --builders '' --option fallback false \
-  'github:mattatgit/Centaur?ref=codex/native-prototype' -- --demo
-```
-
-## Future updates
-
-Wait for the new revision's Publish jobs to succeed. Close Centaur's local windows. Since v0.2 has a background host, stop the old host before replacing the installed profile:
-
-```sh
-"$HOME/.local/state/nix/profiles/centaur/bin/centaur-host" --stop \
-  --data-dir "$HOME/.local/share/Centaur/Centaur"
-
-nix --refresh profile upgrade \
-  --profile "$HOME/.local/state/nix/profiles/centaur" --all \
-  --max-jobs 0 --builders '' --option fallback false
-
-"$HOME/.local/state/nix/profiles/centaur/bin/centaur" --demo
-```
-
-Substitute your actual data directory if using `--data-dir`. Coordinate a host restart with connected collaborators. `--all` here applies only to the dedicated Centaur profile, not your other installed packages. A failed update leaves the previous profile generation available; relaunch it if publication is not ready yet.
-
-A desktop shortcut can launch the stable profile path shown above. Updating the profile changes what that shortcut runs, without downloading or building on each click.
+[packaging/centaur-cache.nix](../packaging/centaur-cache.nix) remains available for administrators who already know how that machine's NixOS configuration is managed. Import it into the real configuration, retain existing imports and apply the normal system update for that installation. Do not assume `/etc/nixos/configuration.nix` exists, create a replacement OS configuration or replace the store-backed `/etc/nix/nix.conf` just to enable Centaur's cache. Copying the module to `/etc/nixos` alone does not activate it.
 
 ## Prove it is downloading binaries
 
@@ -134,12 +64,12 @@ The uploader checks whether each dependency exists in this particular Cachix cac
 
 CI performs a stronger check after every upload: it downloads the whole closure directly from Cachix into an **empty isolated store**, requires valid signatures, supplies no fallback caches/builders, and compares the downloaded path list with the built closure. Publish fails if any dependency or trusted signature is missing.
 
-For a reproducible install, replace the moving branch reference in the install/run command with the manifest's immutable reference, for example `github:mattatgit/Centaur/FULL-COMMIT-SHA`. A profile installed at an immutable commit stays pinned; use the moving branch reference for automatic profile upgrades.
+For a reproducible install, replace the moving branch reference in the install/run command with the manifest's immutable reference, for example `github:mattatgit/Centaur/FULL-COMMIT-SHA`. A profile installed at an immutable commit stays pinned; use the update helper for routine updates from the development branch.
 
 ## If the cache-only installation fails
 
 - Check that **Publish x86_64-linux** succeeded for the exact revision, not merely that Check jobs passed. Before cache setup, Publish jobs are deliberately skipped.
-- Check that NixOS imported `centaur-cache.nix` and was rebuilt. An untrusted user cannot make the daemon trust a new cache merely by passing a public key at launch.
+- Check that the daemon cache setup succeeded, or that the machine’s real NixOS configuration imports/applies `centaur-cache.nix`. A user-side public key or an unapplied module does not establish daemon trust.
 - Use the published commit from `manifest.json` if the branch has moved ahead of its latest successful publication.
 - Keep `flake.lock` unchanged. A different nixpkgs revision, dirty checkout, package override or different architecture produces a different store path.
 - Retry with `--refresh` after publication to bypass stale negative cache lookups. Cache removal/retention can also make an old commit unavailable; rerun its trusted build/publication or select a retained published commit.

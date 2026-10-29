@@ -8,7 +8,7 @@ Start with the [project documentation](docs/README.md) for product vision, requi
 
 ## Run on NixOS
 
-For the Intel NixOS Air or ARM64 VM, prefer the [precompiled binary installation](docs/BINARY_DISTRIBUTION.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host, preview and native Iroh helper, without local compilation. The source-build commands below remain available for development.
+For the Intel NixOS Air or ARM64 VM, prefer the [step-by-step precompiled installation and update helper](docs/NIXOS_INSTALL.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host, preview and native Iroh helper, without local compilation. The source-build commands below remain available for development.
 
 With Nix flakes enabled, from this repository:
 

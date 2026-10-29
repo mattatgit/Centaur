@@ -15,7 +15,9 @@ jobs:
       - name: Lint workflow and distribution scripts
         run: |
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
-            'actionlint .github/workflows/native.yml && shellcheck scripts/*binary-cache.sh'
+            'actionlint .github/workflows/native.yml && shellcheck scripts/*.sh'
+      - name: Check installation helper behaviour
+        run: python3 -m unittest discover -s tests -p test_install_helpers.py
       - name: Check native helper formatting
         run: nix shell --inputs-from . nixpkgs#rustfmt -c rustfmt --edition 2024 --check networking/src/main.rs
       - name: Check cache-specific upload routing
@@ -24,6 +26,7 @@ jobs:
         run: |
           fixture=$(nix build --inputs-from . nixpkgs#hello --no-link --print-out-paths --max-jobs 0 --builders '')
           bash scripts/check-binary-cache.sh "$fixture"
+          bash scripts/check-centaur-profile.sh "$fixture"
 
   linux:
     name: Check ${{ matrix.system }}
