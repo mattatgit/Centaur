@@ -18,6 +18,8 @@ jobs:
             'actionlint .github/workflows/native.yml && shellcheck scripts/*.sh'
       - name: Check installation helper behaviour
         run: python3 -m unittest discover -s tests -p test_install_helpers.py
+      - name: Check cache setup with a real disposable systemd service
+        run: sudo bash scripts/check-centaur-systemd.sh
       - name: Check native helper formatting
         run: nix shell --inputs-from . nixpkgs#rustfmt -c rustfmt --edition 2024 --check networking/src/main.rs
       - name: Check cache-specific upload routing

@@ -26,7 +26,7 @@ readlink -f /etc/nix/nix.conf
 systemctl show nix-daemon.service -p FragmentPath -p DropInPaths -p ActiveState
 ```
 
-The Air was confirmed on 29 October 2026 to use Nix 2.28.4, an active `nix-daemon.service`, a store-backed `nix.conf` and no reported service drop-ins. Its missing `/etc/nixos/configuration.nix` is **not needed for this procedure**. The VM must be checked separately.
+The Air was confirmed on 29 October 2026 to use Nix 2.28.4, an active `nix-daemon.service`, a store-backed `nix.conf` and no reported service drop-ins. Its `/etc/systemd/system` is also read-only. Its systemd 257.6 lists `/etc/systemd/system.control` as a supported persistent override path. Its missing `/etc/nixos/configuration.nix` is **not needed for this procedure**. The VM must be checked separately.
 
 Do not replace `/etc/nix/nix.conf`, edit its store target or attempt a NixOS rebuild just to install Centaur. A lone `/etc/nixos/centaur-cache.nix` does not enable anything unless the real system configuration imports it and is applied. Restoring the Air's original system configuration remains a separate maintenance task.
 
@@ -39,7 +39,7 @@ curl --fail --location --retry 3 \
   bash "$HOME/centaur-cache-setup.sh" check
 ```
 
-Expected: **Nix daemon checks passed. No system rebuild is needed.**
+Expected: **Nix daemon checks passed**, followed by the persistent override location under `/etc/systemd/system.control`. No system rebuild is needed. The check reads the system's supported unit paths, rejects Nix-store-backed/read-only target locations and checks for conflicting settings. The privileged step then verifies that both files can actually be staged before replacing either configuration file.
 
 The downloaded script is [reviewable in the repository](../scripts/centaur-cache-setup.sh). For a reviewed, fixed version, replace `refs/heads/codex/native-prototype` in either download URL in this guide with that version's full Git commit. Downloads require `curl` but no source checkout, Cachix client, Cachix account or write token.
 
@@ -58,9 +58,9 @@ Expected: **Centaur cache enabled permanently. Signature checking remains enable
 It adds just two root-owned files:
 
 - `/etc/nix/centaur-cache.conf`: the public cache URL/key, with `require-sigs = true`.
-- `/etc/systemd/system/nix-daemon.service.d/90-centaur-cache.conf`: tells the existing Nix daemon to read that extra file through `NIX_CONFIG`.
+- `/etc/systemd/system.control/nix-daemon.service.d/90-centaur-cache.conf`: tells the existing Nix daemon to read that extra file through `NIX_CONFIG`. This is a separate persistent systemd load path; the NixOS-managed `/etc/systemd/system` directory is left intact. Only the Centaur-named file is added, retaining other service overrides. An earlier successful installation in `/etc/systemd/system` is retained rather than duplicated.
 
-It retains the normal Nix configuration and standard caches. It does not add you to `trusted-users`, grant passwordless sudo, disable signatures or rebuild NixOS. It checks the restarted daemon's actual environment and removes newly added files if setup fails. Running it again is safe. These files persist across reboot; an OS configuration-management tool may replace service configuration later, so recheck if an OS change breaks downloads.
+It retains the normal Nix configuration and standard caches. It does not add you to `trusted-users`, grant passwordless sudo, disable signatures or rebuild NixOS. It checks that systemd loaded this exact drop-in before restarting the daemon, then checks the restarted daemon's actual environment. Failed setup removes newly added files; failures before a daemon restart do not trigger an unnecessary restart during recovery. Recovery errors are reported for review rather than claiming restoration succeeded. Running it again is safe. These files persist across reboot; an OS configuration-management tool may replace service configuration later, so recheck if an OS change breaks downloads.
 
 The trust is installed in the **daemon**, not in the user's `~/.config/nix/nix.conf`. User-side `nix config show` alone therefore does not prove daemon trust. Adding the public key only to the user configuration cannot grant an untrusted user that permission.
 
@@ -128,6 +128,8 @@ The downloaded candidate stays rooted until the atomic switch is complete. The s
 
 ## If something goes wrong
 
+An early cache helper (`c6f4c91`) tried to write under `/etc/systemd/system`, which is read-only on the Air. Its checks missed this layout. Download the corrected helper from the development branch and run its read-only check first; do not remount the Nix store, replace the generated directory or retry the old helper. `systemd-analyze unit-paths` lists this machine's supported locations and `systemctl is-active nix-daemon.service` checks whether Nix is running. Share the output if the revised check refuses this machine.
+
 Stop and share the helper's message. A cache miss may mean publication is still running; retry once both Publish jobs succeed. A download failure leaves both the installed version and existing host alone. If the profile switch fails after the host stops, reopen the old installation with `bash "$HOME/centaur-update.sh" start`.
 
 To deliberately install a retained published commit instead of branch head:
@@ -146,4 +148,4 @@ sudo bash "$HOME/centaur-cache-setup.sh" disable
 
 This removes only the exact files managed by this helper and restarts Nix. It does not uninstall Centaur or remove app data. If the machine's original NixOS configuration is found later, the cache can instead be incorporated through [the existing NixOS module](../packaging/centaur-cache.nix), followed by a normal managed system update and removal of the temporary service override. Do not do that until the machine's actual configuration is understood.
 
-Technical references: [Nix configuration sources, `NIX_CONFIG` and additive settings](https://nix.dev/manual/nix/2.24/command-ref/conf-file.html), [systemd service environment](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Environment=), [Nix binary caches and signature trust](https://nix.dev/guides/recipes/add-binary-cache.html).
+Technical references: [Nix configuration sources, `NIX_CONFIG` and additive settings](https://nix.dev/manual/nix/2.24/command-ref/conf-file.html), [systemd unit load paths and drop-ins](https://www.freedesktop.org/software/systemd/man/257/systemd.unit.html), [systemd service environment](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Environment=), [Nix binary caches and signature trust](https://nix.dev/guides/recipes/add-binary-cache.html).

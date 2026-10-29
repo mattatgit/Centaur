@@ -30,7 +30,7 @@ class Helpers(unittest.TestCase):
         self.profile = self.home / ".local/state/nix/profiles/centaur"
         self.profile.parent.mkdir(parents=True)
         self.config = self.root / "etc/nix/centaur-cache.conf"
-        self.dropin = self.root / "etc/systemd/system/nix-daemon.service.d/90-centaur-cache.conf"
+        self.dropin = self.root / "etc/systemd/system.control/nix-daemon.service.d/90-centaur-cache.conf"
         self.config.parent.mkdir(parents=True)
         (self.root / "etc/NIXOS").touch()
         (self.root / "run/systemd/system").mkdir(parents=True)
@@ -48,6 +48,13 @@ class Helpers(unittest.TestCase):
         self.program("uname", "print('Linux')")
         self.program("flock", "pass")
         self.program("sleep", "pass")
+        self.program("systemd-analyze", """
+assert sys.argv[1:] == ['--system', 'unit-paths']
+if not state.get('no_control_path'):
+    print(root / 'etc/systemd/system.control')
+print(root / 'etc/systemd/system')
+""")
+        self.program("findmnt", "print('ro,nosuid' if state.get('readonly_mount') else 'rw,relatime')")
         self.program("nix", """
 args = sys.argv[1:]
 log(['nix'] + args)
@@ -71,14 +78,16 @@ else:
 """)
         self.program("systemctl", """
 args = sys.argv[1:]; log(['systemctl'] + args)
-dropin = root / 'etc/systemd/system/nix-daemon.service.d/90-centaur-cache.conf'
+dropin = root / 'etc/systemd/system.control/nix-daemon.service.d/90-centaur-cache.conf'
+legacy = root / 'etc/systemd/system/nix-daemon.service.d/90-centaur-cache.conf'
+if legacy.exists(): dropin = legacy
 config = str(root / 'etc/nix/centaur-cache.conf')
 if args[0] == 'show':
     key = args[args.index('-p') + 1]
     values = {'LoadState': 'loaded', 'User': '', 'Environment': state.get('environment', ''),
               'EnvironmentFiles': state.get('environment_files', ''),
               'ExecStart': state.get('exec_start', '/nix/store/test/bin/nix-daemon --daemon'),
-              'MainPID': '55'}
+              'MainPID': '55', 'DropInPaths': str(dropin) if dropin.exists() and not state.get('override_not_loaded') else ''}
     if dropin.exists() and not values['Environment']:
         values['Environment'] = '\\"NIX_CONFIG=include ' + config + '\\"'
     print(values.get(key, ''))
@@ -106,6 +115,7 @@ elif args[0] not in ('daemon-reload', 'is-active'):
         source = source.replace("/etc/", str(self.root / "etc") + "/")
         source = source.replace("/run/systemd/system", str(self.root / "run/systemd/system"))
         source = source.replace("/proc/", str(self.proc) + "/")
+        source = source.replace("/nix/store", str(self.root / "nix/store"))
         source = source.replace("$EUID", root_guard)
         target = self.root / name
         target.write_text(source)
@@ -277,6 +287,64 @@ if not state.get('host_wont_stop'):
         self.assertFalse(self.config.exists())
         self.assertFalse(self.dropin.exists())
         self.assertIn("restored", result.stdout)
+
+    def test_nixos_store_backed_system_directory_is_never_written(self):
+        generated = self.root / "nix/store/generated-systemd/system"
+        generated.mkdir(parents=True)
+        (generated / "nix-daemon.service").write_text("original NixOS unit\n")
+        system = self.root / "etc/systemd/system"
+        system.parent.mkdir(parents=True)
+        system.symlink_to(generated)
+        result = self.run_helper(self.cache_setup, "enable")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(self.dropin.exists())
+        self.assertEqual(list(generated.iterdir()), [generated / "nix-daemon.service"])
+        self.assertEqual((generated / "nix-daemon.service").read_text(), "original NixOS unit\n")
+
+    def test_unlisted_control_path_fails_before_changes(self):
+        self.state["no_control_path"] = True
+        result = self.run_helper(self.cache_setup, "enable")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.config.exists())
+        self.assertFalse(self.dropin.exists())
+        self.assertFalse(any(x[0] == 'systemctl' and x[1] in ('restart', 'daemon-reload') for x in self.calls()))
+
+    def test_readonly_filesystem_fails_before_changes_or_restart(self):
+        self.state["readonly_mount"] = True
+        result = self.run_helper(self.cache_setup, "enable")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.config.exists())
+        self.assertFalse(self.dropin.exists())
+        self.assertIn('read-only filesystem', result.stdout)
+        self.assertFalse(any(x[0] == 'systemctl' and x[1] in ('restart', 'daemon-reload') for x in self.calls()))
+
+    def test_store_backed_control_path_fails_before_changes(self):
+        generated = self.root / "nix/store/generated-control"; generated.mkdir(parents=True)
+        control = self.root / 'etc/systemd/system.control'; control.parent.mkdir(parents=True)
+        control.symlink_to(generated)
+        result = self.run_helper(self.cache_setup, "check")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('read-only Nix store', result.stdout)
+        self.assertFalse(self.config.exists())
+
+    def test_unloaded_override_rolls_back_without_restarting_daemon(self):
+        self.state['override_not_loaded'] = True
+        result = self.run_helper(self.cache_setup, "enable")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.config.exists())
+        self.assertFalse(self.dropin.exists())
+        self.assertFalse(any(x[0] == 'systemctl' and x[1] == 'restart' for x in self.calls()))
+
+    def test_existing_legacy_installation_is_retained(self):
+        first = self.run_helper(self.cache_setup, "enable")
+        self.assertEqual(first.returncode, 0, first.stdout)
+        legacy = self.root / 'etc/systemd/system/nix-daemon.service.d/90-centaur-cache.conf'
+        legacy.parent.mkdir(parents=True)
+        self.dropin.rename(legacy)
+        result = self.run_helper(self.cache_setup, "enable")
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertTrue(legacy.exists())
+        self.assertFalse(self.dropin.exists())
 
 
 if __name__ == "__main__":
