@@ -67,6 +67,7 @@ qt_add_resources(centaur ui PREFIX "/" FILES
     qml/CollaborationDialogs.qml qml/SideNavigation.qml qml/BrandMark.qml qml/DesignSystemsView.qml qml/SettingsView.qml
     qml/Theme.qml qml/qmldir ${PREVIEW_QML})
 qt_add_resources(centaur probe PREFIX "/" FILES tests/fixtures/EmbeddedProbe.qml)
+qt_add_resources(centaur brand PREFIX "/brand" BASE packaging FILES packaging/centaur.svg)
 qt_add_executable(centaur-preview src/preview_main.cpp)
 target_link_libraries(centaur-preview PRIVATE Qt6::Quick Qt6::QuickControls2 centaur_typography)
 install(TARGETS centaur centaur-preview centaur-host RUNTIME DESTINATION bin BUNDLE DESTINATION .)

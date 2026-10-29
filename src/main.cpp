@@ -16,6 +16,7 @@
 #include <QMouseEvent>
 #include <QFile>
 #include <QFontInfo>
+#include <QIcon>
 #include <QDynamicPropertyChangeEvent>
 
 // The bundled native decoration reports tiling without exposing Qt's private
@@ -66,6 +67,8 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("Centaur");
     QCoreApplication::setOrganizationName("Centaur");
     QCoreApplication::setApplicationVersion(CENTAUR_APP_VERSION);
+    QGuiApplication::setDesktopFileName("centaur");
+    QGuiApplication::setWindowIcon(QIcon(":/brand/centaur.svg"));
     QQuickStyle::setStyle("Basic");
     Q_INIT_RESOURCE(starter);
     QCommandLineParser parser;
