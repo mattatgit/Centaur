@@ -119,3 +119,9 @@ The initial `c6f4c91` helper's Air compatibility check passed but setup failed b
 The owner's supplied SVG replaces the four-dot placeholder in the sidebar, workspace navigation and packaged desktop icon. The file is preserved byte-for-byte with its original colour, transparency and viewBox; [provenance and checksum](../packaging/README.md) identify the source. The UI uses the existing native SVG renderer, retaining the Projects action, hover animation and focus outline. The native window uses the same icon, with the Linux desktop identity matching `centaur.desktop`.
 
 The native build and existing UI smoke checks passed locally on macOS at normal and 2× scale. Screenshots confirmed the mark in both navigation layouts. Physical desktop launcher appearance remains a Linux desktop check.
+
+## Single-line chat status (29 October 2026)
+
+The separate guest connection row is removed. One 10.5 pt regular Inter subtitle combines **Guest connected** or **Host online** with the actual reported provider/model, with no redundant “shared project” label. It stays on one line and elides at narrow widths; the full text and model ID remain available on hover. Connection labels follow the real host/guest connection state, preserving connecting/disconnected messages and agent-unavailable display. Read-only guest details remain in the tooltip.
+
+The native build, UI smoke checks (including an unavailable agent) and the two-client network suite passed locally on macOS. Checks cover both connection-role labels and the subtitle's single-line text and size; the header was also visually inspected in a native UI screenshot.

@@ -47,18 +47,21 @@ Rectangle {
                 Layout.fillWidth: true
                 spacing: 4
                 Text { objectName: "chatHeading"; text: "Chat"; readonly property real typeSize: 14; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); font.weight: Font.DemiBold; color: Theme.ink }
-                Text { visible: Backend.remoteProject; text: Backend.connectionStatus; color: Theme.muted; readonly property real typeSize: 11; font.pixelSize: typeSize; font.family: Theme.familyForSize(-1, typeSize); Layout.fillWidth: true; elide: Text.ElideRight }
                 Text {
                     id: agentModelLabel
                     objectName: "agentModelLabel"
                     Layout.fillWidth: true
-                    text: !Backend.agentAvailable ? "Agent unavailable"
-                        : chat.modelLabel(Backend.agentModel)
+                    text: Backend.connectionStatus + " · " + (!Backend.agentAvailable ? "Agent unavailable"
+                        : chat.modelLabel(Backend.agentModel))
                     textFormat: Text.PlainText
                     color: Theme.muted; readonly property real typeSize: 10.5; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1)
+                    wrapMode: Text.NoWrap
                     elide: Text.ElideRight
                     ToolTip.visible: modelHover.hovered
-                    ToolTip.text: Backend.agentAvailable && Backend.agentModel ? Backend.agentModel : agentModelLabel.text
+                    ToolTip.text: agentModelLabel.text
+                        + (Backend.agentAvailable && Backend.agentModel ? "\n" + Backend.agentModel : "")
+                        + (Backend.remoteProject && !Backend.canContribute && Backend.project.connectionStatus
+                            ? "\n" + Backend.project.connectionStatus : "")
                     HoverHandler { id: modelHover }
                 }
             }

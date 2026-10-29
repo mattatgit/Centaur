@@ -173,9 +173,11 @@ int main(int argc, char *argv[]) {
             if (!chat || !chat->isVisible() || !ink || ink->acceptedMouseButtons() != Qt::LeftButton) qmlWarning = true;
             auto *heading = window->findChild<QObject *>("chatHeading");
             auto *model = window->findChild<QObject *>("agentModelLabel");
-            const auto expected = controller.agentAvailable() ? "OpenAI Codex · GPT 6.1 Sol" : "Agent unavailable";
+            const auto expected = controller.agentAvailable() ? "Host online · OpenAI Codex · GPT 6.1 Sol" : "Host online · Agent unavailable";
             if (!heading || QFontInfo(qvariant_cast<QFont>(heading->property("font"))).family() != "Inter Tight"
-                || !model || model->property("text").toString() != expected) qmlWarning = true;
+                || !model || model->property("text").toString() != expected
+                || model->property("lineCount").toInt() != 1
+                || qvariant_cast<QFont>(model->property("font")).pointSizeF() != 10.5) qmlWarning = true;
             auto *corner = window->findChild<QQuickItem *>("windowResizeCorner");
             if (!corner || corner->property("cursorShape").toInt() != Qt::SizeFDiagCursor) qmlWarning = true;
             window->setProperty("_centaurSquareFrame", true);

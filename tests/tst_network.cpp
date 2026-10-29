@@ -68,6 +68,8 @@ private slots:
         Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(), "Saori");
         QTRY_COMPARE_WITH_TIMEOUT(guest.projectId(), id, 5000);
         QVERIFY(guest.remoteProject()); QVERIFY(guest.canContribute());
+        QCOMPARE(host.connectionStatus(), QString("Host online"));
+        QCOMPARE(guest.connectionStatus(), QString("Guest connected"));
         QCOMPARE(guest.projects().size(), 1); QCOMPARE(guest.author(), QString("Saori"));
         guest.sendMessage("Hello from another machine");
         QTRY_COMPARE(host.project().value("messages").toList().size(), 1);

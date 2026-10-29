@@ -62,7 +62,13 @@ QString Controller::author() const { return remoteProject() ? m_shared.value(m_p
 bool Controller::canContribute() const { return remoteProject() ? m_shared.value(m_projectId)->writable() : m_session.connected(); }
 bool Controller::agentAvailable() const { return remoteProject() ? m_shared.value(m_projectId)->agentAvailable() : m_agentAvailable; }
 bool Controller::agentBusy() const { return remoteProject() ? m_shared.value(m_projectId)->busy() : m_busyProject == m_projectId && !m_projectId.isEmpty(); }
-QString Controller::connectionStatus() const { return remoteProject() ? m_shared.value(m_projectId)->status() : m_session.connected() ? "Local project" : "Local host unavailable"; }
+QString Controller::connectionStatus() const {
+    if (remoteProject()) {
+        const auto *shared = m_shared.value(m_projectId);
+        return shared->connected() ? "Guest connected" : shared->status();
+    }
+    return m_session.connected() ? "Host online" : "Host unavailable";
+}
 QString Controller::joinStatus() const { return m_shared.contains(m_joiningId) ? m_shared.value(m_joiningId)->status() : m_joinMessage; }
 void Controller::invitePeople(const QString &address) {
     if (m_inviting) return;
