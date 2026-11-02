@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QSettings>
 #include <QColor>
+#include <QSize>
 
 class Controller : public QObject {
     Q_OBJECT
@@ -20,6 +21,8 @@ class Controller : public QObject {
     Q_PROPERTY(bool embeddingSupported READ embeddingSupported CONSTANT)
     Q_PROPERTY(QString socketName READ socketName CONSTANT)
     Q_PROPERTY(int surfaceCount READ surfaceCount WRITE setSurfaceCount NOTIFY previewChanged)
+    Q_PROPERTY(QSize previewSize READ previewSize CONSTANT)
+    Q_PROPERTY(bool nativeAppTest READ nativeAppTest CONSTANT)
     Q_PROPERTY(QString dataRoot READ dataRoot CONSTANT)
     Q_PROPERTY(bool gridEnabled READ gridEnabled WRITE setGridEnabled NOTIFY preferencesChanged)
     Q_PROPERTY(int gridSize READ gridSize WRITE setGridSize NOTIFY preferencesChanged)
@@ -77,6 +80,9 @@ public:
     Q_INVOKABLE void copyInvitation();
     int surfaceCount() const { return m_surfaceCount; }
     void setSurfaceCount(int count);
+    QSize previewSize() const { return m_previewSize; }
+    bool nativeAppTest() const { return !m_nativeTestProgram.isEmpty(); }
+    void configureNativeAppTest(const QString &program, const QSize &size);
     Q_INVOKABLE void createProject(const QString &name, const QString &description);
     Q_INVOKABLE void openProject(const QString &id);
     Q_INVOKABLE void closeProject();
@@ -134,4 +140,6 @@ private:
     bool m_agentAvailable = false;
     bool m_stopping = false;
     int m_surfaceCount = 0;
+    QSize m_previewSize{520, 640};
+    QString m_nativeTestProgram;
 };

@@ -1,7 +1,8 @@
 {
   description = "Centaur — a native, collaborative app workshop";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-  outputs = { self, nixpkgs }:
+  inputs.landline.url = "github:mattatgit/landline/205fc1185335dc1c85b359af7673f6e5d7653222";
+  outputs = { self, nixpkgs, landline }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       eachSystem = nixpkgs.lib.genAttrs systems;
@@ -75,7 +76,33 @@
         };
       };
     in {
-      packages = eachSystem (system: { default = package nixpkgs.legacyPackages.${system}; });
+      packages = eachSystem (system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          centaur = package pkgs;
+          testLauncher = pkgs.writeShellApplication {
+            name = "centaur-landline-test";
+            text = ''
+              export CENTAUR_TEST_CENTAUR=${centaur}/bin/centaur
+              export CENTAUR_TEST_LANDLINE=${landline.packages.${system}.default}/bin/landline
+              export CENTAUR_TEST_MESA_VENDOR=${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json
+              export CENTAUR_TEST_MESA_DRIVERS=${pkgs.mesa}/lib/dri
+              ${builtins.readFile ./scripts/landline-embedding-test.sh}
+            '';
+          };
+        in { default = centaur; } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          landline-embedding-test = pkgs.symlinkJoin {
+            name = "centaur-landline-embedding-test";
+            paths = [ centaur testLauncher ];
+            postBuild = ''
+              test -f ${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json
+              mkdir -p "$out/share/centaur-landline-test"
+              cp ${landline}/LICENSE "$out/share/centaur-landline-test/Landline-LICENSE"
+              echo 205fc1185335dc1c85b359af7673f6e5d7653222 > "$out/share/centaur-landline-test/source-revision"
+            '';
+            meta.mainProgram = "centaur-landline-test";
+          };
+        });
       devShells = eachSystem (system:
         let pkgs = nixpkgs.legacyPackages.${system}; in {
           default = pkgs.mkShell {

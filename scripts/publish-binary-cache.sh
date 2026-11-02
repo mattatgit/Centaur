@@ -22,6 +22,8 @@ output=$(python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).resolve
 work_directory=$2
 system=$3
 revision=$4
+package_attribute=${CENTAUR_PACKAGE_ATTRIBUTE:-default}
+[[ "$package_attribute" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo 'Invalid package attribute.' >&2; exit 2; }
 current_system=$(nix eval --raw --impure --expr builtins.currentSystem)
 if [ "$current_system" != "$system" ]; then
   echo "Expected native runner $system, got $current_system." >&2
@@ -30,6 +32,7 @@ fi
 for executable in centaur centaur-host centaur-preview centaur-network centaur-update centaur-cache-setup; do
   test -x "$output/bin/$executable"
 done
+if [[ $package_attribute == landline-embedding-test ]]; then test -x "$output/bin/centaur-landline-test"; fi
 # Refuse a reused verification directory: its store must genuinely be empty.
 mkdir "$work_directory"
 mkdir "$work_directory/metadata"
@@ -68,9 +71,9 @@ nix store verify --store "$work_directory/verification-store" --all \
 nix path-info --store "$work_directory/verification-store" --recursive "$output" \
   | LC_ALL=C sort > "$work_directory/downloaded-closure.txt"
 cmp "$metadata/closure-paths.txt" "$work_directory/downloaded-closure.txt"
-python3 - "$metadata" "$output" "$system" "$revision" <<'PY'
+python3 - "$metadata" "$output" "$system" "$revision" "$package_attribute" <<'PY'
 import datetime, json, pathlib, sys
-folder, output, system, revision = sys.argv[1:]
+folder, output, system, revision, package_attribute = sys.argv[1:]
 folder = pathlib.Path(folder)
 cache = json.loads((folder / 'cache.json').read_text())
 manifest = {
@@ -79,7 +82,8 @@ manifest = {
     'system': system,
     'version': (folder / 'version.txt').read_text().strip(),
     'storePath': output,
-    'installable': 'github:mattatgit/Centaur/' + revision,
+    'packageAttribute': package_attribute,
+    'installable': 'github:mattatgit/Centaur/' + revision + ('' if package_attribute == 'default' else '#' + package_attribute),
     'cacheUrl': cache['uri'],
     'publicSigningKeys': cache['publicSigningKeys'],
     'closurePathCount': len((folder / 'closure-paths.txt').read_text().splitlines()),

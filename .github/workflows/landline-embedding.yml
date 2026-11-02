@@ -1,0 +1,83 @@
+name: Landline embedding test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/native-prototype]
+    paths:
+      - '.github/workflows/landline-embedding.yml'
+      - 'scripts/landline-embedding-test.sh'
+      - 'tests/test_landline_launcher.py'
+      - 'flake.nix'
+      - 'flake.lock'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Embed Landline ${{ matrix.system }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
+        if: vars.CENTAUR_CACHIX_CACHE != ''
+        with:
+          name: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          skipPush: true
+      - name: Check launcher and workflow
+        run: |
+          python3 -m unittest discover -s tests -p test_landline_launcher.py
+          nix shell --inputs-from . nixpkgs#shellcheck nixpkgs#actionlint -c bash -c \
+            'shellcheck scripts/landline-embedding-test.sh && actionlint .github/workflows/landline-embedding.yml'
+      - name: Build pinned Landline and checked Centaur package
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: nix build -L --no-update-lock-file ".#packages.${SYSTEM}.landline-embedding-test" -o result-test
+      - name: Require a Landline buffer inside the private compositor
+        env:
+          QT_QPA_PLATFORM: offscreen
+          RUST_LOG: warn
+        run: |
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/landline-runtime"
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          timeout 45s result-test/bin/centaur-landline-test --software --smoke-test --screenshot "$RUNNER_TEMP/landline-embedding.png"
+      - name: Save test screenshot
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: landline-embedding-${{ matrix.system }}
+          path: ${{ runner.temp }}/landline-embedding.png
+          if-no-files-found: ignore
+
+      - name: Publish this architecture after its build and embedding checks pass
+        if: >-
+          success() && github.repository == 'mattatgit/Centaur' &&
+          github.ref == 'refs/heads/codex/native-prototype' &&
+          vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CENTAUR_PACKAGE_ATTRIBUTE: landline-embedding-test
+          SYSTEM: ${{ matrix.system }}
+        run: bash scripts/publish-binary-cache.sh result-test "$RUNNER_TEMP/landline-distribution" "$SYSTEM" "$GITHUB_SHA"
+      - name: Save verified download metadata
+        if: >-
+          success() && github.repository == 'mattatgit/Centaur' &&
+          github.ref == 'refs/heads/codex/native-prototype' &&
+          vars.CENTAUR_CACHIX_CACHE != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: centaur-landline-distribution-${{ matrix.system }}
+          path: ${{ runner.temp }}/landline-distribution/metadata/
+          if-no-files-found: error

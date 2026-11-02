@@ -92,7 +92,7 @@ ApplicationWindow {
                     FlatButton {
                         visible: window.workspaceVisible || window.page === "projects"
                         text: window.workspaceVisible ? (Backend.remoteProject ? "Shared" : "Invite") : "Join project"
-                        enabled: !window.workspaceVisible || !Backend.remoteProject
+                        enabled: !Backend.nativeAppTest && (!window.workspaceVisible || !Backend.remoteProject)
                         tone: "plain"
                         onClicked: window.workspaceVisible ? collaboration.openInvite() : collaboration.openJoin()
                         ToolTip.text: Backend.connectionStatus
@@ -102,7 +102,7 @@ ApplicationWindow {
                         text: window.workspaceVisible ? "Deploy" : window.page === "designSystems" ? "Import" : window.width < 600 ? "+ New" : "+  New project"
                         tone: window.workspaceVisible ? "soft" : "dark"
                         iconSource: window.workspaceVisible ? "qrc:/assets/dialogue/share.svg" : ""
-                        enabled: window.page !== "designSystems" && !Backend.remoteProject
+                        enabled: !Backend.nativeAppTest && window.page !== "designSystems" && !Backend.remoteProject
                         onClicked: window.workspaceVisible ? deployDialog.open() : createDialog.open()
                         ToolTip.text: window.page === "designSystems" ? "Design-system import is not available yet" : ""
                     }

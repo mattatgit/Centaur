@@ -18,6 +18,8 @@
 #include <QFontInfo>
 #include <QIcon>
 #include <QDynamicPropertyChangeEvent>
+#include <QRegularExpression>
+#include <QFileInfo>
 
 // The bundled native decoration reports tiling without exposing Qt's private
 // Wayland types to the application. Keep the client alpha corners in sync.
@@ -78,19 +80,51 @@ int main(int argc, char *argv[]) {
     parser.addOption({"smoke-test", "Load the native UI and exit (temporary data only)."});
     parser.addOption({"network-embedding-smoke-test", "Verify a shared app received from a separate host renders and accepts input."});
     parser.addOption({"embedding-smoke-test", "Verify that a separate native app maps inside the canvas."});
+    parser.addOption({"native-app-test", "Open an external Wayland app in an isolated temporary workshop (Linux only).", "executable"});
+    parser.addOption({"native-app-size", "External test app frame size.", "WIDTHxHEIGHT", "320x672"});
+    parser.addOption({"native-app-smoke-test", "Verify the external test app renders, then exit."});
     parser.addOption({"screenshot", "Save a native UI screenshot and exit.", "path"});
     parser.addOption({"demo", "Create and open a starter project if no projects exist."});
     parser.process(app);
     const bool smoke = parser.isSet("smoke-test");
     const bool networkEmbedding = parser.isSet("network-embedding-smoke-test");
+    const bool nativeAppTest = parser.isSet("native-app-test");
+    const bool nativeAppSmoke = parser.isSet("native-app-smoke-test");
+    QSize nativeSize;
+    QString nativeProgram;
+    if (parser.isSet("native-app-size") && !nativeAppTest) { qCritical("--native-app-size needs --native-app-test."); return 2; }
+    if (nativeAppSmoke && !nativeAppTest) { qCritical("--native-app-smoke-test needs --native-app-test."); return 2; }
+    if (nativeAppTest) {
+#ifndef CENTAUR_WAYLAND
+        qCritical("Native app embedding tests require Linux."); return 2;
+#endif
+        if (smoke || networkEmbedding || parser.isSet("embedding-smoke-test") || parser.isSet("data-dir")) {
+            qCritical("Native app tests use a separate temporary workshop; do not combine with other test modes or --data-dir."); return 2;
+        }
+        const auto match = QRegularExpression("^([0-9]{2,4})x([0-9]{2,4})$").match(parser.value("native-app-size"));
+        if (!match.hasMatch()) { qCritical("Use WIDTHxHEIGHT for the test frame size."); return 2; }
+        nativeSize = QSize(match.captured(1).toInt(), match.captured(2).toInt());
+        if (nativeSize.width() < 120 || nativeSize.height() < 120 || nativeSize.width() > 1600 || nativeSize.height() > 1600) {
+            qCritical("Test frame dimensions must be between 120 and 1600."); return 2;
+        }
+        const QFileInfo program(parser.value("native-app-test"));
+        if (!program.isAbsolute() || !program.isFile() || !program.isExecutable()) { qCritical("Give an absolute native app executable path."); return 2; }
+        nativeProgram = program.absoluteFilePath();
+        qputenv("CENTAUR_AGENT", "/centaur-native-test/agent-disabled");
+        qputenv("CENTAUR_PORT", "0");
+    }
     const bool embeddingTest = parser.isSet("embedding-smoke-test") || networkEmbedding;
     QTemporaryDir temporary, ownerTemporary;
     std::unique_ptr<Controller> networkOwner;
     QString root = parser.value("data-dir");
-    if (smoke || embeddingTest) root = temporary.path();
+    if (smoke || embeddingTest || nativeAppTest) {
+        if (!temporary.isValid()) { qCritical("Could not create the temporary workshop."); return 1; }
+        root = temporary.path();
+    }
     if (root.isEmpty()) root = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     root = QDir(root).absolutePath();
     Controller controller(root);
+    if (nativeAppTest) controller.configureNativeAppTest(nativeProgram, nativeSize);
     bool inputForwarded = false;
     QObject::connect(&controller, &Controller::previewOutput, &app, [&inputForwarded](const QByteArray &output) {
         if (output.contains("CENTAUR_INPUT_OK")) inputForwarded = true;
@@ -116,7 +150,11 @@ int main(int argc, char *argv[]) {
         if (id.isEmpty() || !probe.open(QIODevice::ReadOnly)
             || !Workspace::writeFile(workspace.projectPath(id) + "/App.qml", probe.readAll())) return 1;
     }
-    controller.start(!smoke && !embeddingTest);
+    controller.start(!smoke && !embeddingTest && !nativeAppTest);
+    if (nativeAppTest) {
+        controller.createProject("Landline embedding test", "Temporary native app test; agent editing is disabled.");
+        controller.sendMessage("This is an isolated native app embedding test. Agent editing is disabled; app data is temporary.");
+    }
     if ((embeddingTest && !networkEmbedding) || parser.isSet("demo")) controller.openStarterProject();
     if (networkEmbedding) {
         qputenv("CENTAUR_PORT", "0");
@@ -268,7 +306,14 @@ int main(int argc, char *argv[]) {
             } else { qInfo("Separate native client rendered and received canvas input."); app.exit(0); }
         });
     }
-    if (parser.isSet("screenshot") && !smoke) QTimer::singleShot(1800, &app, [&] {
+    if (nativeAppSmoke) QTimer::singleShot(12000, &app, [&] {
+        bool saved = true;
+        if (parser.isSet("screenshot")) saved = mainWindow->grabWindow().save(parser.value("screenshot"));
+        const bool ready = controller.surfaceCount() > 0 && controller.previewRunning() && !qmlWarning && saved;
+        qInfo("External native app: surfaces=%d, running=%d, QML warnings=%d, screenshot=%d", controller.surfaceCount(), controller.previewRunning(), qmlWarning, saved);
+        app.exit(ready ? 0 : 1);
+    });
+    if (parser.isSet("screenshot") && !smoke && !embeddingTest && !nativeAppSmoke) QTimer::singleShot(1800, &app, [&] {
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         const bool saved = window && window->grabWindow().save(parser.value("screenshot"));
         app.exit(saved ? 0 : 1);

@@ -144,3 +144,9 @@ The Linux package includes `centaur-update` and `centaur-cache-setup`. The guide
 
 The user helper downloads with builders disabled into a temporary GC root before stopping the existing host. It checks the package and local windows, asks the previous host binary to shut down, waits for the matching host process to exit, then activates that exact realised store path offline through Nix's atomic `build --profile` operation. The dedicated profile retains its old generations and no longer depends on a mutable or pinned `nix profile` entry. It must contain only Centaur. Launches retain the existing app data location and use the remembered absolute OMP path; helper settings live separately in `~/.config/centaur-launcher`. No OMP credentials, projects or collaboration identities are copied/reset by installation. Package rollback does not rewind user data.
 
+## External native app embedding experiment
+
+The optional Linux `landline-embedding-test` package pins Landline's Rust/egui client and supplies `centaur-landline-test`. The CLI's `--native-app-test` mode uses a temporary workshop, disables agent execution/sharing controls and runs a validated external executable directly with isolated child data paths. A 320 × 672 frame respects Landline's minimum size; normal QML preview dimensions and launch arguments remain the default. Readiness is tied to mapped compositor content so external apps need not emit Centaur's Qt-specific readiness marker. See [the experiment guide](LANDLINE_EMBEDDING_TEST.md) for automated and physical acceptance boundaries.
+
+This is a launch/embedding experiment, not project import. Accepted source, checkpoints and authoring collaboration remain single-file QML; editing imported Rust projects, distributing their source/assets and rebuilding them collaboratively require a separate project contract.
+

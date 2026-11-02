@@ -33,9 +33,12 @@ Controller::Controller(QString root, QObject *parent) : QObject(parent),
             m_previewStatus = "Native app running"; emit previewChanged();
         }
     });
+    connect(&m_preview, &QProcess::readyReadStandardOutput, this, [this] {
+        emit previewOutput(m_preview.readAllStandardOutput());
+    });
     connect(&m_preview, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error == QProcess::FailedToStart) {
-            m_previewStatus = "Could not launch centaur-preview. Check its installation.";
+            m_previewStatus = m_nativeTestProgram.isEmpty() ? "Could not launch centaur-preview. Check its installation." : "Could not launch the native test app.";
             emit previewChanged();
         }
     });
@@ -115,7 +118,15 @@ bool Controller::embeddingSupported() const {
 #endif
 }
 QString Controller::socketName() const { return "centaur-preview-" + QString::number(QCoreApplication::applicationPid()); }
-void Controller::setSurfaceCount(int count) { m_surfaceCount = count; emit previewChanged(); }
+void Controller::setSurfaceCount(int count) {
+    m_surfaceCount = count;
+    if (count > 0) m_previewStatus = "Native app running";
+    emit previewChanged();
+}
+void Controller::configureNativeAppTest(const QString &program, const QSize &size) {
+    m_nativeTestProgram = program;
+    m_previewSize = size;
+}
 void Controller::setAuthor(const QString &author) {
     if (author.trimmed().isEmpty()) return;
     m_author = author.trimmed().left(50); savePreferences(); emit changed();
@@ -229,13 +240,31 @@ void Controller::startPreview() {
     env.insert("WAYLAND_DISPLAY", socketName());
     env.insert("QT_QPA_PLATFORM", "wayland");
     env.insert("QT_WAYLAND_DISABLE_WINDOWDECORATION", "1");
+    if (!m_nativeTestProgram.isEmpty()) {
+        // Force the private compositor, with no X11/desktop fallback. Isolate
+        // Landline's profile, keys and caches from the normal installed app.
+        env.remove("DISPLAY");
+        env.remove("WAYLAND_SOCKET");
+        env.insert("XDG_SESSION_TYPE", "wayland");
+        for (const auto &kind : {QString("config"), QString("data"), QString("cache")}) {
+            const auto path = dataRoot() + "/native-app-runtime/" + kind;
+            if (!QDir().mkpath(path)) {
+                m_previewStatus = "Could not prepare the temporary app data.";
+                emit previewChanged();
+                return;
+            }
+            env.insert("XDG_" + kind.toUpper() + "_HOME", path);
+        }
+    }
     // Shared-memory buffers support software rendering on entry-level hardware.
     if (qEnvironmentVariable("QT_QUICK_BACKEND") == "software") env.insert("QT_WAYLAND_CLIENT_BUFFER_INTEGRATION", "shm");
     m_preview.setProcessEnvironment(env);
     const auto path = projectPath();
     m_preview.setWorkingDirectory(path);
-    const auto executable = qEnvironmentVariable("CENTAUR_PREVIEW", QCoreApplication::applicationDirPath() + "/centaur-preview");
-    m_preview.start(executable, {path + "/App.qml"});
+    const auto executable = m_nativeTestProgram.isEmpty()
+        ? qEnvironmentVariable("CENTAUR_PREVIEW", QCoreApplication::applicationDirPath() + "/centaur-preview")
+        : m_nativeTestProgram;
+    m_preview.start(executable, m_nativeTestProgram.isEmpty() ? QStringList{path + "/App.qml"} : QStringList{});
     emit previewChanged();
 }
 void Controller::stopPreview() {

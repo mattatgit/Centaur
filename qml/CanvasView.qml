@@ -20,7 +20,8 @@ Rectangle {
     Item {
         id: board
         objectName: "canvasBoard"
-        width: 1000; height: 800
+        width: Math.max(1000, Backend.previewSize.width + 480)
+        height: Math.max(800, Backend.previewSize.height + 160)
         transformOrigin: Item.TopLeft
         scale: Math.max(0.1, Math.min((canvas.width - 32) / width, (canvas.height - 100) / height))
         x: (canvas.width - width * scale) / 2
@@ -29,9 +30,10 @@ Rectangle {
         Rectangle {
             id: appFrame
             objectName: "nativeAppFrame"
-            x: 240; y: 60; width: 520; height: 640
+            x: (board.width - width) / 2; y: 60
+            width: Backend.previewSize.width; height: Backend.previewSize.height
             color: "white"; border.color: "#d4d8cf"; border.width: 1
-            Loader { anchors.fill: parent; anchors.margins: 1; source: Backend.embeddingSupported ? "WaylandPreview.qml" : "PreviewUnavailable.qml" }
+            Loader { anchors.fill: parent; anchors.margins: Backend.nativeAppTest ? 0 : 1; source: Backend.embeddingSupported ? "WaylandPreview.qml" : "PreviewUnavailable.qml" }
         }
         DesignGrid {
             objectName: "designGrid"
@@ -39,7 +41,7 @@ Rectangle {
             step: Backend.gridSize; color: Backend.gridColor; opacity: Backend.gridOpacity / 100
             origin: Qt.point(appFrame.x, appFrame.y)
         }
-        Text { x: 240; y: 718; width: 520; horizontalAlignment: Text.AlignHCenter; text: Backend.previewStatus; color: Theme.muted; readonly property real typeSize: 10; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); wrapMode: Text.Wrap }
+        Text { x: appFrame.x; y: appFrame.y + appFrame.height + 18; width: appFrame.width; horizontalAlignment: Text.AlignHCenter; text: Backend.previewStatus; color: Theme.muted; readonly property real typeSize: 10; font.pointSize: typeSize; font.family: Theme.familyForSize(typeSize, -1); wrapMode: Text.Wrap }
         InkLayer {
             objectName: "inkLayer"
             anchors.fill: parent
