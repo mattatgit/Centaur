@@ -7,7 +7,7 @@ This is an isolated experiment before project import. It runs the real Rust/egui
 - Landline: `mattatgit/landline`, `linux-nix` commit **`205fc1185335dc1c85b359af7673f6e5d7653222`**. Its original flake, Cargo lock and sources are retained through a pinned optional flake input.
 - Package: `packages.aarch64-linux.landline-embedding-test` or `packages.x86_64-linux.landline-embedding-test`.
 - Launcher: `centaur-landline-test`. Default Centaur installation/launch behaviour is unchanged. Landline is not a dependency of the default Centaur package.
-- The package includes Centaur and references Landline's complete runtime, plus a Mesa software-rendering option. Landline's licence and source revision are included under `share/centaur-landline-test`.
+- The package includes Centaur and references Landline's complete runtime, plus a Mesa software-rendering option. Each app uses the Mesa driver from its own pinned Nix runtime, avoiding incompatible libraries across the two builds. Landline's licence and source revision are included under `share/centaur-landline-test`.
 
 The local source copy used for inspection is `build-imports/landline-linux-nix`, ignored by Centaur's Git repository. The distributable test uses the pinned public input, not that local folder.
 
@@ -23,7 +23,7 @@ Native readiness follows a compositor surface with actual buffer content, rather
 
 ## Automated build and publication
 
-[Landline embedding test](../.github/workflows/landline-embedding.yml) builds on native ARM64 and Intel Linux runners. It runs launcher checks, builds the pinned Landline client and Centaur (including Centaur's normal package tests), then requires an actual external-app buffer inside the compositor. A headless screenshot is uploaded for inspection. The automated external-app check establishes rendering and process lifetime, **not keyboard/pointer usability, microphone audio or agent source editing**.
+[Landline embedding test](../.github/workflows/landline-embedding.yml) builds on native ARM64 and Intel Linux runners. It runs launcher checks, builds the pinned Landline client and Centaur (including Centaur's normal package tests), then requires an actual external-app buffer inside the compositor. A headless screenshot is uploaded for inspection; inspect it before handing the build to a tester. The automated external-app check establishes buffer receipt and process lifetime, **not correct visible composition, keyboard/pointer usability, microphone audio or agent source editing**.
 
 The unchanged upstream Landline client is cached separately after its own package build/check phase succeeds, so integration-test fixes do not require compiling Rust again. This does not publish the Centaur test bundle or claim embedding works. Only after each architecture's integration checks pass does that same runner publish the complete test closure to the existing public Centaur Cachix cache and verify a fresh download into an empty store. Readiness is per architecture for this experimental package; Centaur's normal production distribution retains its existing both-architecture gate. Do not ask a tester to install an architecture before that architecture's full job, including publication verification, succeeds.
 
