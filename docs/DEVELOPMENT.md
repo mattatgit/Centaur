@@ -22,7 +22,7 @@ These boundaries are reflected in the current source and guides. When a change i
 
 ## Build and verification
 
-The shell uses C++17 and Qt 6.8 or later with CMake/Ninja. The native Iroh helper uses Rust, with locked dependencies. Nix outputs cover x86_64-linux, aarch64-linux and aarch64-darwin; the existing public binary workflow publishes the two Linux architectures. Use the [README build instructions](../README.md#build-and-test) and keep dependency locks stable unless intentionally updating them.
+The shell uses C++17 and Qt 6.8 or later with CMake/Ninja. The native Iroh helper uses Rust, with locked dependencies. Nix outputs cover x86_64-linux, aarch64-linux and aarch64-darwin; automated builds/publication currently target ARM64 Linux only (2 November 2026). Intel/Air builds are paused; retain the existing flake outputs without rebuilding them. The client plans a GTK4 replacement; the source still uses Qt pending that work. Use the [README build instructions](../README.md#build-and-test) and keep dependency locks stable unless intentionally updating them.
 
 | Change | Relevant checks |
 | --- | --- |
@@ -30,8 +30,10 @@ The shell uses C++17 and Qt 6.8 or later with CMake/Ninja. The native Iroh helpe
 | Invitations, permissions or transport | Network and Iroh suites; include reconnect, replay/pin rejection, revocation and mixed transports as applicable. |
 | Native UI or preview | UI smoke checks and visual/input inspection; Linux native-embedding and network-native-embedding suites for real buffers/input/lifecycle. macOS shell checks do not prove Linux embedding. |
 | Rust helper | Locked Cargo build/tests and relevant formatting/Clippy checks; retain integration with the Qt tests. |
-| Distribution | Existing workflow/script checks, both Linux architectures and verified signed closure downloads. A successful build alone does not establish publication. |
+| Distribution | Existing workflow/script checks, the active ARM64 Linux target and verified signed closure downloads. Do not wait for or start Intel/Air builds unless the owner reactivates that target. A successful build alone does not establish publication. |
 | Documentation only | Check source claims, statuses and links; review changed procedures against current behaviour. |
+
+For documentation-only changes, run relevant content/link checks; do not start app builds. Both workflows cancel superseded runs on the same branch. Report asynchronous build status without keeping the chat open to wait for every publication.
 
 Use the existing [target machine](TESTING_ON_NIXOS.md) and [cross-network](LAN_COLLABORATION.md#internet-acceptance-test) procedures for physical acceptance. Report automated checks, historical evidence and live-model/manual tests separately. Tests with an agent double establish coordination, not mediation quality.
 

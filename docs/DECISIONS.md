@@ -6,7 +6,7 @@ This register separates established direction from implementation choices and ex
 
 | ID | Decision and rationale | Source and consequence |
 | --- | --- | --- |
-| D01 | Retain C++17 and Qt Quick. Styling flexibility and the working Linux compositor favour continuing the existing implementation over a GTK rewrite. | Handover. Preserve native collaboration and embedding while evolving the architecture. |
+| D01 | **Superseded by D12.** The earlier handover retained C++17 and Qt Quick for styling flexibility and the working Linux compositor. | Historical direction; Qt remains the current implementation and VM experiment. |
 | D02 | Target native Linux/NixOS and macOS clients. | Handover. macOS preview parity is unresolved; shell compilation is not embedding support. |
 | D03 | Keep Centaur's identity independent of generated-app systems and Qt's default appearance. | Handover and pasted discussion. Current Dialogue-derived chrome does not settle the final identity. |
 | D04 | Support multiple independent systems containing tokens, components and layouts/patterns; themes live within systems. | Handover. A palette alone does not define a system. |
@@ -17,6 +17,9 @@ This register separates established direction from implementation choices and ex
 | D09 | Finished apps should run independently of Centaur/OMP, beginning with local NixOS installation and later family sharing and explicit release updates. | Repository record: ARCHITECTURE, agreed 27 October 2026. Installed releases/data have separate lifecycles from workshop edits. |
 | D10 | Prioritise modest hardware and precompiled NixOS delivery. | Repository record and handover. Keep the public Cachix path; measure before setting a hardware floor. |
 | D11 | Use Inter at 12 pt or smaller and Inter Tight above 12 pt for Centaur’s default typography, retaining current sizes/weights pending review. | Owner request, 29 October 2026. Bundle both families and licences in the native runtimes; this default does not prescribe fonts for every future design system. |
+| D12 | The client's developer plans a GTK4 replacement of the Qt work, including canvas app display. | Owner update, 2 November 2026. Supersedes D01; implementation/compositor/migration details remain open. Keep the prepared Qt VM experiment usable in the meantime. |
+| D13 | Run automated application builds and publication for ARM64 Linux only for now. | Owner update, 2 November 2026. Test on the Mac mini's UTM VM and remotely with the client; Air testing is paused. Confirm the client's architecture before adding another target. |
+| D14 | Canvas zoom must be independent of app dimensions and survive graphics/toolkit changes. | Owner's Architecture + Design discussion, reaffirmed 2 November 2026. Default 100%; provide 50/75/100/125/150%, aligned input/annotations and navigation for oversized previews. Fit to canvas remains an additional proposal. |
 
 ## Current implementation choices
 
@@ -30,6 +33,7 @@ These describe the inspected prototype, not irreversible commitments: a backgrou
 | P02 | Use shared data/action/component contracts and a modular app/system structure. | Demonstrate independent logic and presentation without breaking checking, history or collaboration. Folder names and JSON schemas are not settled. |
 | P03 | Explore Editorial, Utility and Playful as contrasting systems. | Designer review and experiment results; these are illustrative directions. |
 | P04 | Build a visual system library/editor and allow designers to publish reusable systems. | Establish the model, validation, distribution and authoring needs first. |
+| P05 | Add Fit to canvas beside explicit zoom levels. | Latest Architecture + Design recommendation. Preserve app dimensions and define stable zoom anchoring/panning behaviour. |
 
 The repository also records local app installation as the next deployment milestone and cross-network Iroh testing as the next networking acceptance step. No ordering between those workstreams and the design-system experiment has been agreed here.
 
@@ -48,6 +52,7 @@ The repository also records local app installation as the next deployment milest
 | Q09 | What are the minimum hardware requirements? | CPU, memory, latency and graphics measurements on target machines. |
 | Q10 | How are installed app identity, persistence, migration, updates and optional shared data implemented? | The first standalone-installation prototype and a separate data/synchronisation design. |
 | Q11 | What rendered checks establish design quality, including readability and interaction states? | A repeatable review rubric and observed failures from P01. |
+| Q12 | Which native-surface/compositor integration will the GTK4 replacement use, and how will current projects/host contracts migrate? | Agree boundaries with the client's developer; demonstrate rendering, focus, popups, viewport transforms and lifecycle on the ARM64 VM. GTK4 alone does not settle the embedding design. |
 
 ## Recording later decisions
 

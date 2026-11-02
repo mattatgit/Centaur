@@ -12,9 +12,19 @@ See [Current state](CURRENT.md) for implemented behaviour, deliberate boundaries
 
 ## Platform and visual design direction
 
-Agreed in the owner's design-system handover: retain C++17 and Qt Quick. Qt's styling flexibility and the existing Linux embedding implementation favour continuing this architecture over a GTK rewrite. Centaur's own interface and the design systems used by generated apps are separate concerns; neither depends on Qt's default control appearance. The current Dialogue-derived shell is a prototype reference, and Centaur's final visual identity remains open.
+Updated direction, 2 November 2026: the client's developer plans to replace the Qt work with GTK4, including changes to how native apps appear in the canvas. This supersedes the earlier handover's decision to retain Qt. The source and prepared Landline VM test still use C++17/Qt Quick and Qt Wayland Compositor; a GTK4 replacement is not yet implemented. The replacement's compositor, surface integration and migration boundaries remain to be designed with that developer. Centaur's own interface and generated-app design systems remain separate concerns. The current Dialogue-derived shell is a prototype reference, and Centaur's final visual identity remains open.
 
 Linux uses Qt Wayland Compositor. macOS currently builds the native shell and coordination tools, with an explicit unavailable-preview view. Equivalent native embedding on macOS remains unresolved. Window integration, focus, popups, scaling and lifecycle behaviour need platform-specific evaluation.
+
+## Preview dimensions and canvas zoom
+
+The owner's latest **Architecture + Design** discussion requires a viewport that supports small utilities and large app interfaces independently of the graphics toolkit. Application dimensions are the app's logical width/height: changing them may trigger responsive layout. Canvas zoom changes presentation only and must leave those app dimensions and layout unchanged.
+
+The viewport must provide **50%, 75%, 100%, 125% and 150%**, with **100% as the default**. **Fit to canvas** is the discussion's additional proposed convenience mode. Keep zoom separate from desktop display scaling and device pixel density; 100% means unzoomed logical app size at the desktop's current scale, not an override of the OS scale. It is the reference view for typography/alignment review. Fractional preview zoom can soften rendered text/images; enlarging an existing buffer does not guarantee extra detail.
+
+The viewport owns zoom, placement, clipping and panning/scrolling when the app exceeds available space. Zoom should preserve a stable anchor (pointer or viewport centre; exact interaction remains to be selected). App input must map back to app coordinates at every zoom: clicking, dragging, scrolling, text selection, keyboard focus and popups must continue to work. Draw/Comment, the 8-unit grid and captured agent context must stay aligned in logical app coordinates. Chat remains visible and usable in Interact and Build.
+
+These are requirements for the GTK4 replacement as well as the current Qt path, not claims that GTK4 supplies an embedding compositor or coordinate mapping automatically. Keep the viewport contract independent of the native-surface implementation. The current `CanvasView.qml` only auto-fits a board and has no explicit zoom controls, default-100% mode or pan controls. Validate the new viewport on the ARM64 UTM VM with small/large apps, all zoom levels, resized windows, input, popups, annotations and desktop scaling before claiming parity. Toolkit-specific rendering and typography choices require their own evaluation; the chat's Qt suggestions do not establish GTK4 behaviour.
 
 ## Runtime responsibilities
 
@@ -87,7 +97,7 @@ The next deployment milestone is **Install this app on this computer**, targetin
 - Persistent app data stored separately from the installed package and Centaur's authoring state. App updates must preserve that data.
 - A way to associate an installed release with its source project and checkpoint so authors can return to the workshop and prepare a later release.
 
-The initial packaging approach is Nix. Builds can run on a faster machine or CI and be distributed through a binary cache, reducing compilation on entry-level devices. ARM64 Linux and x86-64 Linux require appropriate builds; the UTM VM and older Air must not be assumed to use the same executable. Centaur itself now has a [GitHub Actions/Cachix distribution workflow](BINARY_DISTRIBUTION.md) for both Linux architectures; the initial complete signed publications were verified on 27 October 2026. This distributes the authoring package, not standalone generated-app releases. Generated-app build/update delivery remains future work.
+The initial packaging approach is Nix. Builds run on a faster machine or CI and are distributed through a binary cache. As of 2 November 2026, automated builds/publication target **ARM64 Linux only**, for the Mac mini's UTM NixOS VM. Air/Intel testing is paused; existing x86-64 flake outputs and historical cached builds remain available, but are not rebuilt automatically. The remote client's target architecture must be established before adding another build target. This distributes the authoring package, not standalone generated-app releases. Generated-app build/update delivery remains future work.
 
 ### App data and synchronisation
 

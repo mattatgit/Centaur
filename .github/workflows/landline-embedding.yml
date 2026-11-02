@@ -14,6 +14,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: landline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     name: Embed Landline ${{ matrix.system }}
@@ -23,8 +27,6 @@ jobs:
         include:
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
-          - system: x86_64-linux
-            runner: ubuntu-24.04
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4

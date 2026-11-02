@@ -1,6 +1,15 @@
 name: Native prototype
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -8,7 +17,7 @@ permissions:
 jobs:
   distribution:
     name: Check distribution tooling
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
@@ -36,8 +45,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - system: x86_64-linux
-            runner: ubuntu-24.04
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
@@ -62,8 +69,8 @@ jobs:
   publish:
     name: Publish ${{ matrix.system }}
     needs: [linux, distribution]
-    # Never publish pull-request code or other branches. Both architectures
-    # must pass their checks before either publication job can start.
+    # Only ARM64 is an active test target. Publish after its package checks
+    # and distribution-tooling checks pass; never publish pull-request code.
     if: >-
       github.repository == 'mattatgit/Centaur' &&
       github.ref == 'refs/heads/codex/native-prototype' &&
@@ -73,8 +80,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - system: x86_64-linux
-            runner: ubuntu-24.04
           - system: aarch64-linux
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}

@@ -5,7 +5,7 @@ This is an isolated experiment before project import. It runs the real Rust/egui
 ## Source and package
 
 - Landline: `mattatgit/landline`, `linux-nix` commit **`205fc1185335dc1c85b359af7673f6e5d7653222`**. Its original flake, Cargo lock and sources are retained through a pinned optional flake input.
-- Package: `packages.aarch64-linux.landline-embedding-test` or `packages.x86_64-linux.landline-embedding-test`.
+- Active package: `packages.aarch64-linux.landline-embedding-test`. The Intel output is retained but its automated builds/testing are paused.
 - Launcher: `centaur-landline-test`. Default Centaur installation/launch behaviour is unchanged. Landline is not a dependency of the default Centaur package.
 - The package includes Centaur and references Landline's complete runtime, plus a Mesa software-rendering option. Each app uses the Mesa driver from its own pinned Nix runtime, avoiding incompatible libraries across the two builds. Landline's licence and source revision are included under `share/centaur-landline-test`.
 
@@ -23,15 +23,15 @@ Native readiness follows a compositor surface with actual buffer content, rather
 
 ## Automated build and publication
 
-[Landline embedding test](../.github/workflows/landline-embedding.yml) builds on native ARM64 and Intel Linux runners. It runs launcher checks, builds the pinned Landline client and Centaur (including Centaur's normal package tests), then requires an actual external-app buffer inside the compositor. A headless screenshot is uploaded for inspection; inspect it before handing the build to a tester. The automated external-app check establishes buffer receipt and process lifetime, **not correct visible composition, keyboard/pointer usability, microphone audio or agent source editing**.
+[Landline embedding test](../.github/workflows/landline-embedding.yml) builds on a native ARM64 Linux runner only (updated 2 November 2026). It runs launcher checks, builds the pinned Landline client and Centaur (including Centaur's normal package tests), then requires an actual external-app buffer inside the compositor. A headless screenshot is uploaded for inspection; inspect it before handing the build to a tester. The automated external-app check establishes buffer receipt and process lifetime, **not correct visible composition, keyboard/pointer usability, microphone audio or agent source editing**.
 
-The unchanged upstream Landline client is cached separately after its own package build/check phase succeeds, so integration-test fixes do not require compiling Rust again. This does not publish the Centaur test bundle or claim embedding works. Only after each architecture's integration checks pass does that same runner publish the complete test closure to the existing public Centaur Cachix cache and verify a fresh download into an empty store. Readiness is per architecture for this experimental package; Centaur's normal production distribution retains its existing both-architecture gate. Do not ask a tester to install an architecture before that architecture's full job, including publication verification, succeeds.
+The unchanged upstream Landline client is cached separately after its own package build/check phase succeeds, so integration-test fixes do not require compiling Rust again. This does not publish the Centaur test bundle or claim embedding works. Only after the ARM64 integration checks pass does that same runner publish the complete test closure to the existing public Centaur Cachix cache and verify a fresh download into an empty store. Both the normal and experimental workflows currently target ARM64 only. Do not ask a tester to install a revision before its full job, including publication verification, succeeds.
 
 Distribution metadata names the `landline-embedding-test` package attribute and exact Centaur source commit. The default Centaur installable does not include this launcher. Use the experimental manifest's immutable `installable`, rather than the moving branch head, for the first test.
 
 ## Guided machine test
 
-Machine-specific commands and results belong in **Centaur Cloud → Centaur Install**. Start with the ARM64 NixOS VM, then the Intel Air. Verify cache trust and a successful corresponding publication before proceeding. No extra Cachix write credential is needed on a tester's machine.
+Machine-specific commands and results belong in **Centaur Cloud → Centaur Install**. Test on the ARM64 NixOS VM; the Air is no longer a test target. Verify cache trust and a successful corresponding publication before proceeding. No extra Cachix write credential is needed on a tester's machine.
 
 Install into a separate profile, **not** the ordinary Centaur profile, with all builders disabled and normal signature checking required. Fill in the verified manifest's exact source revision:
 
@@ -55,7 +55,7 @@ If the default graphics path fails, capture the error first and try the explicit
 "$HOME/.local/state/nix/profiles/centaur-landline-test/bin/centaur-landline-test" --software
 ```
 
-Do not repeatedly change desktop/EGL settings or compile on the Air to work around a failed test. Share the launch output and screenshot for development investigation.
+Do not repeatedly change desktop/EGL settings or compile on the test machine to work around a failed test. Share the launch output and screenshot for development investigation.
 
 ## Acceptance sequence
 

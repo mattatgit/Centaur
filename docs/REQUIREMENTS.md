@@ -1,6 +1,6 @@
 # Centaur requirements
 
-These requirements describe product outcomes. Implementation status refers to source snapshot `f2f7257`; acceptance criteria for planned work are draft evaluation criteria, not claims that the feature exists.
+These requirements describe product outcomes. Original implementation status refers to source snapshot `f2f7257`; later dated direction is identified explicitly. Acceptance criteria for planned work are draft evaluation criteria, not claims that the feature exists.
 
 ## Core workshop
 
@@ -14,6 +14,20 @@ These requirements describe product outcomes. Implementation status refers to so
 | R06 | Failed or stale candidates do not replace the working app. | Implemented separate QML check and stale-work rejection/retry. Rewinds retrieve exact saved source and append a new checkpoint. |
 | R07 | Native clients support Linux/NixOS and macOS. | Linux embedding is implemented. macOS supports shell and coordination development; equivalent embedded previews remain open. |
 | R08 | Entry-level machines can obtain and use the app without routine local compilation. | Cachix distribution exists for x86_64-linux and aarch64-linux. Resource measurements and a minimum hardware specification remain open. |
+
+As of 2 November 2026, active builds/testing target the ARM64 UTM VM only; Intel/Air builds are paused. The client's planned GTK4 replacement must preserve the product requirements below and existing collaboration behaviour.
+
+## Canvas scaling
+
+Reaffirmed by the owner on 2 November 2026 after the latest Architecture + Design discussion; planned, not implemented by the current automatic board fit.
+
+| ID | Required outcome | Draft acceptance criteria |
+| --- | --- | --- |
+| R17 | Support 50%, 75%, 100%, 125% and 150% canvas zoom, defaulting to 100%, independently of app dimensions. | Zoom small/large native apps without changing logical dimensions or responsive layout. Changing actual dimensions can change layout. Desktop DPI/scale remains independent. |
+| R18 | Preserve app interaction and canvas alignment at every zoom. | Check click/drag/scroll, text selection, focus and popups; Draw/Comment, Undo, grid and captured agent context remain aligned. Chat stays available in Interact and Build. |
+| R19 | Navigate apps larger than the visible canvas without losing position unexpectedly. | Verify clipping, panning/scrolling and stable zoom anchoring while resizing Centaur. Use 100% as the reference for typography/alignment; distinguish resampling softness from app rendering. |
+
+These outcomes apply to Qt, the planned GTK4 replacement and future embedding backends. Fit to canvas is an additional proposal (P05), not a substitute for explicit zoom or a change to app dimensions.
 
 ## Design systems
 
