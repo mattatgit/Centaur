@@ -39,13 +39,27 @@ jobs:
           python3 -m unittest discover -s tests -p test_landline_launcher.py
           nix shell --inputs-from . nixpkgs#shellcheck nixpkgs#actionlint -c bash -c \
             'shellcheck scripts/landline-embedding-test.sh && actionlint .github/workflows/landline-embedding.yml'
-      - name: Build pinned Landline and checked Centaur package
+      - name: Build pinned Landline client with its upstream package checks
+        env:
+          SYSTEM: ${{ matrix.system }}
+        run: nix build -L --no-update-lock-file ".#packages.${SYSTEM}.landline-test-client" -o result-client
+      - name: Cache the checked upstream client for integration-test iterations
+        if: >-
+          success() && github.repository == 'mattatgit/Centaur' &&
+          github.ref == 'refs/heads/codex/native-prototype' &&
+          vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+        run: python3 scripts/push-full-cachix-closure.py "$CENTAUR_CACHIX_CACHE" result-client
+      - name: Build checked Centaur and the integration-test launcher
         env:
           SYSTEM: ${{ matrix.system }}
         run: nix build -L --no-update-lock-file ".#packages.${SYSTEM}.landline-embedding-test" -o result-test
       - name: Require a Landline buffer inside the private compositor
         env:
           QT_QPA_PLATFORM: offscreen
+          QT_FORCE_STDERR_LOGGING: '1'
           RUST_LOG: warn
         run: |
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/landline-runtime"

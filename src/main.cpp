@@ -20,6 +20,7 @@
 #include <QDynamicPropertyChangeEvent>
 #include <QRegularExpression>
 #include <QFileInfo>
+#include <QDebug>
 
 // The bundled native decoration reports tiling without exposing Qt's private
 // Wayland types to the application. Keep the client alpha corners in sync.
@@ -128,6 +129,9 @@ int main(int argc, char *argv[]) {
     bool inputForwarded = false;
     QObject::connect(&controller, &Controller::previewOutput, &app, [&inputForwarded](const QByteArray &output) {
         if (output.contains("CENTAUR_INPUT_OK")) inputForwarded = true;
+    });
+    if (nativeAppTest) QObject::connect(&controller, &Controller::previewOutput, &app, [](const QByteArray &output) {
+        qInfo().noquote() << "Native test app:" << QString::fromUtf8(output).trimmed();
     });
     qmlRegisterType<InkItem>("Centaur.Native", 1, 0, "InkLayer");
     qmlRegisterType<SvgIcon>("Centaur.Native", 1, 0, "SvgIcon");

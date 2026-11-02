@@ -91,6 +91,7 @@
             '';
           };
         in { default = centaur; } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          landline-test-client = landline.packages.${system}.default;
           landline-embedding-test = pkgs.symlinkJoin {
             name = "centaur-landline-embedding-test";
             paths = [ centaur testLauncher ];
