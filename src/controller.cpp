@@ -246,6 +246,12 @@ void Controller::startPreview() {
         env.remove("DISPLAY");
         env.remove("WAYLAND_SOCKET");
         env.insert("XDG_SESSION_TYPE", "wayland");
+        // Landline uses an independently pinned Nix runtime. Its EGL driver
+        // must match that runtime, rather than Centaur's newer libc/Mesa.
+        const auto vendor = qEnvironmentVariable("CENTAUR_TEST_NATIVE_EGL_VENDOR");
+        const auto drivers = qEnvironmentVariable("CENTAUR_TEST_NATIVE_DRI");
+        if (!vendor.isEmpty()) env.insert("__EGL_VENDOR_LIBRARY_FILENAMES", vendor);
+        if (!drivers.isEmpty()) env.insert("LIBGL_DRIVERS_PATH", drivers);
         for (const auto &kind : {QString("config"), QString("data"), QString("cache")}) {
             const auto path = dataRoot() + "/native-app-runtime/" + kind;
             if (!QDir().mkpath(path)) {

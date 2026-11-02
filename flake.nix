@@ -9,7 +9,12 @@
       # Keep GNOME's native Qt title bar, buttons, shadows and resize handling.
       # Patch only the frame path so its bottom uses the same 12 px radius.
       wayland = pkgs: pkgs.qt6.qtwayland.overrideAttrs (old: {
-        patches = (old.patches or [ ]) ++ [ ./packaging/patches/qt-adwaita-bottom-corners.patch ];
+        # Keep this dependency keyed by patch contents, not the whole Centaur
+        # source snapshot, so unrelated app edits can reuse the Qt build.
+        patches = (old.patches or [ ]) ++ [
+          (builtins.toFile "centaur-adwaita-bottom-corners.patch"
+            (builtins.readFile ./packaging/patches/qt-adwaita-bottom-corners.patch))
+        ];
         buildInputs = (old.buildInputs or [ ]) ++ [ pkgs.qt6.qtsvg ];
         cmakeFlags = (old.cmakeFlags or [ ]) ++ [ "-DFEATURE_wayland_decoration_adwaita=ON" ];
         postInstall = (old.postInstall or "") + ''
@@ -79,6 +84,7 @@
       packages = eachSystem (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
+          nativeMesa = landline.inputs.nixpkgs.legacyPackages.${system}.mesa;
           centaur = package pkgs;
           testLauncher = pkgs.writeShellApplication {
             name = "centaur-landline-test";
@@ -87,6 +93,8 @@
               export CENTAUR_TEST_LANDLINE=${landline.packages.${system}.default}/bin/landline
               export CENTAUR_TEST_MESA_VENDOR=${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json
               export CENTAUR_TEST_MESA_DRIVERS=${pkgs.mesa}/lib/dri
+              export CENTAUR_TEST_NATIVE_EGL_VENDOR=${nativeMesa}/share/glvnd/egl_vendor.d/50_mesa.json
+              export CENTAUR_TEST_NATIVE_DRI=${nativeMesa}/lib/dri
               ${builtins.readFile ./scripts/landline-embedding-test.sh}
             '';
           };
@@ -97,6 +105,7 @@
             paths = [ centaur testLauncher ];
             postBuild = ''
               test -f ${pkgs.mesa}/share/glvnd/egl_vendor.d/50_mesa.json
+              test -f ${nativeMesa}/share/glvnd/egl_vendor.d/50_mesa.json
               mkdir -p "$out/share/centaur-landline-test"
               cp ${landline}/LICENSE "$out/share/centaur-landline-test/Landline-LICENSE"
               echo 205fc1185335dc1c85b359af7673f6e5d7653222 > "$out/share/centaur-landline-test/source-revision"
