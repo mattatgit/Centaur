@@ -17,9 +17,11 @@ This register separates established direction from implementation choices and ex
 | D09 | Finished apps should run independently of Centaur/OMP, beginning with local NixOS installation and later family sharing and explicit release updates. | Repository record: ARCHITECTURE, agreed 27 October 2026. Installed releases/data have separate lifecycles from workshop edits. |
 | D10 | Prioritise modest hardware and precompiled NixOS delivery. | Repository record and handover. Keep the public Cachix path; measure before setting a hardware floor. |
 | D11 | Use Inter at 12 pt or smaller and Inter Tight above 12 pt for Centaur’s default typography, retaining current sizes/weights pending review. | Owner request, 29 October 2026. Bundle both families and licences in the native runtimes; this default does not prescribe fonts for every future design system. |
-| D12 | The client's developer plans a GTK4 replacement of the Qt work, including canvas app display. | Owner update, 2 November 2026. Supersedes D01; implementation/compositor/migration details remain open. Keep the prepared Qt VM experiment usable in the meantime. |
+| D12 | Both Centaur and generated applications will use GTK4, replacing Qt/QML on a separate migration branch. | Owner agreement, 5 November 2026. Supersedes D01. Preserve the Qt branch; evaluate Casilda before approving a backend. Keep the Landline VM test independent. |
 | D13 | Run automated application builds and publication for ARM64 Linux only for now. | Owner update, 2 November 2026. Test on the Mac mini's UTM VM and remotely with the client; Air testing is paused. Confirm the client's architecture before adding another target. |
-| D14 | Canvas zoom must be independent of app dimensions and survive graphics/toolkit changes. | Owner's Architecture + Design discussion, reaffirmed 2 November 2026. Default 100%; provide 50/75/100/125/150%, aligned input/annotations and navigation for oversized previews. Fit to canvas remains an additional proposal. |
+| D14 | Canvas zoom must be independent of app dimensions and survive graphics/toolkit changes. | Owner's Architecture + Design discussion, reaffirmed 2 November 2026. Default 100%; provide 50/75/100/125/150%, aligned input/annotations and navigation for oversized previews. Fit to canvas is agreed as of 5 November 2026. |
+
+The migration sequence and dependency acceptance gate are recorded in [GTK4 migration](GTK4_MIGRATION.md). Casilda remains experimental.
 
 ## Current implementation choices
 
@@ -33,7 +35,7 @@ These describe the inspected prototype, not irreversible commitments: a backgrou
 | P02 | Use shared data/action/component contracts and a modular app/system structure. | Demonstrate independent logic and presentation without breaking checking, history or collaboration. Folder names and JSON schemas are not settled. |
 | P03 | Explore Editorial, Utility and Playful as contrasting systems. | Designer review and experiment results; these are illustrative directions. |
 | P04 | Build a visual system library/editor and allow designers to publish reusable systems. | Establish the model, validation, distribution and authoring needs first. |
-| P05 | Add Fit to canvas beside explicit zoom levels. | Latest Architecture + Design recommendation. Preserve app dimensions and define stable zoom anchoring/panning behaviour. |
+| P05 | **Accepted into D14, 5 November 2026.** Fit to canvas accompanies the five explicit zoom levels. | Preserve app dimensions and define stable zoom anchoring/panning behaviour. |
 
 The repository also records local app installation as the next deployment milestone and cross-network Iroh testing as the next networking acceptance step. No ordering between those workstreams and the design-system experiment has been agreed here.
 

@@ -142,3 +142,12 @@ The owner has stopped Air testing. Automated package checks/publication and the 
 The client’s developer plans to replace the Qt work with GTK4, including native app presentation in the canvas. The prepared VM experiment at `08d166a` remains the Qt implementation and can be tested now. No GTK4 migration or zoom controls have been implemented in this update.
 
 The latest **Architecture + Design** chat was read in full (four turns, including its latest zoom and typography discussions). Its toolkit-independent viewport requirements are recorded in [Architecture](ARCHITECTURE.md#preview-dimensions-and-canvas-zoom), R17–R19 and D14: default 100%, 50/75/100/125/150% zoom separate from actual app dimensions, correct input/overlay alignment, panning/clipping and a stable zoom anchor. Fit to canvas remains an additional proposal. The present automatic board fit is not equivalent to these controls. GTK4 compositor/embedding choices remain open with the client.
+
+
+## GTK4 migration branch and Phase 1 experiment (5 November 2026)
+
+The working Qt branch remains `codex/native-prototype` at `3d24d11`. Migration starts separately on `codex/gtk4-migration`. The Landline VM experiment at `08d166a` is independent. Both Centaur and generated apps are now agreed to target GTK4; Fit is agreed alongside 50/75/100/125/150% zoom, default 100%, and centred app presentation without an extra frame.
+
+The isolated `gtk4-embedding-test` package adds a GTK4/PyGObject host, replaceable Casilda adapter and separate GTK4 interaction fixture. It has temporary child data paths and process lifecycle control. The current pinned Casilda 1.2.2/GTK 4.22.4 pair is an evaluation candidate; upstream 1.6 adds host clipboard integration but requires GTK 4.24. This is a known suitability risk, not an approved dependency or a completed migration. Existing host, collaboration, OMP, projects and generation contracts are unchanged.
+
+Local checks passed for Python compilation, FD/data isolation and shutdown/error handling, workflow/shell lint and ARM64 Nix evaluation. The first ARM64 package at `c5fbcd6` built successfully; its disposable test session failed before launch because the Nix D-Bus configuration was not supplied. `704b5dd` fixes that setup and its interaction check is running. No Linux rendering, VM interaction or signed-publication success is claimed here yet. See [GTK4 migration](GTK4_MIGRATION.md) for the three phases, clipboard limitation, current boundaries and VM acceptance gate.

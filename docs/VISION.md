@@ -16,7 +16,7 @@ Applications built primarily through natural-language prompts should be coherent
 
 Support multiple independent, versioned design systems. A user should eventually be able to select a system when creating an app and change systems later while preserving the app's functionality and content. Themes are variations within a system.
 
-Centaur's own visual identity is a separate concern. Retain Qt Quick while allowing a distinctive interface independent of Qt's default appearance. The current Dialogue-derived interface is a prototype reference; Centaur's final design remains open.
+Centaur's own visual identity is a separate concern. Both Centaur and generated apps are to use GTK4 (agreed 5 November 2026), with a distinctive interface independent of platform defaults or libadwaita. The current Dialogue-derived interface is a prototype reference; Centaur's final design remains open.
 
 ## From workshop to everyday app
 

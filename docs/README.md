@@ -35,6 +35,7 @@ Keep these procedures in their existing locations:
 - [OMP setup on NixOS](OMP_NIXOS_SETUP.md)
 - [Target machine testing](TESTING_ON_NIXOS.md)
 - [Landline native embedding experiment](LANDLINE_EMBEDDING_TEST.md)
+- [GTK4 migration and Casilda experiment](GTK4_MIGRATION.md)
 - [Dialogue asset provenance](https://github.com/mattatgit/Centaur/blob/f2f72577b90edf23c8266b15a1a07905e017c066/assets/dialogue/README.md)
 - [Inter font provenance](https://github.com/mattatgit/Centaur/blob/f2f72577b90edf23c8266b15a1a07905e017c066/assets/fonts/inter/README.md)
 

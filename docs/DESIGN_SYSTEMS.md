@@ -4,7 +4,7 @@ Design systems should let designers control the quality and consistency of apps 
 
 ## Agreed direction
 
-Centaur's interface and generated-app design systems are separate concerns. Retain Qt Quick and make visual implementation independent of platform-default control appearance. Neither Centaur's final identity nor the initial library's visual styles have been selected.
+Centaur's interface and generated-app design systems are separate concerns. The agreed target is GTK4 for both Centaur and generated apps (5 November 2026), with visual implementation independent of platform-default control appearance or libadwaita. Neither Centaur's final identity nor the initial library's visual styles have been selected.
 
 Each independent, versioned system has three layers:
 
@@ -49,9 +49,15 @@ MyApp/
   project.json
 ```
 
-Use the experiment to choose what belongs in configuration, QML and composition guidance, and to identify the smallest safe migration from existing apps. A visual library/editor and designer-authored, shareable systems are later proposals informed by that evidence.
+Use the experiment to choose what belongs in design-system configuration, reusable GTK widgets/CSS and composition guidance, and to identify the smallest safe migration from existing apps. A visual library/editor and designer-authored, shareable systems are later proposals informed by that evidence.
 
-## Qt implementation constraints
+## GTK4 direction
+
+Plan reusable GTK widgets/templates, GTK CSS, design tokens, component conventions and layout rules independently of application behaviour/content. Record the selected system/version per project. Do not implement the full library/editor during the embedding experiment. Language bindings, GtkBuilder/Blueprint use, component contracts and a safe project migration remain to be evaluated. See [GTK4 migration](GTK4_MIGRATION.md).
+
+## Historical Qt implementation constraints
+
+The following applies to the preserved Qt implementation, not the target GTK4 design-system format.
 
 Qt Quick Controls supports custom visual implementations. Qt recommends customising a cross-platform base style or creating a custom style; native macOS/Windows styles are unsuitable foundations for that customisation. Basic is a candidate, not a selected Centaur design-system format. [Qt 6.8 customisation guidance](https://doc.qt.io/qt-6.8/qtquickcontrols-customize.html)
 
