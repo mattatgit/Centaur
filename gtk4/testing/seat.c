@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
     struct wl_registry *registry = wl_display_get_registry(display);
     wl_registry_add_listener(registry, &registry_listener, NULL);
     if (wl_display_roundtrip(display) < 0 || !seat || !pointer_manager || !keyboard_manager) return 1;
-    zwlr_virtual_pointer_manager_v1_create_virtual_pointer(pointer_manager, seat);
+    struct zwlr_virtual_pointer_v1 *pointer = zwlr_virtual_pointer_manager_v1_create_virtual_pointer(pointer_manager, seat);
     struct zwp_virtual_keyboard_v1 *keyboard = zwp_virtual_keyboard_manager_v1_create_virtual_keyboard(keyboard_manager, seat);
     struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
     struct xkb_rule_names names = {.layout = "us"};
@@ -108,6 +108,13 @@ int main(int argc, char **argv) {
             uint32_t mods = 0;
             while (!strncmp(name, "ctrl+", 5)) { mods |= modifier(map, XKB_MOD_NAME_CTRL); name += 5; }
             failed = key(display, keyboard, map, xkb_keysym_from_name(name, XKB_KEYSYM_NO_FLAGS), mods);
+        } else if (!strcmp(request, "scroll up") || !strcmp(request, "scroll down")) {
+            int direction = !strcmp(request, "scroll up") ? -1 : 1;
+            zwlr_virtual_pointer_v1_axis_source(pointer, WL_POINTER_AXIS_SOURCE_WHEEL);
+            zwlr_virtual_pointer_v1_axis_discrete(pointer, timestamp(), WL_POINTER_AXIS_VERTICAL_SCROLL,
+                                                 wl_fixed_from_double(direction * 15.0), direction);
+            zwlr_virtual_pointer_v1_frame(pointer);
+            failed = wl_display_roundtrip(display) < 0;
         } else failed = 1;
         if (write(client, failed ? "error" : "ok", failed ? 5 : 2) < 0) return 1;
         close(client);

@@ -49,30 +49,30 @@ class Driver:
 
     def type(self, text):
         if self.wayland:
-            self.keyboard('text ' + text)
+            self.seat_command('text ' + text)
         else:
             command('xdotool', 'type', '--clearmodifiers', text)
 
     def key(self, *keys):
         if self.wayland:
             for key in keys:
-                self.keyboard('key ' + key)
+                self.seat_command('key ' + key)
         else:
             command('xdotool', 'key', '--clearmodifiers', *keys)
 
-    def keyboard(self, request):
+    def seat_command(self, request):
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
             connection.settimeout(10)
             connection.connect(os.environ['CENTAUR_GTK4_TEST_SEAT'])
             connection.sendall(request.encode('ascii'))
             connection.shutdown(socket.SHUT_WR)
-            assert connection.recv(16) == b'ok', 'The fixed-keymap test keyboard rejected a request'
+            assert connection.recv(16) == b'ok', 'The disposable test seat rejected a request'
 
     def scroll(self, up=False):
         button, repeat = ('button4',20) if up else ('button5',5)
         if self.wayland:
             for _ in range(repeat):
-                self.ipc('seat seat0 cursor press ' + button)
+                self.seat_command('scroll up' if up else 'scroll down')
                 time.sleep(0.025)
             # Let GTK finish the wheel batch before reversing direction.
             time.sleep(0.2)
