@@ -6,7 +6,7 @@ on:
     paths:
       - 'gtk4/**'
       - 'packaging/gtk4-embedding-test.nix'
-      - 'packaging/gtk4-test-pointer.nix'
+      - 'packaging/gtk4-test-seat.nix'
       - 'tests/test_gtk4_backend.py'
       - 'flake.nix'
       - 'flake.lock'
@@ -54,11 +54,11 @@ jobs:
           # The GTK stack is independently pinned; realise its D-Bus config
           # explicitly rather than relying on the tooling shell's older D-Bus.
           nix build --no-link .#gtk4-embedding-test.dbusForTests
-          nix build .#gtk4-embedding-test.waylandTestPointer -o result-test-pointer
+          nix build .#gtk4-embedding-test.waylandTestSeat -o result-test-seat
           dbus_config=$(nix eval --raw .#gtk4-embedding-test.dbusConfig)
-          nix shell --inputs-from . nixpkgs#sway nixpkgs#wtype nixpkgs#grim nixpkgs#dbus \
+          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus \
             -c dbus-run-session --config-file="$dbus_config" -- \
-            timeout 90s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-evidence" result-test-pointer/bin/centaur-test-pointer
+            timeout 90s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-evidence" result-test-seat/bin/centaur-test-seat
       - name: Save experiment evidence and limitations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

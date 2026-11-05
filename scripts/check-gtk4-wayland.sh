@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
 # CI only: an isolated native Wayland session, never the user's desktop.
 set -euo pipefail
-[[ $# == 3 ]] || { echo 'Usage: check-gtk4-wayland.sh PACKAGE NEW_REPORT_DIRECTORY TEST_POINTER' >&2; exit 2; }
+[[ $# == 3 ]] || { echo 'Usage: check-gtk4-wayland.sh PACKAGE NEW_REPORT_DIRECTORY TEST_SEAT' >&2; exit 2; }
 package=$(realpath "$1")
 reports=$(realpath -m "$2")
-test_pointer=$(realpath "$3")
+test_seat=$(realpath "$3")
 : "${XDG_RUNTIME_DIR:?A private runtime directory is required}"
 config=$(mktemp)
 sway_log=$(mktemp)
 sway_pid=''
-keyboard_pid=''
 pointer_pid=''
 cleanup() {
     if [[ -n $pointer_pid ]]; then
         kill "$pointer_pid" 2>/dev/null || true
         wait "$pointer_pid" 2>/dev/null || true
-    fi
-    if [[ -n $keyboard_pid ]]; then
-        kill "$keyboard_pid" 2>/dev/null || true
-        wait "$keyboard_pid" 2>/dev/null || true
     fi
     if [[ -n $sway_pid ]]; then
         kill "$sway_pid" 2>/dev/null || true
@@ -54,16 +49,13 @@ for _ in {1..100}; do
     sleep 0.1
 done
 : "${SWAYSOCK:?The disposable compositor did not start}"
-# Give the otherwise input-less headless seat a persistent keyboard before GTK
-# discovers it. Individual wtype commands then exercise real Wayland key events.
-wtype -k Shift_L -s 120000 >> "$sway_log" 2>&1 &
-keyboard_pid=$!
-"$test_pointer" >> "$sway_log" 2>&1 &
+# Keep physical-like input devices and one fixed keymap throughout the test.
+export CENTAUR_GTK4_TEST_SEAT="$XDG_RUNTIME_DIR/centaur-test-seat.sock"
+"$test_seat" "$CENTAUR_GTK4_TEST_SEAT" >> "$sway_log" 2>&1 &
 pointer_pid=$!
 for _ in {1..100}; do
     inputs=$(swaymsg -t get_inputs -r)
     if [[ $inputs == *keyboard* && $inputs == *pointer* ]]; then break; fi
-    kill -0 "$keyboard_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
     kill -0 "$pointer_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
     sleep 0.1
 done
