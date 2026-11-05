@@ -22,17 +22,17 @@ The test opens no Centaur projects, collaboration identities or OMP credentials 
 
 ### Pinned candidate and known limitations
 
-The unchanged `flake.lock` supplies **Casilda 1.2.2**, GTK **4.22.4** and wlroots **0.20.2**. Its source is fixed by the existing Nix package's source hash. Use the actual runtime/metadata recorded by CI if that lock is intentionally updated later.
+The first candidate used the original lock's **Casilda 1.2.2**, GTK **4.22.4** and wlroots **0.20.2**. The newer evaluation below pins a separate package set; it does not upgrade the Qt/Landline inputs. Use the runtime versions recorded by the corresponding test, not the original baseline versions.
 
-Upstream's [1.6 release source and changelog](https://gitlab.gnome.org/jpu/casilda/-/blob/1.6.0/CHANGELOG.md) introduce host clipboard/drag-and-drop integration and popup/focus fixes. Its [build definition](https://gitlab.gnome.org/jpu/casilda/-/blob/1.6.0/meson.build) requires GTK 4.24, unavailable in the inspected current/pinned Nix package sets. Do not silently upgrade the Qt baseline, lower the upstream GTK requirement or claim 1.2.2 provides those fixes. Options after baseline evidence: package a compatible newer GTK/Casilda pair as an isolated dependency, backport carefully with tests, or evaluate another embedding backend.
+Upstream's [1.6 release source and changelog](https://gitlab.gnome.org/jpu/casilda/-/blob/1.6.0/CHANGELOG.md) introduce host clipboard/drag-and-drop integration and popup/focus fixes. Its [build definition](https://gitlab.gnome.org/jpu/casilda/-/blob/1.6.0/meson.build) requires GTK 4.24, unavailable in the initially inspected main/pinned Nix package sets. The newer evaluation below obtains a coherent newer stack through a separate input. Do not silently upgrade the Qt baseline, lower the upstream GTK requirement or claim 1.2.2 provides those fixes. Options after baseline evidence: package a compatible newer GTK/Casilda pair as an isolated dependency, backport carefully with tests, or evaluate another embedding backend.
 
 Casilda's inspected public API provides socket/client launching and GtkScrollable behaviour, not an app-dimension/zoom/window-management API. Its virtual output responds to widget allocation. Centaur must keep logical dimensions separate from presentation and validate transformed input and popups; adding a zoom dropdown alone is insufficient. A client can request transient or additional windows; main-window centring, popup extents, multi-window handling and clipping need explicit tests. A successful first render cannot approve the dependency.
 
 ### Automated evidence
 
-[GTK4 embedding experiment workflow](../.github/workflows/gtk4-embedding.yml) builds only the ARM64 experiment. The checker uses a disposable Xvfb display, with a real Wayland child inside Casilda. It requires the child's coloured marker in a screenshot of the host window; verifies separate PID/private display, click, keyboard/text, scrolling, popup, modal dialog, host/client focus, unchanged app dimensions on host resize, restart and child shutdown. It records both directions of clipboard transfer separately; a known clipboard failure does **not** become an approved capability or silently disappear from the report. `casilda_approved` remains false.
+[GTK4 embedding experiment workflow](../.github/workflows/gtk4-embedding.yml) builds only the ARM64 experiment. The current checker uses a disposable native Wayland/Sway display, with another Wayland child inside Casilda. Earlier baseline runs used Xvfb; the X11 driver remains for comparison. It requires the child's coloured marker in a screenshot of the host window; verifies separate PID/private display, click, keyboard/text, scrolling, popup, modal dialog, host/client focus, unchanged app dimensions on host resize, restart and child shutdown. It records both directions of clipboard transfer separately. The newer candidate requires both to pass; the initial baseline only recorded the known failure. `casilda_approved` remains false.
 
-Evidence artifacts contain `embedded.png`, host/client JSON and `summary.json`. Only a passing core check may publish this isolated test package to Cachix; publication verifies the full signed closure in an empty store with no builders. Publishing the experiment is not approving Casilda or claiming full Phase 1 acceptance. Local macOS checks establish Python/process isolation, workflow syntax and Nix evaluation, not GTK/Wayland rendering.
+Evidence artifacts contain `embedded.png`, host/client JSON and `summary.json`. Only passing rendering/interaction, clipboard and lifecycle checks may publish this isolated test package to Cachix; publication verifies the full signed closure in an empty store with no builders. Publishing the experiment is not approving Casilda or claiming full Phase 1 acceptance. Local macOS checks establish Python/process isolation, workflow syntax and Nix evaluation, not GTK/Wayland rendering.
 
 ### VM acceptance gate
 
@@ -46,7 +46,7 @@ Record the machine, source revision, GTK/Casilda versions, desktop scale and def
 4. Alternate typing in the host field and app field. Copy/paste host→app and app→host; record failures. Test external desktop clipboard separately in the actual Wayland session.
 5. Resize the host smaller/larger and check app dimensions, input, clipping and focus. This does not yet test preview zoom.
 6. Restart repeatedly, then close. Confirm no orphan or duplicate app process. Relaunch creates a fresh temporary environment. Check failed startup/child exit produces a recoverable status.
-7. Check keyboard layout/IME, display scaling, graphics resource use and multi-window behaviour on the VM. CI's X11-host/software-rendering result does not establish these Wayland desktop capabilities.
+7. Check keyboard layout/IME, display scaling, graphics resource use and multi-window behaviour on the VM. CI's headless/software-rendering result does not establish the VM's real desktop, input-method and GPU behaviour.
 
 **Gate:** document limitations and choose a suitable candidate/version before proceeding with full integration. Host clipboard support is a known unresolved requirement for the packaged candidate. If it blocks acceptance, improve or replace the backend rather than declaring Phase 1 complete.
 
@@ -57,6 +57,25 @@ Record the machine, source revision, GTK/Casilda versions, desktop scale and def
 **Rejected for adoption in this tested form:** clipboard transfer failed in both directions. At Restart app, the host aborted with wlroots' `surface_handle_resource_destroy` assertion that `surface->events.commit.listener_list` must be empty. The subsequently launched child could not initialise its display because the compositor had died. This is an observed Casilda/wlroots lifecycle failure, not established evidence that a newer version fixes it. The test correctly failed; no GTK test package was published. Screenshot/summary/host-state evidence is artifact `13382891642`. A later diagnostic change also retains pre-restart client state and requires a clean host exit.
 
 Do not ask the owner to install this failed candidate or replace the working Qt/Landline test. Phase 1 has demonstrated basic feasibility but **has not passed the suitability gate**. Next evaluate the lifecycle failure with upstream fixes/a compatible newer GTK–Casilda pair; rerun these checks and require both clipboard directions and clean restart/shutdown before adopting it. If these cannot be met, evaluate another embedding backend. Phase 2/3 integration remains gated on that outcome.
+
+## Newer candidate: native Wayland checks passed (5 November 2026)
+
+The newer candidate uses **Casilda 1.6.0 with two experimental Centaur patches** (package version `1.6.0-centaur2`), **GTK 4.24.0**, GLib **2.90.0** and Pango **1.58.2**. The GTK stack is isolated through the additional `gtk-nixpkgs` input at Nixpkgs `b0cafddb6da84ccdbe4debc8f2779c287bcff9a8` (staging-next snapshot). The original `nixpkgs` and Landline locked inputs were compared and are unchanged. No upstream version requirement is lowered.
+
+Casilda's upstream 1.6.0 archive is content-pinned with `sha256-1Iq0RKte56gg69MRlEhfu5aWc+Vl7HgopS7RGIrf59w=`. It is compiled against the matching GTK stack with explicit DRM/Pixman/X11 dependencies. The GTK stack is downloaded as precompiled dependencies; no Intel build is involved.
+
+The first newer build (`3ad9ebe`, run 41956442483) succeeded, then encountered a missing D-Bus test configuration. `f316a94` realises that configuration explicitly. Its X11-host follow-up rendered and exited cleanly but failed capitalisation: “Embedded input” arrived as “embedded input”. The uppercase requirement was retained.
+
+The disposable native Wayland driver uses Sway, grim and a small CI-only input-seat fixture. The fixture keeps one pointer, one keyboard and one fixed US keymap throughout the test, avoiding input-less headless seats and per-command virtual keymap changes. Host decorations are disabled only in CI to keep coordinate origins unambiguous; normal VM windows retain their decorations. This does not touch the user's desktop.
+
+Two patches remain local to this optional Casilda derivation:
+
+- [Initial keymap](../packaging/patches/casilda-initial-keymap.patch): load the existing host keyboard map before nested-client focus, rather than waiting for a future layout-change notification. This restored letters on the fixed-layout Wayland test seat.
+- [Ordered event state](../packaging/patches/casilda-key-event-state.patch): use the current key event's modifier snapshot and advance wlroots keyboard state in event order. Reading the device's latest global state could observe a later queued event and lose Shift/Control. This addresses the observed capitalisation and shortcut failure; it is not an upstream-approved patch.
+
+**Automated pass:** source **`a02d0b8751f7a779d73e5316555c1a102631efa6`**, [ARM64 run 41959595774](https://github.com/mattatgit/Centaur/actions/runs/41959595774). The native Wayland host and separate native Wayland app passed screenshot/pointer/keyboard/capitalisation/text, scrolling, popup action, modal dialog, host/client focus, unchanged app dimensions on host resize, **both clipboard directions**, three restarts with rendering/input afterwards, normal host exit (0), and child shutdown. I inspected the screenshot: the GTK4 app is visible centred inside the host without an extra preview frame. Evidence artifact: `13384398488` (`summary.json`, screenshot, host/client state and compositor log).
+
+The signed-cache publication is still being verified at this record's preparation time. Do not install until the full job succeeds. Casilda remains experimental and `casilda_approved` remains false pending VM acceptance. The X11 path has not been revalidated with the patched candidate; this pass establishes the native Wayland/software-rendering path. On the VM, check real pointer/keyboard, Shift selection, Caps/Num Lock, modifier chords, keyboard layouts/IME, fractional desktop scale, popups near edges, real clipboard transfers and graphics/lifecycle behaviour. No zoom controls or full product migration are implemented by this result.
 
 ## Phase 2: independent preview viewport
 
