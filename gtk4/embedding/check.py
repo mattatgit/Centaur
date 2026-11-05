@@ -166,6 +166,19 @@ def main():
             value = 'Zoom ' + str(index)
             driver.type(value)
             until(lambda: client()['text'] == value, 'Scaled keyboard focus failed at ' + mode)
+            driver.key('ctrl+a')
+            until(lambda: client().get('selection_length') == len(value), 'Scaled text selection failed at ' + mode)
+            # Exercise a continuous left-button drag inside the separate app.
+            # It must remain distinct from the canvas middle-button pan.
+            x,y,w,h = client()['targets']['slider']
+            view = host()['viewport']
+            start = 12 + (w-24)*client()['slider']/100
+            target = 80 if index % 2 == 0 else 20
+            end = 12 + (w-24)*target/100
+            driver.drag(window, round(cx+view['app_x']+(x+start)*view['scale']),
+                        round(cy+view['app_y']+(y+h/2)*view['scale']),
+                        round((end-start)*view['scale']), 0, button=1)
+            until(lambda: abs(client()['slider']-target) < 15, 'Scaled app drag failed at ' + mode)
             click_client('scroll')
             driver.scroll(up=True)
             until(lambda: client()['scroll'] == 0, 'Scaled scroll-to-top failed at ' + mode)

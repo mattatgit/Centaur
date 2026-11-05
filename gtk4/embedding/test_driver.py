@@ -79,18 +79,19 @@ class Driver:
         else:
             command('xdotool', 'click', '--repeat', str(repeat), '--delay', '40', '4' if up else '5')
 
-    def drag(self, window, x, y, dx, dy):
+    def drag(self, window, x, y, dx, dy, button=2):
         if self.wayland:
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
-            self.seat_command('middle press')
+            name = 'left' if button == 1 else 'middle'
+            self.seat_command(name + ' press')
             for step in range(1, 6):
                 self.seat_command(f'motion {dx/5} {dy/5}')
                 time.sleep(0.02)
-            self.seat_command('middle release')
+            self.seat_command(name + ' release')
         else:
-            command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'mousedown', '2',
-                    'mousemove', '--window', window, str(round(x+dx)), str(round(y+dy)), 'mouseup', '2')
+            command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'mousedown', str(button),
+                    'mousemove', '--window', window, str(round(x+dx)), str(round(y+dy)), 'mouseup', str(button))
 
     def screenshot(self, window, path):
         if self.wayland:

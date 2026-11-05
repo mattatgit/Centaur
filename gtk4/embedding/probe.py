@@ -54,6 +54,7 @@ class Probe(Gtk.Application):
         box.append(marker)
         box.append(Gtk.Label(label='A separate GTK4 app', xalign=0))
         entry = Gtk.Entry(placeholder_text='Type here to test focus and text input')
+        self.entry = entry
         entry.connect('changed', lambda e: self.on_text(e))
         box.append(entry)
         self.targets['entry'] = entry
@@ -74,6 +75,13 @@ class Probe(Gtk.Application):
         dialog_button.connect('clicked', self.open_dialog)
         box.append(dialog_button)
         self.targets['dialog'] = dialog_button
+        slider = Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1)
+        slider.set_draw_value(False)
+        slider.set_value(20)
+        slider.connect('value-changed', self.on_slider)
+        self.state['slider'] = 20
+        box.append(slider)
+        self.targets['slider'] = slider
         scroll = Gtk.ScrolledWindow(vexpand=True, min_content_height=100)
         rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         for number in range(1, 31):
@@ -86,6 +94,7 @@ class Probe(Gtk.Application):
         GLib.timeout_add(150, self.update)
 
     def update(self):
+        self.state['selection_length'] = abs(self.entry.get_position() - self.entry.get_property('selection-bound'))
         self.write()
         return GLib.SOURCE_CONTINUE
 
@@ -95,6 +104,10 @@ class Probe(Gtk.Application):
 
     def on_scroll(self, adjustment):
         self.state['scroll'] = adjustment.get_value()
+        self.write()
+
+    def on_slider(self, slider):
+        self.state['slider'] = slider.get_value()
         self.write()
 
     def wheel_event(self, controller, dx, dy):

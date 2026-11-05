@@ -116,9 +116,10 @@ int main(int argc, char **argv) {
                                                  wl_fixed_from_double(direction * 15.0), direction);
             zwlr_virtual_pointer_v1_frame(pointer);
             failed = wl_display_roundtrip(display) < 0;
-        } else if (!strcmp(request, "middle press") || !strcmp(request, "middle release")) {
-            zwlr_virtual_pointer_v1_button(pointer, timestamp(), BTN_MIDDLE,
-                !strcmp(request, "middle press") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
+        } else if (!strcmp(request, "middle press") || !strcmp(request, "middle release") ||
+                   !strcmp(request, "left press") || !strcmp(request, "left release")) {
+            zwlr_virtual_pointer_v1_button(pointer, timestamp(), !strncmp(request, "left", 4) ? BTN_LEFT : BTN_MIDDLE,
+                strstr(request, "press") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
             zwlr_virtual_pointer_v1_frame(pointer);
             failed = wl_display_roundtrip(display) < 0;
         } else if (!strncmp(request, "motion ", 7)) {
