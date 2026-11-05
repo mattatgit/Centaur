@@ -55,6 +55,10 @@ class PreviewViewport(Gtk.Widget):
 
     def drag_begin(self, gesture, x, y):
         geometry = self.describe()
+        if (self.model.app_width*geometry['scale'] <= self.get_width()-32+1e-6 and
+                self.model.app_height*geometry['scale'] <= self.get_height()-32+1e-6):
+            gesture.set_state(Gtk.EventSequenceState.DENIED)
+            return
         self.drag_origin = (geometry['pan_x'], geometry['pan_y'])
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
 

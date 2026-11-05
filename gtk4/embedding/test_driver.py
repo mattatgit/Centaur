@@ -73,6 +73,9 @@ class Driver:
         if self.wayland:
             for _ in range(repeat):
                 self.ipc('seat seat0 cursor press ' + button)
+                time.sleep(0.025)
+            # Let GTK finish the wheel batch before reversing direction.
+            time.sleep(0.2)
         else:
             command('xdotool', 'click', '--repeat', str(repeat), '--delay', '40', '4' if up else '5')
 

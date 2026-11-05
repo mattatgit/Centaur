@@ -16,6 +16,7 @@ class Probe(Gtk.Application):
         self.width, self.height = width, height
         self.report = Path(os.environ['CENTAUR_GTK4_PROBE_REPORT'])
         self.state = {'pid': os.getpid(), 'events': [], 'text': '', 'scroll': 0,
+                      'wheel_events': 0,
                       'backend': os.environ.get('GDK_BACKEND'),
                       'private_socket': bool(os.environ.get('WAYLAND_SOCKET')),
                       'desktop_display_removed': 'WAYLAND_DISPLAY' not in os.environ and 'DISPLAY' not in os.environ}
@@ -44,6 +45,10 @@ class Probe(Gtk.Application):
         for edge in ('top', 'bottom', 'start', 'end'):
             getattr(box, 'set_margin_' + edge)(24)
         self.window.set_child(box)
+        wheel = Gtk.EventControllerScroll.new(Gtk.EventControllerScrollFlags.BOTH_AXES)
+        wheel.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        wheel.connect('scroll', self.wheel_event)
+        self.window.add_controller(wheel)
         marker = Gtk.Box(height_request=16)
         marker.set_name('probe-marker')
         box.append(marker)
@@ -91,6 +96,12 @@ class Probe(Gtk.Application):
     def on_scroll(self, adjustment):
         self.state['scroll'] = adjustment.get_value()
         self.write()
+
+    def wheel_event(self, controller, dx, dy):
+        self.state['wheel_events'] += 1
+        self.state['last_wheel_delta'] = [dx,dy]
+        self.write()
+        return False
 
     def open_dialog(self, button):
         dialog = Gtk.Window(title='Embedded GTK4 dialog', transient_for=self.window,
