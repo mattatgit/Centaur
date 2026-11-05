@@ -50,6 +50,14 @@ Record the machine, source revision, GTK/Casilda versions, desktop scale and def
 
 **Gate:** document limitations and choose a suitable candidate/version before proceeding with full integration. Host clipboard support is a known unresolved requirement for the packaged candidate. If it blocks acceptance, improve or replace the backend rather than declaring Phase 1 complete.
 
+## First ARM64 result (5 November 2026)
+
+[Run 41955179810](https://github.com/mattatgit/Centaur/actions/runs/41955179810), source `704b5dd11e472a88dc843281aec81855922f9790`, built successfully and ran the native app in the disposable Linux display. I inspected the screenshot: the separate GTK4 app is visible centred inside the GTK4 host, with its entry/buttons/scrollable list, and no extra preview frame. The automated checker passed rendering/private display, pointer/keyboard/text, scrolling, popup action, modal dialog, host/client focus and host resizing without changing app dimensions.
+
+**Rejected for adoption in this tested form:** clipboard transfer failed in both directions. At Restart app, the host aborted with wlroots' `surface_handle_resource_destroy` assertion that `surface->events.commit.listener_list` must be empty. The subsequently launched child could not initialise its display because the compositor had died. This is an observed Casilda/wlroots lifecycle failure, not established evidence that a newer version fixes it. The test correctly failed; no GTK test package was published. Screenshot/summary/host-state evidence is artifact `13382891642`. A later diagnostic change also retains pre-restart client state and requires a clean host exit.
+
+Do not ask the owner to install this failed candidate or replace the working Qt/Landline test. Phase 1 has demonstrated basic feasibility but **has not passed the suitability gate**. Next evaluate the lifecycle failure with upstream fixes/a compatible newer GTK–Casilda pair; rerun these checks and require both clipboard directions and clean restart/shutdown before adopting it. If these cannot be met, evaluate another embedding backend. Phase 2/3 integration remains gated on that outcome.
+
 ## Phase 2: independent preview viewport
 
 The reusable viewport owns actual app dimensions, zoom, placement, clipping and pan offsets. The backend owns native surfaces, display/input delivery and lifecycle. Keep Casilda-specific objects out of application/project logic.

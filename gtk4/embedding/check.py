@@ -114,6 +114,7 @@ def main():
         click_client('button')
         summary['checks'].append('host-resize-preserves-app-dimensions')
         old_pid = child_pid
+        (folder / 'client-before-restart.json').write_text(json.dumps(client(), indent=2))
         click_box(host()['restart'])
         child_pid = until(lambda: client().get('pid') if client().get('pid') != old_pid else None, 'Restart did not create a new app')
         until(lambda: client().get('width', 0) > 120, 'Restarted client did not map')
@@ -128,6 +129,7 @@ def main():
     finally:
         process.send_signal(signal.SIGTERM)
         process.wait(timeout=5)
+        summary['host_exit_code'] = process.returncode
         if child_pid:
             try:
                 os.kill(child_pid, 0)
@@ -138,6 +140,7 @@ def main():
         (folder / 'summary.json').write_text(json.dumps(summary, indent=2))
         print(json.dumps(summary, indent=2), flush=True)
     assert summary.get('child_stopped_on_close'), 'Child remains after host shutdown'
+    assert summary['host_exit_code'] == 0, 'Host did not shut down normally'
 
 
 if __name__ == '__main__':
