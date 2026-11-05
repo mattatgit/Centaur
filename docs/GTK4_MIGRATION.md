@@ -113,7 +113,31 @@ Signed-cache publication also succeeded. Distribution artifact `13387338442` rec
 
 Six local tests passed (four viewport geometry tests plus two backend/lifecycle tests), along with Python compilation, workflow lint and shell checks. The test seat now sends correctly normalised Wayland wheel steps and real pointer motion during drags; Sway cursor warps did not produce drag-motion delivery. The app fixture includes a slider and reports native selection bounds so these checks exercise actual interaction.
 
-**VM follow-up required:** verify continuous centring during resize, each zoom, Fit, clipping, middle-button pan/Centre and interactions on the ARM64 UTM desktop, using the separate test profile and `GSK_RENDERER=cairo`. The previous `a02d0b8` VM pass does not establish this newer viewport's hands-on behaviour. Native CI uses one sample app and a disposable fixed-US-layout display; arbitrary generated apps, IME/other layouts, Num Lock, fractional desktop scaling, default/GPU rendering and native macOS embedding remain outside this result. Overlays/grid/agent context and the full GTK Centaur shell are not yet integrated.
+### Phase 2 ARM64 UTM VM hands-on acceptance (5 November 2026)
+
+Owner-reported **hands-on acceptance of the isolated viewport**, from **Centaur Install**, on **ARM64 NixOS (KDE) in UTM**. Tested the precompiled isolated `gtk4-embedding-test` at immutable source [`90dad3aa23ce341e4aa2bc1af1ace05272798ca9`](https://github.com/mattatgit/Centaur/commit/90dad3aa23ce341e4aa2bc1af1ace05272798ca9), using the separate test profile with **`GSK_RENDERER=cairo`**. These results are separate from the earlier `a02d0b8` baseline above.
+
+**Passed:**
+
+- At **100%**, the sample stays centred throughout host resizing, addressing the fixed-position issue observed in the earlier baseline.
+- **50%, 75%, 100%, 125% and 150%** zoom all preserve the sample's internal layout.
+- **Fit** responds to host resizing.
+- At **150%**, middle-button panning reveals clipped regions; **Centre** resets the position while keeping **150%** zoom.
+- At **150%**, buttons work, and the slider follows the pointer normally until dragged too far beyond an endpoint (see the issue below).
+- At **150%**, keyboard typing and **Ctrl+A** work; scrolling works.
+- At **150%**, the popup is correctly placed and its action can be selected.
+- At **150%**, the modal dialog appears; **Escape** dismisses it and its background shadow disappears completely.
+- At **150%**, clipboard transfer works in both directions: embedded app → host and host → embedded app.
+- **Restart app** retains **150%** zoom and the restarted app continues responding to input.
+- Clean shutdown: `pgrep -af 'centaur-gtk4-test|gtk4-sample'` produced **no output**.
+
+**Observed issue — slider drag disengages beyond an endpoint:** dragging the pointer too far beyond a slider endpoint disengages the drag. Returning toward the middle while keeping the mouse button held does not resume dragging. Reproduced at **both 150% and 100%**, so the observation is not confined to a zoomed viewport. The automated continuous-drag pass above does not establish this endpoint/return behaviour.
+
+**Visual observation:** the modal dialog's background shadow looks unusual. Dismissal and complete shadow removal passed; the appearance is recorded for visual review.
+
+**Not tested in this hands-on run:** panning specifically at **125%**, alternative keyboard layout/IME, Num Lock, fractional desktop scaling, default/GPU rendering, native macOS embedding or production migration. The 125% pan result above is automated evidence only. Native CI uses one sample app and a disposable fixed-US-layout display; arbitrary generated apps remain outside this result. Overlays/grid/agent context and the full GTK Centaur shell are not yet integrated.
+
+**Acceptance boundary:** this records the tested isolated viewport's hands-on behaviour, with the slider issue still open. It is **not full Centaur acceptance, approval of a Qt replacement or approval of Casilda for production**. Normal Qt Centaur, Landline and OMP were unchanged; no Air, production-package, credential or project changes were part of this acceptance. The earlier `a02d0b8` findings remain preserved separately.
 
 ## Phase 3: incremental Centaur integration
 
