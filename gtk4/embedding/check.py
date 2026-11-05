@@ -1,4 +1,4 @@
-"""Bounded Linux/Xvfb acceptance probe; never drives the user's desktop."""
+"""Bounded disposable Linux display probe; never drives the user's desktop."""
 import json
 import os
 from pathlib import Path
@@ -7,10 +7,7 @@ import subprocess
 import sys
 import time
 from PIL import Image
-
-
-def command(*args):
-    return subprocess.check_output(list(args), text=True).strip()
+from test_driver import Driver
 
 
 def read(path):
@@ -37,7 +34,8 @@ def main():
     folder.mkdir(parents=True, exist_ok=False)
     launcher = Path(sys.argv[0]).resolve().parent / 'centaur-gtk4-test'
     process = subprocess.Popen([str(launcher), '--report-dir', str(folder)])
-    summary = {'casilda_approved': False, 'checks': []}
+    driver = Driver()
+    summary = {'casilda_approved': False, 'checks': [], 'host_backend': 'wayland' if driver.wayland else 'x11'}
     child_pid = None
     try:
         host = lambda: read(folder / 'host.json')
@@ -47,14 +45,13 @@ def main():
         summary['runtime'] = host()['runtime']
         assert child_pid != host()['pid'], 'Probe is not a separate process'
         assert client()['backend'] == 'wayland' and client()['private_socket'] and client()['desktop_display_removed']
-        window = command('xdotool', 'search', '--onlyvisible', '--name', '^Centaur GTK4 embedding test$').splitlines()[0]
-        standalone = subprocess.run(['xdotool', 'search', '--name', '^Centaur separate GTK4 probe$'], stdout=subprocess.DEVNULL)
-        assert standalone.returncode == 1, 'Client escaped into a desktop X11 window'
+        window = driver.find_window()
+        assert not driver.standalone_exists(), 'Client escaped into a desktop window'
         initial_size = (client()['width'], client()['height'])
 
         def click_box(box):
             x, y, w, h = box
-            command('xdotool', 'mousemove', '--window', window, str(round(x + w / 2)), str(round(y + h / 2)), 'click', '1')
+            driver.click(window, round(x + w / 2), round(y + h / 2))
 
         def click_client(name):
             box = until(lambda: client().get('targets', {}).get(name), 'Missing target ' + name)
@@ -65,7 +62,7 @@ def main():
 
         screenshot = folder / 'embedded.png'
         def rendered():
-            command('magick', 'import', '-window', window, str(screenshot))
+            driver.screenshot(window, screenshot)
             with Image.open(screenshot) as source:
                 image = source.convert('RGB')
             return sum(1 for r, g, b in image.getdata() if abs(r-23) < 4 and abs(g-187) < 4 and abs(b-133) < 4) > 500
@@ -74,11 +71,11 @@ def main():
         click_client('button')
         until(lambda: 'click' in client().get('events', []), 'Pointer did not reach embedded button')
         click_client('entry')
-        command('xdotool', 'type', '--clearmodifiers', 'Embedded input')
+        driver.type('Embedded input')
         until(lambda: client().get('text') == 'Embedded input', 'Keyboard/text input did not reach client')
         summary['checks'].append('pointer-keyboard-text')
         click_client('scroll')
-        command('xdotool', 'click', '--repeat', '5', '--delay', '40', '5')
+        driver.scroll()
         until(lambda: client().get('scroll', 0) > 0, 'Scrolling did not reach client')
         summary['checks'].append('scroll')
         click_client('menu')
@@ -87,35 +84,35 @@ def main():
         summary['checks'].append('popup')
         click_client('dialog')
         until(lambda: 'dialog-opened' in client().get('events', []), 'Dialog did not open')
-        command('xdotool', 'key', '--clearmodifiers', 'Escape')
+        driver.key('Escape')
         until(lambda: 'dialog-closed' in client().get('events', []), 'Modal dialog focus/close failed')
         summary['checks'].append('modal-dialog')
         click_box(host()['entry'])
-        command('xdotool', 'type', '--clearmodifiers', 'Host focus')
+        driver.type('Host focus')
         until(lambda: host().get('host_text') == 'Host focus', 'Focus did not return to host')
         click_client('entry')
-        command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+c')
+        driver.key('ctrl+a', 'ctrl+c')
         time.sleep(0.2)
         click_box(host()['entry'])
-        command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+v')
+        driver.key('ctrl+a', 'ctrl+v')
         try:
             until(lambda: host().get('host_text') == 'Embedded input', 'Client to host clipboard failed', timeout=3)
             summary['clipboard_client_to_host'] = True
         except AssertionError:
             summary['clipboard_client_to_host'] = False
-        command('xdotool', 'key', '--clearmodifiers', 'ctrl+a')
-        command('xdotool', 'type', '--clearmodifiers', 'From host')
-        command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+c')
+        driver.key('ctrl+a')
+        driver.type('From host')
+        driver.key('ctrl+a', 'ctrl+c')
         time.sleep(0.2)
         click_client('entry')
-        command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+v')
+        driver.key('ctrl+a', 'ctrl+v')
         try:
             until(lambda: client().get('text') == 'From host', 'Host to client clipboard failed', timeout=3)
             summary['clipboard_host_to_client'] = True
         except AssertionError:
             summary['clipboard_host_to_client'] = False
         summary['checks'].append('host-client-focus')
-        command('xdotool', 'windowsize', window, '1000', '760')
+        driver.resize(window, 1000, 760)
         time.sleep(0.5)
         assert (client()['width'], client()['height']) == initial_size, 'Host resize changed app dimensions'
         click_client('button')

@@ -26,7 +26,8 @@ class Host(Gtk.Application):
     def do_activate(self):
         self.backend = CasildaBackend()
         self.window = Gtk.ApplicationWindow(application=self, title='Centaur GTK4 embedding test',
-                                            default_width=1100, default_height=800)
+                                            default_width=1100, default_height=800,
+                                            decorated=not bool(os.environ.get('CENTAUR_GTK4_TEST_UNDECORATED')))
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         toolbar = Gtk.Box(spacing=12, margin_top=12, margin_start=16, margin_end=16)
         toolbar.append(Gtk.Label(label='GTK4 embedding experiment', hexpand=True, xalign=0))
