@@ -153,7 +153,7 @@ def main():
             cx,cy,cw,ch = host()['canvas']
             pan = max(0, (initial_size[1]*view['scale']-ch)/2+16)
             if pan > 16:
-                driver.drag(window, round(cx+24), round(cy+ch/2), 0, round(pan))
+                driver.drag(window, round(cx+view['app_x']+8), round(cy+ch/2), 0, round(pan))
                 until(lambda: host()['viewport']['pan_y'] > 10, 'Middle-button panning did not move the preview')
             screenshot = folder / ('zoom-' + mode.replace('%','') + '.png')
             until(positioned, 'Composed app position is incorrect at ' + mode)

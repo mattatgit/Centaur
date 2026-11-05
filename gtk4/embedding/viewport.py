@@ -22,6 +22,11 @@ class PreviewViewport(Gtk.Widget):
         drag.connect('drag-update', self.drag_update)
         self.add_controller(drag)
         self.drag_origin = (0, 0)
+        self.drag_count = self.drag_updates = 0
+
+    def do_contains(self, x, y):
+        # Transparent canvas space is still a target for panning gestures.
+        return 0 <= x < self.get_width() and 0 <= y < self.get_height()
 
     def do_measure(self, orientation, for_size):
         return (100, 560 if orientation == Gtk.Orientation.HORIZONTAL else 640, -1, -1)
@@ -54,6 +59,7 @@ class PreviewViewport(Gtk.Widget):
         self.queue_allocate()
 
     def drag_begin(self, gesture, x, y):
+        self.drag_count += 1
         geometry = self.describe()
         if (self.model.app_width*geometry['scale'] <= self.get_width()-32+1e-6 and
                 self.model.app_height*geometry['scale'] <= self.get_height()-32+1e-6):
@@ -63,12 +69,15 @@ class PreviewViewport(Gtk.Widget):
         gesture.set_state(Gtk.EventSequenceState.CLAIMED)
 
     def drag_update(self, gesture, dx, dy):
+        self.drag_updates += 1
         self.model.pan_x = self.drag_origin[0] + dx
         self.model.pan_y = self.drag_origin[1] + dy
         self.queue_allocate()
 
     def describe(self):
-        return self.model.geometry(self.get_width(), self.get_height())
+        data = self.model.geometry(self.get_width(), self.get_height())
+        data.update(drag_count=self.drag_count, drag_updates=self.drag_updates)
+        return data
 
     def release(self):
         if self.child is not None:
