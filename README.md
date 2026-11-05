@@ -2,7 +2,7 @@
 
 A native workshop for families to build native apps together. One project is one Git repository and one app. A shared canvas and conversation are the workspace.
 
-**GTK4 migration:** this branch, `codex/gtk4-migration`, contains an isolated Phase 1 GTK4/Casilda experiment. The working Qt implementation is preserved on `codex/native-prototype`. Read [the migration plan and acceptance gates](docs/GTK4_MIGRATION.md); Casilda is not yet approved and the normal Centaur package remains Qt.
+**GTK4 migration:** this branch, `codex/gtk4-migration`, contains an isolated GTK4/Casilda embedding and canvas-scaling experiment. The working Qt implementation is preserved on `codex/native-prototype`. Read [the migration plan and acceptance gates](docs/GTK4_MIGRATION.md); Casilda is not yet approved for production and the normal Centaur package remains Qt.
 
 This is the first rough prototype. The interface is C++ / Qt Quick. On Linux, a nested Wayland compositor displays a **separate native app process** inside the canvas and forwards input to it.
 
