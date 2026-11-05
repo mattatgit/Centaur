@@ -31,7 +31,7 @@ class Bridge:
 def main():
     folder=Path(sys.argv[1]).resolve(); folder.mkdir(parents=True,exist_ok=False)
     executable=Path(sys.argv[0]).resolve().parent/'centaur-gtk4'
-    driver=Driver(); processes=[]; roots=[]; control=None; child_pids=[]
+    driver=Driver(); driver.ipc('output HEADLESS-1 mode 2560x1000'); processes=[]; roots=[]; control=None; child_pids=[]
     summary={'checks':[],'production_approved':False}
     reply_file=folder/'reply.json'
     agent=folder/'agent'
@@ -46,6 +46,7 @@ def main():
         until(lambda:state().get('targets',{}).get('create'), 'GTK shell did not map')
         window=driver.find_window('org.centaur.Gtk4',state()['pid']); driver.resize(window,1200,860)
         until(lambda:state().get('windowSize')==[1200,860], 'GTK did not report its resized allocation')
+        driver.ipc(f'[con_id={window}] move position {40 if name=="host" else 1280} px 60 px')
         return process,state,window
     def click(state,window,name):
         x,y,w,h=until(lambda:state().get('targets',{}).get(name),'Missing GTK control '+name)
