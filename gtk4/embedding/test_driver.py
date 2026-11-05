@@ -83,11 +83,11 @@ class Driver:
         if self.wayland:
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
-            self.ipc('seat seat0 cursor press button2')
+            self.seat_command('middle press')
             for step in range(1, 6):
-                self.ipc(f"seat seat0 cursor set {r['x'] + x + dx*step/5} {r['y'] + y + dy*step/5}")
+                self.seat_command(f'motion {dx/5} {dy/5}')
                 time.sleep(0.02)
-            self.ipc('seat seat0 cursor release button2')
+            self.seat_command('middle release')
         else:
             command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'mousedown', '2',
                     'mousemove', '--window', window, str(round(x+dx)), str(round(y+dy)), 'mouseup', '2')

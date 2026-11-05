@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <linux/input-event-codes.h>
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>
 #include "virtual-pointer-client-protocol.h"
@@ -115,6 +116,19 @@ int main(int argc, char **argv) {
                                                  wl_fixed_from_double(direction * 15.0), direction);
             zwlr_virtual_pointer_v1_frame(pointer);
             failed = wl_display_roundtrip(display) < 0;
+        } else if (!strcmp(request, "middle press") || !strcmp(request, "middle release")) {
+            zwlr_virtual_pointer_v1_button(pointer, timestamp(), BTN_MIDDLE,
+                !strcmp(request, "middle press") ? WL_POINTER_BUTTON_STATE_PRESSED : WL_POINTER_BUTTON_STATE_RELEASED);
+            zwlr_virtual_pointer_v1_frame(pointer);
+            failed = wl_display_roundtrip(display) < 0;
+        } else if (!strncmp(request, "motion ", 7)) {
+            double dx, dy;
+            if (sscanf(request + 7, "%lf %lf", &dx, &dy) != 2) failed = 1;
+            else {
+                zwlr_virtual_pointer_v1_motion(pointer, timestamp(), wl_fixed_from_double(dx), wl_fixed_from_double(dy));
+                zwlr_virtual_pointer_v1_frame(pointer);
+                failed = wl_display_roundtrip(display) < 0;
+            }
         } else failed = 1;
         if (write(client, failed ? "error" : "ok", failed ? 5 : 2) < 0) return 1;
         close(client);
