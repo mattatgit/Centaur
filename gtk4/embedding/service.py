@@ -52,4 +52,5 @@ class Service:
         except subprocess.TimeoutExpired:
             self.process.terminate()
             self.process.wait(timeout=2)
+        self.reader.join(timeout=1)
         self.process.stdout.close()

@@ -385,7 +385,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
         if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", QJsonArray{"qml", "gtk4-v1"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {

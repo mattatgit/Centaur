@@ -1,6 +1,6 @@
 { pkgs, buildId, services ? null }:
 let
-  python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pillow ]);
+  python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pycairo p.pillow ]);
   fonts = pkgs.runCommandNoCC "centaur-inter-fonts" { } ''
     mkdir -p "$out/share/fonts"
     cp -r ${../assets/fonts/inter} ${../assets/fonts/inter-tight} "$out/share/fonts/"
@@ -93,6 +93,6 @@ in pkgs.stdenvNoCC.mkDerivation {
   meta = {
     description = "Isolated experimental GTK4 host and separate native GTK4 app via Casilda";
     platforms = [ "aarch64-linux" ];
-    mainProgram = "centaur-gtk4-test";
+    mainProgram = if services == null then "centaur-gtk4-test" else "centaur-gtk4";
   };
 }

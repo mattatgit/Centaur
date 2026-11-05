@@ -43,7 +43,7 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint && shellcheck scripts/publish-binary-cache.sh scripts/check-gtk4-wayland.sh'
-      - name: Build GTK4 preview and run existing core, network, Iroh and Qt regressions
+      - name: Build GTK4 preview and run retained core, network and Iroh regressions
         run: nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
       - name: Native embedding, scaling, capture and two-profile GTK4 integration
         env:

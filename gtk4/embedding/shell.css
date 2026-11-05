@@ -10,8 +10,10 @@ button.danger { color: #ad3232; }
 button image { -gtk-icon-size: 20px; }
 .brand { margin: 8px 4px 28px; }
 .brand image { -gtk-icon-size: 48px; }
-.sidebar { background: #eef0eb; padding: 8px; }
-.navigation { min-height: 36px; }
+.sidebar { background: #f8f8f8; padding: 8px; }
+.navigation { min-height: 36px; color: #9ea39e; }
+.navigation:hover { color: #6b6b6b; background: transparent; }
+.navigation.selected { background: #f3f3f3; color: #171717; }
 .navigation image { -gtk-icon-size: 28px; }
 .topbar { min-height: 44px; }
 .heading { font-family: "Inter Tight"; font-size: 24px; font-weight: 600; }

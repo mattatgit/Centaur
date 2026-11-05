@@ -263,6 +263,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
             "Use explicit gi.require_version('Gtk','4.0') before Gtk imports. No external modules or file assets. "
             "The app runs in a separate process with the user's permissions, not a sandbox. "
             "You have no file/shell tools. Never access Centaur's credentials or other projects. ");
+        prompt.replace("Annotations use normalized canvas coordinates", "Annotations use normalized app coordinates");
         prompt.replace("CURRENT App.qml", "CURRENT GTK4 BUNDLE");
         prompt.replace("old QML", "old source");
     }

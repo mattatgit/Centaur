@@ -18,6 +18,7 @@ static void output(const QJsonObject &value) {
 
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    qputenv("CENTAUR_GTK_CLIENT", "1");
     app.setApplicationName("centaur-gtk4-bridge");
     Q_INIT_RESOURCE(starter);
     QCommandLineParser parser; parser.addHelpOption();

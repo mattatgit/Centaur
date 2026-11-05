@@ -34,23 +34,29 @@
         cargoLock.lockFile = ./networking/Cargo.lock;
         doCheck = true;
       };
-      package = pkgs: pkgs.stdenv.mkDerivation {
-        pname = "centaur";
+      package = pkgs: serviceOnly:
+        let
+          libs = if serviceOnly then (with pkgs.qt6; [ qtbase qtdeclarative qtsvg ]) else qtPackages pkgs;
+          imports = pkgs.lib.makeSearchPath "lib/qt-6/qml" libs;
+          plugins = pkgs.lib.makeSearchPath "lib/qt-6/plugins" libs;
+        in pkgs.stdenv.mkDerivation {
+        pname = if serviceOnly then "centaur-services" else "centaur";
         version = "0.3.1";
         src = self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
-        buildInputs = qtPackages pkgs;
+        buildInputs = libs;
         cmakeFlags = [ "-DBUILD_TESTING=ON"
           "-DCENTAUR_NETWORK_EXECUTABLE=${network pkgs}/bin/centaur-network"
-          "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ];
+          "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ]
+          ++ pkgs.lib.optional serviceOnly "-DCENTAUR_SERVICE_ONLY=ON";
         nativeCheckInputs = [ pkgs.git pkgs.openssl ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
         doCheck = true;
         preCheck = ''
           export QT_QPA_PLATFORM=offscreen
           export QT_QUICK_BACKEND=software
           export QT_FORCE_STDERR_LOGGING=1
-          export QML_IMPORT_PATH="${qmlPath pkgs}"
-          export QT_PLUGIN_PATH="${pluginPath pkgs}"
+          export QML_IMPORT_PATH="${imports}"
+          export QT_PLUGIN_PATH="${plugins}"
           export XDG_CACHE_HOME="$TMPDIR/centaur-cache"
           mkdir -p "$XDG_CACHE_HOME"
           export XDG_RUNTIME_DIR="$TMPDIR/centaur-runtime"
@@ -66,7 +72,7 @@
           if ctest --output-on-failure; then
             runHook postCheck
           else
-            ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
+            ${pkgs.lib.optionalString (pkgs.stdenv.hostPlatform.isLinux && !serviceOnly) ''
               gdb --batch -ex 'set pagination off' -ex 'set debuginfod enabled off' \
                 -ex run -ex 'thread apply all bt' --args ./centaur --embedding-smoke-test || true
             ''}
@@ -75,7 +81,7 @@
         '';
         # Application projects are real local Git repositories.
         qtWrapperArgs = [ "--prefix" "PATH" ":" (pkgs.lib.makeBinPath [ pkgs.git pkgs.openssl ])
-          "--prefix" "QML_IMPORT_PATH" ":" (qmlPath pkgs) ];
+          "--prefix" "QML_IMPORT_PATH" ":" imports ];
         meta = {
           description = "Native canvas and shared conversation for building native apps";
           mainProgram = "centaur";
@@ -87,7 +93,8 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           nativeMesa = landline.inputs.nixpkgs.legacyPackages.${system}.mesa;
-          centaur = package pkgs;
+          centaur = package pkgs false;
+          services = package pkgs true;
           testLauncher = pkgs.writeShellApplication {
             name = "centaur-landline-test";
             text = ''
@@ -118,7 +125,7 @@
           gtk4-preview = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";
-            services = centaur;
+            inherit services;
           };
           gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};

@@ -1,5 +1,6 @@
 """Native GTK4 Centaur frontend; service owns projects, identity and coordination."""
 import argparse
+import uuid
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ import gi
 
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
+gi.require_foreign('cairo')
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 from backend import AppSpec, CasildaBackend
 from bundle import load_bundle
@@ -46,13 +48,21 @@ def button(text, callback, icon=None, css=None):
     widget = Gtk.Button()
     row = box(spacing=8)
     if icon:
-        row.append(Gtk.Image.new_from_file(str(ASSETS / icon)))
+        image=Gtk.Image.new_from_file(str(ASSETS / icon)); image.set_pixel_size(20)
+        row.append(image); widget.centaur_image=image; widget.centaur_icon=icon
     if text:
         row.append(label(text))
     widget.set_child(row)
     widget.set_tooltip_text(text or 'Project options')
     if css:
         widget.add_css_class(css)
+    if icon in ('interact-grey.svg','comment-grey.svg'):
+        motion=Gtk.EventControllerMotion()
+        def icon_state(hover=False):
+            state='white' if widget.has_css_class('selected') else 'hover' if hover else 'grey'
+            widget.centaur_image.set_from_file(str(ASSETS / icon.replace('grey',state)))
+        motion.connect('enter',lambda c,x,y:icon_state(True)); motion.connect('leave',lambda c:icon_state(False))
+        widget.add_controller(motion); widget.centaur_icon_state=icon_state
     widget.connect('clicked', lambda b: callback())
     return widget
 
@@ -88,7 +98,7 @@ class Centaur(Gtk.Application):
         sidebar = margins(box(True, 8, 'sidebar'), 8)
         sidebar.set_size_request(180, -1)
         brand = button('', lambda:self.navigate('projects'), 'centaur.svg', 'brand')
-        brand.set_tooltip_text('Projects')
+        brand.set_tooltip_text('Projects'); brand.centaur_image.set_pixel_size(40)
         sidebar.append(brand)
         self.nav = {}
         for key, title, icon in [('projects','Projects','project-icon-default.svg'),('systems','Design Systems','ds-icon-default.svg'),('settings','Settings','settings-icon-default.svg')]:
@@ -198,8 +208,9 @@ class Centaur(Gtk.Application):
         canvas_panel.append(self.overlay)
         self.preview_label=label('','muted'); self.preview_label.set_halign(Gtk.Align.CENTER); canvas_panel.append(self.preview_label)
         self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER)
-        self.build_tools.append(button('Draw',lambda:self.set_tool('draw')))
-        self.build_tools.append(button('Comment',lambda:self.set_tool('comment'),'comment-grey.svg'))
+        self.tool_buttons={}
+        for tool,title,icon in [('draw','Draw',None),('comment','Comment','comment-grey.svg')]:
+            item=button(title,lambda t=tool:self.set_tool(t),icon); self.tool_buttons[tool]=item; self.build_tools.append(item)
         self.build_tools.append(button('Undo',lambda:self.service.send('undo')))
         canvas_panel.append(self.build_tools)
         self.panes.set_start_child(canvas_panel); self.panes.set_resize_start_child(True)
@@ -221,6 +232,7 @@ class Centaur(Gtk.Application):
         self.footer=label('','small muted'); chat.append(self.footer)
         self.panes.set_end_child(chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
         self.stack.add_named(self.panes,'workspace')
+        self.set_tool('draw')
 
     @staticmethod
     def clear(widget):
@@ -232,6 +244,7 @@ class Centaur(Gtk.Application):
         self.stack.set_visible_child_name(page)
         for key,item in self.nav.items():
             (item.add_css_class if key==page else item.remove_css_class)('selected')
+            item.centaur_image.set_from_file(str(ASSETS/item.centaur_icon.replace('default','selected' if key==page else 'default')))
         workspace=page=='workspace'
         self.modes.set_visible(workspace); self.invite_button.set_visible(workspace and not self.data.get('remote',False))
         self.breadcrumb_arrow.set_visible(workspace); self.breadcrumb.set_visible(workspace)
@@ -242,11 +255,15 @@ class Centaur(Gtk.Application):
         self.mode=mode
         for key,item in self.mode_buttons.items():
             (item.add_css_class if key==mode else item.remove_css_class)('selected')
+            item.centaur_icon_state()
         self.build_tools.set_visible(mode=='Build')
         self.ink.set_can_target(mode=='Build')
 
     def set_tool(self,tool):
         self.tool=tool
+        for key,item in self.tool_buttons.items():
+            (item.add_css_class if key==tool else item.remove_css_class)('selected')
+            if hasattr(item,'centaur_icon_state'): item.centaur_icon_state()
 
     def receive(self,data):
         if data.get('type')=='error':
@@ -338,7 +355,25 @@ class Centaur(Gtk.Application):
     def send(self):
         buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
         if text.strip() and self.data.get('connected'):
-            self.service.send('message',text=text)
+            fields={'text':text}
+            agent='@'+self.project.get('agentName','centaur').lower()
+            if agent in text.lower() and self.viewport:
+                try:
+                    # Capture only the canvas, including aligned annotations;
+                    # the conversation and other application windows stay out.
+                    paintable=Gtk.WidgetPaintable.new(self.overlay)
+                    snapshot=Gtk.Snapshot.new()
+                    paintable.snapshot(snapshot,self.overlay.get_width(),self.overlay.get_height())
+                    node=snapshot.to_node()
+                    texture=self.window.get_renderer().render_texture(node,None)
+                    target=Path(self.data['sourcePath']).parent/'.centaur'/('context-'+uuid.uuid4().hex+'.png')
+                    target.parent.mkdir(exist_ok=True)
+                    if not texture.save_to_png(str(target)): raise RuntimeError('PNG export failed')
+                    fields.update(image=str(target),imageRevision=self.project['revision'])
+                except Exception as error:
+                    self.error_label.set_text('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
+                    self.error_label.set_visible(True)
+            self.service.send('message',**fields)
 
     def editor_key(self,controller,keyval,keycode,state):
         if keyval in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state & Gdk.ModifierType.SHIFT_MASK:
