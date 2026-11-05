@@ -45,6 +45,7 @@ def main():
         state=lambda:read(report/'shell.json')
         until(lambda:state().get('targets',{}).get('create'), 'GTK shell did not map')
         window=driver.find_window('org.centaur.Gtk4',state()['pid']); driver.resize(window,1200,860)
+        until(lambda:state().get('windowSize')==[1200,860], 'GTK did not report its resized allocation')
         return process,state,window
     def click(state,window,name):
         x,y,w,h=until(lambda:state().get('targets',{}).get(name),'Missing GTK control '+name)
@@ -57,7 +58,8 @@ def main():
         reply_file.write_text(json.dumps({'kind':'proposal','message':'Update the native app','conflict':conflict,'gtk':bundle}))
     try:
         host,hs,hw=launch('host')
-        click(hs,hw,'create'); driver.type('Family test'); driver.key('Return')
+        click(hs,hw,'create'); until(lambda:hs().get('form')=='New project','New project form did not open')
+        driver.type('Family test'); driver.key('Return')
         until(lambda:(hs().get('child') or {}).get('ready'),'GTK project did not launch')
         project=hs()['project']; project_id=project['id']
         source=roots[0]/'projects'/project_id/'App.gtk.json'
@@ -79,7 +81,8 @@ def main():
         code=until(lambda:control.data.get('invitation'),'LAN invitation failed')
         control.close(); control=None
         guest,gs,gw=launch('guest')
-        click(gs,gw,'join'); driver.key('ctrl+a'); driver.type('Guest'); driver.key('Tab'); driver.type(code); driver.key('Return')
+        click(gs,gw,'join'); until(lambda:gs().get('form')=='Join project','Join form did not open')
+        driver.key('ctrl+a'); driver.type('Guest'); driver.key('Tab'); driver.type(code); driver.key('Return')
         until(lambda:(gs().get('child') or {}).get('ready'),'Guest did not join and embed the GTK app')
         assert gs()['status']=='Guest connected'
         message(gs,gw,'Hello from Guest')

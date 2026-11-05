@@ -200,6 +200,7 @@ def main():
             dialogs = client()['events'].count('dialog-closed')
             click_client('dialog')
             until(lambda: client()['events'].count('dialog-opened') > dialogs, 'Scaled dialog did not open')
+            if mode=='150%': driver.screenshot(window,folder/'modal-150.png')
             driver.key('Escape')
             until(lambda: client()['events'].count('dialog-closed') > dialogs, 'Scaled dialog focus failed')
             summary['checks'].append('zoom-input-popup-dialog-' + mode)

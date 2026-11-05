@@ -14,7 +14,8 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 gi.require_foreign('cairo')
-from gi.repository import Gdk, Gio, GLib, Gtk, Pango
+gi.require_version('Graphene','1.0')
+from gi.repository import Gdk, Gio, GLib, Graphene, Gtk, Pango
 from backend import AppSpec, CasildaBackend
 from bundle import load_bundle
 from service import Service
@@ -87,6 +88,7 @@ class Centaur(Gtk.Application):
         self.closing = False
         self.pending_message = None
         self.drafts = {}
+        self.active_form = None
         self.targets = {}
 
     def do_activate(self):
@@ -95,7 +97,7 @@ class Centaur(Gtk.Application):
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.window = Gtk.ApplicationWindow(application=self, title='Centaur', default_width=1400, default_height=940,
                                             decorated=not bool(os.environ.get('CENTAUR_GTK4_TEST_UNDECORATED')))
-        self.window.set_size_request(820, 600)
+        self.window.set_size_request(520, 440)
         root = box(spacing=0)
         sidebar = margins(box(True, 8, 'sidebar'), 8)
         sidebar.set_size_request(180, -1)
@@ -128,7 +130,7 @@ class Centaur(Gtk.Application):
         top.append(self.invite_button)
         top.append(button('Deploy', lambda:self.notice('Deploy', 'Deployment is planned for a later version.'), css='primary'))
         content.append(top)
-        self.stack = Gtk.Stack(hexpand=True,vexpand=True)
+        self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)
         content.append(self.stack)
         self.error_label = label('', 'error', True)
         margins(self.error_label, 12); self.error_label.set_visible(False)
@@ -193,7 +195,7 @@ class Centaur(Gtk.Application):
         canvas_panel = margins(box(True,8,'canvas-panel'),12)
         tools = box(spacing=8)
         spacer=box(); spacer.set_hexpand(True); tools.append(spacer)
-        tools.append(button('',self.grid_settings,'grid.svg'))
+        grid_button=button('',self.grid_settings,'grid.svg'); grid_button.set_tooltip_text('Canvas grid'); tools.append(grid_button)
         self.zoom = Gtk.DropDown.new_from_strings(ZOOM_MODES); self.zoom.set_selected(2)
         self.zoom.connect('notify::selected',lambda c,p:self.zoom_changed())
         tools.append(self.zoom); self.targets['zoom']=self.zoom
@@ -383,7 +385,9 @@ class Centaur(Gtk.Application):
                     # the conversation and other application windows stay out.
                     paintable=Gtk.WidgetPaintable.new(self.overlay)
                     snapshot=Gtk.Snapshot.new()
-                    paintable.snapshot(snapshot,self.overlay.get_width(),self.overlay.get_height())
+                    width,height=self.overlay.get_width(),self.overlay.get_height()
+                    snapshot.append_color(Gdk.RGBA(red=.94,green=.945,blue=.93,alpha=1),Graphene.Rect().init(0,0,width,height))
+                    paintable.snapshot(snapshot,width,height)
                     node=snapshot.to_node()
                     texture=self.window.get_renderer().render_texture(node,None)
                     target=Path(self.data['sourcePath']).parent/'.centaur'/('context-'+uuid.uuid4().hex+'.png')
@@ -404,6 +408,7 @@ class Centaur(Gtk.Application):
 
     def form(self,title,fields,submit,action='Save'):
         dialog=Gtk.Window(title=title,transient_for=self.window,modal=True,default_width=420)
+        self.active_form=dialog
         content=margins(box(True,12),24); entries={}
         for key,caption,value in fields:
             content.append(label(caption,'name')); entry=Gtk.Entry(text=value); entries[key]=entry; content.append(entry)
@@ -560,7 +565,8 @@ class Centaur(Gtk.Application):
             self.ink_geometry=geometry; self.ink.queue_draw()
         if self.reports:
             self.reports.mkdir(parents=True,exist_ok=True)
-            data={'pid':os.getpid(),'page':self.page,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
+            data={'pid':os.getpid(),'page':self.page,'windowSize':[self.window.get_width(),self.window.get_height()],
+                  'form':self.active_form.get_title() if self.active_form and self.active_form.get_visible() else None,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
