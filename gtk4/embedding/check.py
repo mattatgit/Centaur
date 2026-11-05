@@ -44,6 +44,7 @@ def main():
         client = lambda: read(folder / 'client.json')
         until(lambda: client().get('width', 0) > 120 and host().get('canvas'), 'Client did not map')
         child_pid = client()['pid']
+        summary['runtime'] = host()['runtime']
         assert child_pid != host()['pid'], 'Probe is not a separate process'
         assert client()['backend'] == 'wayland' and client()['private_socket'] and client()['desktop_display_removed']
         window = command('xdotool', 'search', '--onlyvisible', '--name', '^Centaur GTK4 embedding test$').splitlines()[0]
@@ -97,34 +98,45 @@ def main():
         time.sleep(0.2)
         click_box(host()['entry'])
         command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+v')
-        time.sleep(0.3)
-        summary['clipboard_client_to_host'] = host().get('host_text') == 'Embedded input'
+        try:
+            until(lambda: host().get('host_text') == 'Embedded input', 'Client to host clipboard failed', timeout=3)
+            summary['clipboard_client_to_host'] = True
+        except AssertionError:
+            summary['clipboard_client_to_host'] = False
         command('xdotool', 'key', '--clearmodifiers', 'ctrl+a')
         command('xdotool', 'type', '--clearmodifiers', 'From host')
         command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+c')
         time.sleep(0.2)
         click_client('entry')
         command('xdotool', 'key', '--clearmodifiers', 'ctrl+a', 'ctrl+v')
-        time.sleep(0.3)
-        summary['clipboard_host_to_client'] = client().get('text') == 'From host'
+        try:
+            until(lambda: client().get('text') == 'From host', 'Host to client clipboard failed', timeout=3)
+            summary['clipboard_host_to_client'] = True
+        except AssertionError:
+            summary['clipboard_host_to_client'] = False
         summary['checks'].append('host-client-focus')
         command('xdotool', 'windowsize', window, '1000', '760')
         time.sleep(0.5)
         assert (client()['width'], client()['height']) == initial_size, 'Host resize changed app dimensions'
         click_client('button')
         summary['checks'].append('host-resize-preserves-app-dimensions')
-        old_pid = child_pid
         (folder / 'client-before-restart.json').write_text(json.dumps(client(), indent=2))
-        click_box(host()['restart'])
-        child_pid = until(lambda: client().get('pid') if client().get('pid') != old_pid else None, 'Restart did not create a new app')
-        until(lambda: client().get('width', 0) > 120, 'Restarted client did not map')
-        try:
-            os.kill(old_pid, 0)
-        except ProcessLookupError:
-            pass
-        else:
-            raise AssertionError('Old child remains after restart')
-        summary['checks'].append('restart')
+        for attempt in range(3):
+            old_pid = child_pid
+            click_box(host()['restart'])
+            child_pid = until(lambda: client().get('pid') if client().get('pid') != old_pid else None, 'Restart did not create a new app')
+            until(lambda: client().get('width', 0) > 120, 'Restarted client did not map')
+            until(rendered, 'Restarted app did not render')
+            click_client('button')
+            until(lambda: 'click' in client().get('events', []), 'Restarted app did not receive input')
+            try:
+                os.kill(old_pid, 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise AssertionError('Old child remains after restart')
+            summary['checks'].append(f'restart-{attempt + 1}')
+        assert summary['clipboard_client_to_host'] and summary['clipboard_host_to_client'], 'Clipboard must work in both directions'
         summary['automated_core_passed'] = True
     finally:
         process.send_signal(signal.SIGTERM)

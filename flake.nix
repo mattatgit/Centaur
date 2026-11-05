@@ -2,7 +2,9 @@
   description = "Centaur — a native, collaborative app workshop";
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   inputs.landline.url = "github:mattatgit/landline/205fc1185335dc1c85b359af7673f6e5d7653222";
-  outputs = { self, nixpkgs, landline }:
+  # Coherent GTK 4.24 / GLib 2.90 stack for this experiment only.
+  inputs.gtk-nixpkgs.url = "github:NixOS/nixpkgs/b0cafddb6da84ccdbe4debc8f2779c287bcff9a8";
+  outputs = { self, nixpkgs, landline, gtk-nixpkgs }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       eachSystem = nixpkgs.lib.genAttrs systems;
@@ -114,7 +116,7 @@
           };
         } // pkgs.lib.optionalAttrs (system == "aarch64-linux") {
           gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {
-            inherit pkgs;
+            pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";
           };
         });

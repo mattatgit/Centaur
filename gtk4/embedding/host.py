@@ -73,6 +73,8 @@ class Host(Gtk.Application):
         entry_ok, entry = self.host_entry.compute_bounds(self.window)
         restart_ok, restart = self.restart_button.compute_bounds(self.window)
         data = {'pid': os.getpid(), 'child_pid': self.backend.process.pid if self.backend.process else None,
+                'runtime': {'gtk': '.'.join(str(part) for part in (Gtk.get_major_version(), Gtk.get_minor_version(), Gtk.get_micro_version())),
+                            'casilda': os.environ.get('CENTAUR_GTK4_CASILDA_VERSION', 'unknown')},
                 'host_text': self.host_entry.get_text(), 'failure': self.failure,
                 'canvas': [rect.get_x(), rect.get_y(), rect.get_width(), rect.get_height()] if ok else None,
                 'entry': [entry.get_x(), entry.get_y(), entry.get_width(), entry.get_height()] if entry_ok else None}

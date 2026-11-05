@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "gtk-nixpkgs": {
+      "locked": {
+        "lastModified": 1793837252,
+        "narHash": "sha256-6kmi2bateuRBakC116bL2WLEy+Kw6/vqAIMB9hBTJH8=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b0cafddb6da84ccdbe4debc8f2779c287bcff9a8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b0cafddb6da84ccdbe4debc8f2779c287bcff9a8",
+        "type": "github"
+      }
+    },
     "landline": {
       "inputs": {
         "nixpkgs": "nixpkgs",
@@ -54,6 +70,7 @@
     },
     "root": {
       "inputs": {
+        "gtk-nixpkgs": "gtk-nixpkgs",
         "landline": "landline",
         "nixpkgs": "nixpkgs_2"
       }
