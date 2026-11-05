@@ -29,9 +29,16 @@ if [ "$current_system" != "$system" ]; then
   echo "Expected native runner $system, got $current_system." >&2
   exit 1
 fi
-for executable in centaur centaur-host centaur-preview centaur-network centaur-update centaur-cache-setup; do
-  test -x "$output/bin/$executable"
-done
+if [[ $package_attribute == gtk4-embedding-test ]]; then
+  test -x "$output/bin/centaur-gtk4-test"
+  test -x "$output/bin/centaur-gtk4-check"
+  version_command=("$output/bin/centaur-gtk4-test")
+else
+  for executable in centaur centaur-host centaur-preview centaur-network centaur-update centaur-cache-setup; do
+    test -x "$output/bin/$executable"
+  done
+  version_command=("$output/bin/centaur")
+fi
 if [[ $package_attribute == landline-embedding-test ]]; then test -x "$output/bin/centaur-landline-test"; fi
 # Refuse a reused verification directory: its store must genuinely be empty.
 mkdir "$work_directory"
@@ -39,7 +46,7 @@ mkdir "$work_directory/metadata"
 metadata="$work_directory/metadata"
 cache_url="https://${CENTAUR_CACHIX_CACHE}.cachix.org"
 nix path-info --recursive "$output" | LC_ALL=C sort > "$metadata/closure-paths.txt"
-QT_QPA_PLATFORM=offscreen "$output/bin/centaur" --version > "$metadata/version.txt"
+QT_QPA_PLATFORM=offscreen "${version_command[@]}" --version > "$metadata/version.txt"
 curl --fail --silent --show-error --retry 3 \
   "https://app.cachix.org/api/v1/cache/$CENTAUR_CACHIX_CACHE" > "$metadata/cache.json"
 public_keys=$(python3 - "$metadata/cache.json" "$CENTAUR_CACHIX_CACHE" <<'PY'

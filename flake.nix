@@ -112,6 +112,11 @@
             '';
             meta.mainProgram = "centaur-landline-test";
           };
+        } // pkgs.lib.optionalAttrs (system == "aarch64-linux") {
+          gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {
+            inherit pkgs;
+            buildId = self.shortRev or self.dirtyShortRev or "dev";
+          };
         });
       devShells = eachSystem (system:
         let pkgs = nixpkgs.legacyPackages.${system}; in {
