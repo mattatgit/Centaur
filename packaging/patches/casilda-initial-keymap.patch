@@ -1,0 +1,15 @@
+--- a/src/casilda-compositor.c
++++ b/src/casilda-compositor.c
+@@ -2093,6 +2093,12 @@
+   /* layout-names and active-layout-index notification */
+   g_signal_connect_object (priv->gkeyboard, "notify", G_CALLBACK (on_gdk_keyboard_notify), priv->self, G_CONNECT_DEFAULT);
+ 
++  /* A layout notification is not guaranteed when the host keyboard already
++   * exists. Send the initial keymap before a nested client receives focus. */
++  struct xkb_keymap *keymap = _gdk_device_get_xkb_keymap (priv->gkeyboard);
++  wlr_keyboard_set_keymap (&priv->keyboard, keymap);
++  xkb_keymap_unref (keymap);
++
+   wlr_seat_set_keyboard (priv->seat, &priv->keyboard);
+ 
+   priv->key_controller = g_object_ref (gtk_event_controller_key_new ());

@@ -7,6 +7,7 @@ on:
       - 'gtk4/**'
       - 'packaging/gtk4-embedding-test.nix'
       - 'packaging/gtk4-test-seat.nix'
+      - 'packaging/patches/casilda-*.patch'
       - 'tests/test_gtk4_backend.py'
       - 'flake.nix'
       - 'flake.lock'
