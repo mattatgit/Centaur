@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
 # CI only: an isolated native Wayland session, never the user's desktop.
 set -euo pipefail
-[[ $# == 2 ]] || { echo 'Usage: check-gtk4-wayland.sh PACKAGE NEW_REPORT_DIRECTORY' >&2; exit 2; }
+[[ $# == 3 ]] || { echo 'Usage: check-gtk4-wayland.sh PACKAGE NEW_REPORT_DIRECTORY TEST_POINTER' >&2; exit 2; }
 package=$(realpath "$1")
 reports=$(realpath -m "$2")
+test_pointer=$(realpath "$3")
 : "${XDG_RUNTIME_DIR:?A private runtime directory is required}"
 config=$(mktemp)
 sway_log=$(mktemp)
 sway_pid=''
 keyboard_pid=''
+pointer_pid=''
 cleanup() {
+    if [[ -n $pointer_pid ]]; then
+        kill "$pointer_pid" 2>/dev/null || true
+        wait "$pointer_pid" 2>/dev/null || true
+    fi
     if [[ -n $keyboard_pid ]]; then
         kill "$keyboard_pid" 2>/dev/null || true
         wait "$keyboard_pid" 2>/dev/null || true
@@ -52,12 +58,15 @@ done
 # discovers it. Individual wtype commands then exercise real Wayland key events.
 wtype -k Shift_L -s 120000 >> "$sway_log" 2>&1 &
 keyboard_pid=$!
+"$test_pointer" >> "$sway_log" 2>&1 &
+pointer_pid=$!
 for _ in {1..100}; do
     inputs=$(swaymsg -t get_inputs -r)
-    if [[ $inputs == *keyboard* ]]; then break; fi
+    if [[ $inputs == *keyboard* && $inputs == *pointer* ]]; then break; fi
     kill -0 "$keyboard_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
+    kill -0 "$pointer_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
     sleep 0.1
 done
-[[ $inputs == *keyboard* ]] || { echo 'No test keyboard was attached.' >&2; exit 1; }
+[[ $inputs == *keyboard* && $inputs == *pointer* ]] || { echo 'Test input devices were not attached.' >&2; exit 1; }
 export GDK_BACKEND=wayland CENTAUR_GTK4_TEST_BACKEND=wayland CENTAUR_GTK4_TEST_UNDECORATED=1
 "$package/bin/centaur-gtk4-check" "$reports"

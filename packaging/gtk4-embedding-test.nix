@@ -43,6 +43,7 @@ in pkgs.stdenvNoCC.mkDerivation {
     inherit python;
     dbusConfig = "${pkgs.dbus}/share/dbus-1/session.conf";
     dbusForTests = pkgs.dbus;
+    waylandTestPointer = import ./gtk4-test-pointer.nix { inherit pkgs; };
     runtimeVersions = { gtk = pkgs.gtk4.version; casilda = casilda.version; glib = pkgs.glib.version; };
   };
   meta = {
