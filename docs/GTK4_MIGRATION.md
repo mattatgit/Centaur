@@ -77,6 +77,24 @@ Two patches remain local to this optional Casilda derivation:
 
 The full ARM64 job succeeded, including signed-cache publication and a download of all **303 runtime paths** into an empty store with normal signature verification and builders disabled. Distribution artifact `13384752639` records the exact installable `github:mattatgit/Centaur/a02d0b8751f7a779d73e5316555c1a102631efa6#gtk4-embedding-test` and package `/nix/store/86d89zzxxpapbyi1jp88zh2jvvgi82l7-centaur-gtk4-embedding-test-0.1.0`. Use a separate `centaur-gtk4-test` profile in Centaur Install. First launch with `GSK_RENDERER=cairo` to match the verified software-rendering path; assess the default renderer separately after that baseline works. Casilda remains experimental and `casilda_approved` remains false pending VM acceptance. The X11 path has not been revalidated with the patched candidate; this pass establishes the native Wayland/software-rendering path. On the VM, check real pointer/keyboard, Shift selection, Caps/Num Lock, modifier chords, keyboard layouts/IME, fractional desktop scale, popups near edges, real clipboard transfers and graphics/lifecycle behaviour. No zoom controls or full product migration are implemented by this result.
 
+## ARM64 UTM VM hands-on acceptance (5 November 2026)
+
+Owner-reported hands-on results from **Centaur Install**, on the **ARM64 NixOS VM in UTM**, using immutable source [`a02d0b8751f7a779d73e5316555c1a102631efa6`](https://github.com/mattatgit/Centaur/commit/a02d0b8751f7a779d73e5316555c1a102631efa6) with **`GSK_RENDERER=cairo`**. This is the minimal isolated GTK4/Casilda embedding experiment, not full-product acceptance.
+
+**Passed:**
+
+- Embedded GTK4 sample display; clicks/buttons, scrolling, popups and modal dialog.
+- Text input and focus; Shift+Arrow selection, Caps Lock and Ctrl+A.
+- Clipboard in both directions between embedded and host fields, and between the embedded app and a KDE editor.
+- Popup positioning near the window edge; host resize functionality and continued interaction.
+- Three repeated restarts; close/relaunch with fresh temporary data; clean process exit (`pgrep` produced no output).
+
+**Observed issue:** the sample app stays at a fixed position when the host window resizes instead of remaining centred. Resize functionality passed; centred placement remains unresolved.
+
+**Not tested:** alternative keyboard layout/IME, Num Lock and fractional scaling. These findings establish only the tested VM/software-rendering behaviour; they do not establish full Phase 1 coverage or approve Casilda for production. The default renderer was not assessed by this run.
+
+**Scope preserved:** Qt Centaur and other profiles, OMP, projects and credentials were not altered. No Air testing was performed.
+
 ## Phase 2: independent preview viewport
 
 The reusable viewport owns actual app dimensions, zoom, placement, clipping and pan offsets. The backend owns native surfaces, display/input delivery and lifecycle. Keep Casilda-specific objects out of application/project logic.
