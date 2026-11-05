@@ -11,6 +11,7 @@ in pkgs.stdenvNoCC.mkDerivation {
     runHook preInstall
     mkdir -p "$out/bin" "$out/share/centaur-gtk4-test"
     cp *.py "$out/share/centaur-gtk4-test/"
+    cp ${pkgs.casilda.src}/COPYING "$out/share/centaur-gtk4-test/Casilda-COPYING"
     for entry in test check; do
       module=host
       if [ "$entry" = check ]; then module=check; fi
@@ -28,7 +29,10 @@ in pkgs.stdenvNoCC.mkDerivation {
   preFixup = ''
     gappsWrapperArgs+=(--set CENTAUR_GTK4_BUILD_ID ${pkgs.lib.escapeShellArg buildId})
   '';
-  passthru = { inherit python; };
+  passthru = {
+    inherit python;
+    dbusConfig = "${pkgs.dbus}/share/dbus-1/session.conf";
+  };
   meta = {
     description = "Isolated experimental GTK4 host and separate native GTK4 app via Casilda";
     platforms = [ "aarch64-linux" ];

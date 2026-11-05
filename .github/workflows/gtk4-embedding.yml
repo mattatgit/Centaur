@@ -49,8 +49,9 @@ jobs:
         run: |
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/gtk4-runtime"
           mkdir -m 700 "$XDG_RUNTIME_DIR"
-          nix shell --inputs-from . nixpkgs#xorg.xorgserver nixpkgs#xorg.xauth nixpkgs#xdotool nixpkgs#imagemagick nixpkgs#dbus \
-            -c xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session -- \
+          dbus_config=$(nix eval --raw .#gtk4-embedding-test.dbusConfig)
+          nix shell --inputs-from . nixpkgs#xorg-server nixpkgs#xauth nixpkgs#xdotool nixpkgs#imagemagick nixpkgs#dbus \
+            -c xvfb-run -a -s '-screen 0 1280x900x24' dbus-run-session --config-file="$dbus_config" -- \
             timeout 90s result-gtk4/bin/centaur-gtk4-check "$RUNNER_TEMP/gtk4-evidence"
       - name: Save experiment evidence and limitations
         if: always()
