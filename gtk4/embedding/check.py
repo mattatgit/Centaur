@@ -29,7 +29,7 @@ def until(predicate, message, timeout=12):
 
 def main():
     if len(sys.argv) != 2:
-        raise SystemExit('Usage: centaur-gtk4-check NEW_REPORT_DIRECTORY (run under Xvfb)')
+        raise SystemExit('Usage: centaur-gtk4-check NEW_REPORT_DIRECTORY (disposable CI display only)')
     folder = Path(sys.argv[1]).resolve()
     folder.mkdir(parents=True, exist_ok=False)
     launcher = Path(sys.argv[0]).resolve().parent / 'centaur-gtk4-test'
@@ -56,17 +56,40 @@ def main():
         def click_client(name):
             box = until(lambda: client().get('targets', {}).get(name), 'Missing target ' + name)
             cx, cy, cw, ch = host()['canvas']
+            view = host()['viewport']
             x, y, w, h = box
-            click_box([cx + (cw - client()['width']) / 2 + x,
-                       cy + (ch - client()['height']) / 2 + y, w, h])
+            x, y = cx+view['app_x']+x*view['scale'], cy+view['app_y']+y*view['scale']
+            right, bottom = min(cx+cw, x+w*view['scale']), min(cy+ch, y+h*view['scale'])
+            x, y = max(cx,x), max(cy,y)
+            assert right > x and bottom > y, 'Target is outside the visible preview: ' + name
+            click_box([x,y,right-x,bottom-y])
 
         screenshot = folder / 'embedded.png'
+        last_marker = {}
         def rendered():
             driver.screenshot(window, screenshot)
             with Image.open(screenshot) as source:
                 image = source.convert('RGB')
-            return sum(1 for r, g, b in image.getdata() if abs(r-23) < 4 and abs(g-187) < 4 and abs(b-133) < 4) > 500
+            points = [(i % image.width, i // image.width) for i,(r,g,b) in enumerate(image.getdata())
+                      if abs(r-23) < 4 and abs(g-187) < 4 and abs(b-133) < 4]
+            if len(points) <= 500:
+                return False
+            last_marker['x'] = min(x for x,y in points)
+            last_marker['y'] = min(y for x,y in points)
+            return True
+
+        def positioned():
+            if not rendered():
+                return False
+            cx,cy,cw,ch = host()['canvas']
+            view = host()['viewport']
+            # Check actual composition, rather than trusting the model/report:
+            # the sample's green marker starts at app-local (24,24).
+            return (abs(last_marker['x'] - (cx+view['app_x']+24*view['scale'])) < 3 and
+                    abs(last_marker['y'] - (cy+view['app_y']+24*view['scale'])) < 3)
         until(rendered, 'Client marker was not rendered in the host screenshot')
+        assert host()['viewport']['mode'] == '100%' and host()['viewport']['scale'] == 1
+        until(positioned, 'The initial app presentation was not centred at 100%')
         summary['checks'].append('separate-process-private-wayland-render')
         click_client('button')
         until(lambda: 'click' in client().get('events', []), 'Pointer did not reach embedded button')
@@ -115,8 +138,54 @@ def main():
         driver.resize(window, 1000, 760)
         time.sleep(0.5)
         assert (client()['width'], client()['height']) == initial_size, 'Host resize changed app dimensions'
+        until(positioned, 'Resizing the host did not recenter the actual app image')
         click_client('button')
-        summary['checks'].append('host-resize-preserves-app-dimensions')
+        summary['checks'].append('host-resize-recentres-and-preserves-app-dimensions')
+
+        zoom_modes = ('50%', '75%', '100%', '125%', '150%', 'Fit')
+        for index, mode in enumerate(zoom_modes):
+            click_box(host()['zoom'])
+            driver.key('Home', *(['Down']*index), 'Return')
+            until(lambda: host()['viewport']['mode'] == mode, 'Zoom control did not select ' + mode)
+            click_box(host()['centre'])
+            until(lambda: abs(host()['viewport']['pan_y']) < 1, 'Centre did not reset panning')
+            view = host()['viewport']
+            cx,cy,cw,ch = host()['canvas']
+            pan = max(0, (initial_size[1]*view['scale']-ch)/2+16)
+            if pan > 16:
+                driver.drag(window, round(cx+24), round(cy+ch/2), 0, round(pan))
+                until(lambda: host()['viewport']['pan_y'] > 10, 'Middle-button panning did not move the preview')
+            screenshot = folder / ('zoom-' + mode.replace('%','') + '.png')
+            until(positioned, 'Composed app position is incorrect at ' + mode)
+            assert (client()['width'],client()['height']) == initial_size, 'Zoom changed app logical dimensions'
+            count = client()['events'].count('click')
+            click_client('button')
+            until(lambda: client()['events'].count('click') > count, 'Scaled pointer missed at ' + mode)
+            click_client('entry')
+            driver.key('ctrl+a')
+            value = 'Zoom ' + str(index)
+            driver.type(value)
+            until(lambda: client()['text'] == value, 'Scaled keyboard focus failed at ' + mode)
+            click_client('scroll')
+            driver.scroll(up=True)
+            until(lambda: client()['scroll'] == 0, 'Scaled scroll-to-top failed at ' + mode)
+            driver.scroll()
+            until(lambda: client()['scroll'] > 0, 'Scaled scroll failed at ' + mode)
+            popups = client()['events'].count('popup')
+            click_client('menu')
+            click_client('popup_action')
+            until(lambda: client()['events'].count('popup') > popups, 'Scaled popup missed at ' + mode)
+            dialogs = client()['events'].count('dialog-closed')
+            click_client('dialog')
+            until(lambda: client()['events'].count('dialog-opened') > dialogs, 'Scaled dialog did not open')
+            driver.key('Escape')
+            until(lambda: client()['events'].count('dialog-closed') > dialogs, 'Scaled dialog focus failed')
+            summary['checks'].append('zoom-input-popup-dialog-' + mode)
+        driver.resize(window, 1100, 800)
+        until(positioned, 'Fit did not recenter after host resizing')
+        view = host()['viewport']
+        assert view['app_x'] >= 15 and view['app_y'] >= 15, 'Fit clipped the app'
+        summary['checks'].append('fit-updates-on-resize')
         (folder / 'client-before-restart.json').write_text(json.dumps(client(), indent=2))
         for attempt in range(3):
             old_pid = child_pid

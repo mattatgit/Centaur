@@ -9,6 +9,7 @@ on:
       - 'packaging/gtk4-test-seat.nix'
       - 'packaging/patches/casilda-*.patch'
       - 'tests/test_gtk4_backend.py'
+      - 'tests/test_gtk4_viewport.py'
       - 'flake.nix'
       - 'flake.lock'
       - 'scripts/publish-binary-cache.sh'
@@ -25,7 +26,7 @@ concurrency:
 
 jobs:
   probe:
-    name: GTK4 Phase 1 ARM64
+    name: GTK4 viewport ARM64
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
@@ -39,7 +40,7 @@ jobs:
       - name: Check Python, process isolation and workflow
         run: |
           python3 -m py_compile gtk4/embedding/*.py
-          python3 -m unittest discover -s tests -p test_gtk4_backend.py
+          python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint .github/workflows/gtk4-embedding.yml .github/workflows/native.yml && shellcheck scripts/publish-binary-cache.sh scripts/check-gtk4-wayland.sh'
       - name: Build isolated GTK4 experiment only
@@ -59,7 +60,7 @@ jobs:
           dbus_config=$(nix eval --raw .#gtk4-embedding-test.dbusConfig)
           nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus \
             -c dbus-run-session --config-file="$dbus_config" -- \
-            timeout 90s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-evidence" result-test-seat/bin/centaur-test-seat
+            timeout 180s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-evidence" result-test-seat/bin/centaur-test-seat
       - name: Save experiment evidence and limitations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

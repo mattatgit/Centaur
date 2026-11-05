@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import socket
+import time
 
 
 def command(*args):
@@ -67,12 +68,26 @@ class Driver:
             connection.shutdown(socket.SHUT_WR)
             assert connection.recv(16) == b'ok', 'The fixed-keymap test keyboard rejected a request'
 
-    def scroll(self):
+    def scroll(self, up=False):
+        button, repeat = ('button4',20) if up else ('button5',5)
         if self.wayland:
-            for _ in range(5):
-                self.ipc('seat seat0 cursor press button5')
+            for _ in range(repeat):
+                self.ipc('seat seat0 cursor press ' + button)
         else:
-            command('xdotool', 'click', '--repeat', '5', '--delay', '40', '5')
+            command('xdotool', 'click', '--repeat', str(repeat), '--delay', '40', '4' if up else '5')
+
+    def drag(self, window, x, y, dx, dy):
+        if self.wayland:
+            r = self.rect(window)
+            self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
+            self.ipc('seat seat0 cursor press button2')
+            for step in range(1, 6):
+                self.ipc(f"seat seat0 cursor set {r['x'] + x + dx*step/5} {r['y'] + y + dy*step/5}")
+                time.sleep(0.02)
+            self.ipc('seat seat0 cursor release button2')
+        else:
+            command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'mousedown', '2',
+                    'mousemove', '--window', window, str(round(x+dx)), str(round(y+dy)), 'mouseup', '2')
 
     def screenshot(self, window, path):
         if self.wayland:

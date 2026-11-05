@@ -1,4 +1,4 @@
-"""Phase 1 only: GTK4 host and separately running GTK4 interaction probe."""
+"""Experimental GTK4 preview viewport and separate native interaction probe."""
 import argparse
 import json
 import os
@@ -12,6 +12,8 @@ gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, Gio, GLib, Gtk
 from backend import AppSpec, CasildaBackend
+from viewport import PreviewViewport
+from viewport_model import ZOOM_MODES
 
 
 class Host(Gtk.Application):
@@ -22,6 +24,7 @@ class Host(Gtk.Application):
         self.report_dir.mkdir(parents=True, exist_ok=True)
         self.backend = None
         self.failure = False
+        self.spec = AppSpec((sys.executable, str(Path(__file__).with_name('probe.py'))))
 
     def do_activate(self):
         self.backend = CasildaBackend()
@@ -31,14 +34,21 @@ class Host(Gtk.Application):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         toolbar = Gtk.Box(spacing=12, margin_top=12, margin_start=16, margin_end=16)
         toolbar.append(Gtk.Label(label='GTK4 embedding experiment', hexpand=True, xalign=0))
+        self.zoom = Gtk.DropDown.new_from_strings(ZOOM_MODES)
+        self.zoom.set_selected(2)
+        self.zoom.set_tooltip_text('Canvas zoom; app dimensions stay fixed. Middle-drag to pan oversized previews.')
+        self.zoom.connect('notify::selected', lambda control, prop: self.canvas.set_zoom(ZOOM_MODES[control.get_selected()]))
+        toolbar.append(self.zoom)
+        centre = Gtk.Button(label='Centre')
+        centre.connect('clicked', lambda b: self.canvas.centre())
+        toolbar.append(centre)
+        self.centre_button = centre
         restart = Gtk.Button(label='Restart app')
         restart.connect('clicked', lambda b: self.restart())
         self.restart_button = restart
         toolbar.append(restart)
         root.append(toolbar)
-        self.canvas = self.backend.widget
-        self.canvas.set_hexpand(True)
-        self.canvas.set_vexpand(True)
+        self.canvas = PreviewViewport(self.backend.widget, self.spec.width, self.spec.height)
         root.append(self.canvas)
         self.host_entry = Gtk.Entry(placeholder_text='Host text field — test focus and clipboard across the app boundary',
                                     margin_start=16, margin_end=16)
@@ -54,8 +64,7 @@ class Host(Gtk.Application):
 
     def start(self):
         try:
-            spec = AppSpec((sys.executable, str(Path(__file__).with_name('probe.py'))))
-            self.backend.start(spec, Path(self.runtime.name), self.report_dir / 'client.json')
+            self.backend.start(self.spec, Path(self.runtime.name), self.report_dir / 'client.json')
             self.failure = False
             self.status.set_text('App launched · interaction checks required · Casilda remains experimental')
         except Exception as error:
@@ -80,6 +89,10 @@ class Host(Gtk.Application):
                 'canvas': [rect.get_x(), rect.get_y(), rect.get_width(), rect.get_height()] if ok else None,
                 'entry': [entry.get_x(), entry.get_y(), entry.get_width(), entry.get_height()] if entry_ok else None}
         data['restart'] = [restart.get_x(), restart.get_y(), restart.get_width(), restart.get_height()] if restart_ok else None
+        data['viewport'] = self.canvas.describe()
+        for name, widget in (('zoom', self.zoom), ('centre', self.centre_button)):
+            valid, bounds = widget.compute_bounds(self.window)
+            data[name] = [bounds.get_x(), bounds.get_y(), bounds.get_width(), bounds.get_height()] if valid else None
         temporary = self.report_dir / 'host.tmp'
         temporary.write_text(json.dumps(data, indent=2))
         temporary.replace(self.report_dir / 'host.json')
@@ -98,6 +111,8 @@ class Host(Gtk.Application):
     def do_shutdown(self):
         if self.backend:
             self.backend.stop()
+        if hasattr(self, 'canvas'):
+            self.canvas.release()
         self.runtime.cleanup()
         Gtk.Application.do_shutdown(self)
 
