@@ -21,9 +21,9 @@ class Driver:
                 yield from walk(child)
         return list(walk(json.loads(command('swaymsg', '-t', 'get_tree', '-r'))))
 
-    def find_window(self):
+    def find_window(self, app_id='org.centaur.Gtk4EmbeddingTest', pid=None):
         if self.wayland:
-            return next(n['id'] for n in self.nodes() if n.get('app_id') == 'org.centaur.Gtk4EmbeddingTest')
+            return next(n['id'] for n in self.nodes() if n.get('app_id') == app_id and (pid is None or n.get('pid') == pid))
         return command('xdotool', 'search', '--onlyvisible', '--name', '^Centaur GTK4 embedding test$').splitlines()[0]
 
     def standalone_exists(self):
@@ -80,18 +80,26 @@ class Driver:
             command('xdotool', 'click', '--repeat', str(repeat), '--delay', '40', '4' if up else '5')
 
     def drag(self, window, x, y, dx, dy, button=2):
+        self.drag_path(window,x,y,[(dx,dy)],button)
+
+    def drag_path(self, window, x, y, moves, button=1):
         if self.wayland:
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
             name = 'left' if button == 1 else 'middle'
             self.seat_command(name + ' press')
-            for step in range(1, 6):
-                self.seat_command(f'motion {dx/5} {dy/5}')
-                time.sleep(0.02)
+            previous_x = previous_y = 0
+            for dx,dy in moves:
+                for step in range(5):
+                    self.seat_command(f'motion {(dx-previous_x)/5} {(dy-previous_y)/5}')
+                    time.sleep(0.02)
+                previous_x,previous_y = dx,dy
             self.seat_command(name + ' release')
         else:
-            command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'mousedown', str(button),
-                    'mousemove', '--window', window, str(round(x+dx)), str(round(y+dy)), 'mouseup', str(button))
+            command('xdotool','mousemove','--window',window,str(x),str(y),'mousedown',str(button))
+            for dx,dy in moves:
+                command('xdotool','mousemove','--window',window,str(round(x+dx)),str(round(y+dy)))
+            command('xdotool','mouseup',str(button))
 
     def screenshot(self, window, path):
         if self.wayland:

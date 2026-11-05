@@ -30,6 +30,7 @@ seat seat0 fallback true
 default_border none
 focus_follows_mouse no
 for_window [app_id="org.centaur.Gtk4EmbeddingTest"] floating enable, border none
+for_window [app_id="org.centaur.Gtk4"] floating enable, border none
 CONF
 unset DISPLAY WAYLAND_DISPLAY SWAYSOCK
 export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
@@ -61,4 +62,9 @@ for _ in {1..100}; do
 done
 [[ $inputs == *keyboard* && $inputs == *pointer* ]] || { echo 'Test input devices were not attached.' >&2; exit 1; }
 export GDK_BACKEND=wayland CENTAUR_GTK4_TEST_BACKEND=wayland CENTAUR_GTK4_TEST_UNDECORATED=1
-"$package/bin/centaur-gtk4-check" "$reports"
+if [[ ${CENTAUR_GTK4_PRODUCT:-0} == 1 ]]; then
+    "$package/bin/centaur-gtk4-check" "$reports/embedding"
+    "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
+else
+    "$package/bin/centaur-gtk4-check" "$reports"
+fi

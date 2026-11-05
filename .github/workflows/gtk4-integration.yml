@@ -1,0 +1,86 @@
+name: GTK4 Centaur integration
+
+on:
+  push:
+    branches: [codex/gtk4-migration]
+    paths:
+      - 'src/**'
+      - 'gtk4/**'
+      - 'templates/**'
+      - 'tests/**'
+      - 'packaging/gtk4-*.nix'
+      - 'packaging/patches/casilda-*.patch'
+      - 'scripts/check-gtk4-wayland.sh'
+      - 'scripts/publish-binary-cache.sh'
+      - 'CMakeLists.txt'
+      - 'flake.*'
+      - '.github/workflows/gtk4-integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gtk4-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    name: GTK4 product and preserved service regressions ARM64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866
+        if: vars.CENTAUR_CACHIX_CACHE != ''
+        with:
+          name: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          skipPush: true
+      - name: Check Python, bundle contract and workflow
+        run: |
+          python3 -m py_compile gtk4/embedding/*.py
+          python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
+          nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
+            'actionlint && shellcheck scripts/publish-binary-cache.sh scripts/check-gtk4-wayland.sh'
+      - name: Build GTK4 preview and run existing core, network, Iroh and Qt regressions
+        run: nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
+      - name: Native embedding, scaling, capture and two-profile GTK4 integration
+        env:
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          CENTAUR_GTK4_PRODUCT: '1'
+        run: |
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/gtk4-runtime"
+          mkdir -m 700 "$XDG_RUNTIME_DIR"
+          nix build --no-link .#gtk4-preview.dbusForTests
+          nix build .#gtk4-preview.waylandTestSeat -o result-test-seat
+          dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
+          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
+            -c dbus-run-session --config-file="$dbus_config" -- \
+            timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
+      - name: Save native screenshots, reports and limitations
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gtk4-integration-aarch64-linux
+          path: ${{ runner.temp }}/gtk4-integration-evidence/
+          if-no-files-found: ignore
+      - name: Publish GTK4 development preview after successful checks
+        if: >-
+          success() && github.repository == 'mattatgit/Centaur' &&
+          github.ref == 'refs/heads/codex/gtk4-migration' &&
+          vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CENTAUR_PACKAGE_ATTRIBUTE: gtk4-preview
+        run: bash scripts/publish-binary-cache.sh result-gtk4 "$RUNNER_TEMP/gtk4-distribution" aarch64-linux "$GITHUB_SHA"
+      - name: Save signed-cache metadata
+        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gtk4-product-distribution-aarch64-linux
+          path: ${{ runner.temp }}/gtk4-distribution/metadata/
+          if-no-files-found: error

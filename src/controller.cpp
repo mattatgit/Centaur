@@ -207,6 +207,9 @@ bool Controller::route(const QString &id, QJsonObject data) {
 void Controller::createProject(const QString &name, const QString &description) {
     m_session.send({{"type", "create"}, {"name", name}, {"description", description}});
 }
+void Controller::createGtkProject(const QString &name, const QString &description) {
+    m_session.send({{"type", "create"}, {"name", name}, {"description", description}, {"appFormat", "gtk4-v1"}});
+}
 void Controller::openProject(const QString &id) {
     if (!m_states.contains(id)) return;
     if (m_projectId != id) { stopPreview(); m_invitationCode.clear(); }
@@ -234,6 +237,7 @@ void Controller::renameAgent(const QString &name) { command({{"type", "agentName
 void Controller::cancelAgent() { command({{"type", "cancel"}}); }
 
 void Controller::startPreview() {
+    if (project().value("appFormat").toString() == "gtk4-v1") { m_previewStatus = "Open this GTK4 project in Centaur GTK4."; emit previewChanged(); return; }
     if (!embeddingSupported() || m_projectId.isEmpty() || m_stopping
         || m_preview.state() != QProcess::NotRunning) return;
     auto env = QProcessEnvironment::systemEnvironment();

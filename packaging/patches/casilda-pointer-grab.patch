@@ -1,0 +1,47 @@
+--- a/src/casilda-compositor.c
++++ b/src/casilda-compositor.c
+@@ -1264,12 +1264,16 @@
+ casilda_compositor_handle_pointer_motion (CasildaCompositorPrivate *priv, gdouble x, gdouble y)
+ {
+   gint x_offset, y_offset;
++  double previous_x = priv->pointer_x, previous_y = priv->pointer_y;
+ 
+   casilda_compositor_get_scroll_offset (priv, &x_offset, &y_offset);
+ 
+   /* Clamp pointer to widget coordinates */
+-  x = CLAMP (x, 0, gtk_widget_get_width (priv->self));
+-  y = CLAMP (y, 0, gtk_widget_get_height (priv->self));
++  if (priv->seat->pointer_state.button_count == 0)
++    {
++      x = CLAMP (x, 0, gtk_widget_get_width (priv->self));
++      y = CLAMP (y, 0, gtk_widget_get_height (priv->self));
++    }
+ 
+   /* Add scrollable offset */
+   priv->pointer_x = x + x_offset;
+@@ -1302,6 +1306,15 @@
+   else if (priv->pointer_mode == CASILDA_POINTER_MODE_RESIZE)
+     {
+       casilda_compositor_handle_pointer_resize_toplevel (priv);
++    }
++  else if (priv->seat->pointer_state.button_count > 0 && priv->seat->pointer_state.focused_surface)
++    {
++      /* Preserve the implicit grab until release, including outside the
++       * original surface. Re-picking or clearing focus cancels client drags. */
++      uint32_t time = gtk_event_controller_get_current_event_time (priv->motion_controller);
++      wlr_seat_pointer_notify_motion (priv->seat, time,
++          priv->seat->pointer_state.sx + priv->pointer_x - previous_x,
++          priv->seat->pointer_state.sy + priv->pointer_y - previous_y);
+     }
+   else
+     {
+@@ -1341,7 +1354,8 @@
+ on_motion_controller_leave (G_GNUC_UNUSED GtkEventControllerMotion *self,
+                             CasildaCompositorPrivate               *priv)
+ {
+-  wlr_seat_pointer_clear_focus (priv->seat);
++  if (priv->seat->pointer_state.button_count == 0)
++    wlr_seat_pointer_clear_focus (priv->seat);
+ }
+ 
+ static void

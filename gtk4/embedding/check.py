@@ -179,6 +179,15 @@ def main():
                         round(cy+view['app_y']+(y+h/2)*view['scale']),
                         round((end-start)*view['scale']), 0, button=1)
             until(lambda: abs(client()['slider']-target) < 15, 'Scaled app drag failed at ' + mode)
+            if mode in ('100%', '150%'):
+                start = 12+(w-24)*client()['slider']/100
+                outside = initial_size[0]+40-x
+                back = 12+(w-24)*0.35
+                driver.drag_path(window,round(cx+view['app_x']+(x+start)*view['scale']),
+                                 round(cy+view['app_y']+(y+h/2)*view['scale']),
+                                 [(round((outside-start)*view['scale']),0), (round((back-start)*view['scale']),0)])
+                until(lambda: abs(client()['slider']-35)<15, 'Drag capture was lost after leaving the app at '+mode)
+                summary['checks'].append('endpoint-return-grab-'+mode)
             click_client('scroll')
             driver.scroll(up=True)
             until(lambda: client()['scroll'] == 0, 'Scaled scroll-to-top failed at ' + mode)

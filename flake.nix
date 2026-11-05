@@ -115,6 +115,11 @@
             meta.mainProgram = "centaur-landline-test";
           };
         } // pkgs.lib.optionalAttrs (system == "aarch64-linux") {
+          gtk4-preview = import ./packaging/gtk4-embedding-test.nix {
+            pkgs = gtk-nixpkgs.legacyPackages.${system};
+            buildId = self.shortRev or self.dirtyShortRev or "dev";
+            services = centaur;
+          };
           gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";

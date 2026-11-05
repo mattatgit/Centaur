@@ -57,6 +57,48 @@ class CoreTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { Q_INIT_RESOURCE(starter); }
+    void gtkProjectsKeepTheirFormatHistoryAndAgentPolicy() {
+        QTemporaryDir dir;
+        const auto agentPath = dir.path() + "/agent";
+        const auto checker = dir.path() + "/checker";
+        QVERIFY(Workspace::writeFile(checker, "#!/bin/sh\nexit 0\n"));
+        QVERIFY(QFile::setPermissions(checker, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        const auto previous = qgetenv("CENTAUR_GTK_RUNNER");
+        qputenv("CENTAUR_GTK_RUNNER", checker.toUtf8());
+        auto cleanup = qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_RUNNER"); else qputenv("CENTAUR_GTK_RUNNER", previous); });
+        AgentOverride override(agentPath);
+        Controller host(dir.path()); host.start(); host.setAuthor("Matt");
+        host.createGtkProject("GTK family", "A native GTK app");
+        const auto id = host.projectId(); QVERIFY(!id.isEmpty());
+        Workspace workspace(dir.path());
+        const auto original = workspace.source(id);
+        auto bundle = QJsonDocument::fromJson(original.toUtf8()).object();
+        QCOMPARE(bundle["format"].toString(), QString("gtk4-v1"));
+        QCOMPARE(host.project()["appFormat"].toString(), QString("gtk4-v1"));
+        QVERIFY(QFileInfo::exists(workspace.projectPath(id) + "/App.gtk.json"));
+        QVERIFY(!QFileInfo::exists(workspace.projectPath(id) + "/App.qml"));
+        const auto checkpoint = workspace.history(id).first().toObject()["checkpoint"].toString();
+        auto files = bundle["files"].toObject();
+        files["app.ui"] = files["app.ui"].toString().replace("Family board", "Family Planner"); bundle["files"] = files;
+        QJsonObject reply{{"kind", "proposal"}, {"message", "Change the title"}, {"conflict", QJsonValue::Null}, {"gtk", bundle}};
+        QString error;
+        QVERIFY(!Agent::parseReply(QJsonDocument(reply).toJson(), &error).isEmpty());
+        auto invalid = reply; invalid["qml"] = "Item {}";
+        QVERIFY(Agent::parseReply(QJsonDocument(invalid).toJson(), &error).isEmpty());
+        QVERIFY(writeAgentReply(agentPath, reply));
+        QVERIFY(host.sendMessage("@centaur Change the title"));
+        QTRY_COMPARE_WITH_TIMEOUT(host.project()["revision"].toInt(), 2, 10000);
+        QCOMPARE(workspace.projects().size(), 1);
+        QVERIFY(workspace.source(id).contains("Family Planner"));
+        QVERIFY(host.project()["proposal"].toMap().isEmpty()); // No author approval step.
+        QVERIFY(writeAgentReply(agentPath, {{"kind", "restore"}, {"message", "Restore the starting app"}, {"conflict", QJsonValue::Null}, {"checkpoint", checkpoint}}));
+        host.sendMessage("@centaur Rewind to the beginning");
+        QTRY_COMPARE_WITH_TIMEOUT(host.project()["revision"].toInt(), 3, 10000);
+        QCOMPARE(QJsonDocument::fromJson(workspace.source(id).toUtf8()), QJsonDocument::fromJson(original.toUtf8()));
+        host.createProject("Preserved Qt app", "");
+        QVERIFY(QFileInfo::exists(workspace.projectPath(host.projectId()) + "/App.qml"));
+        QCOMPARE(workspace.source(id), QString::fromUtf8(QJsonDocument(QJsonDocument::fromJson(original.toUtf8()).object()).toJson(QJsonDocument::Compact)));
+    }
     void projectCardActionsPreserveIdentityAndUpdateOtherWindows() {
         QTemporaryDir dir;
         Controller host(dir.path()); host.start(); host.setAuthor("Matt");

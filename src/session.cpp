@@ -12,8 +12,13 @@
 #include <QPointer>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
-static QString runner() {
+static QString runner(bool gtk = false) {
+    if (gtk) return qEnvironmentVariable("CENTAUR_GTK_RUNNER", QCoreApplication::applicationDirPath() + "/centaur-gtk4-preview");
     return qEnvironmentVariable("CENTAUR_PREVIEW", QCoreApplication::applicationDirPath() + "/centaur-preview");
+}
+
+static QString proposalSource(const QJsonObject &proposal) {
+    return proposal["gtk"].isObject() ? QString::fromUtf8(QJsonDocument(proposal["gtk"].toObject()).toJson(QJsonDocument::Compact)) : proposal["qml"].toString();
 }
 
 Session::Session(const QString &root, QObject *parent) : QObject(parent), m_workspace(root) {
@@ -65,7 +70,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                 // QML diagnostics are local source errors, not provider credentials.
                 auto detail = QString::fromUtf8(m_validator.readAllStandardError()).right(1500);
                 detail.replace(m_workspace.projectPath(id), "[project]");
-                addMessage(state, state["agentName"].toString(), "The proposed app did not pass its native QML check. Your current app is still running.\n" + detail, "system");
+                addMessage(state, state["agentName"].toString(), "The proposed app did not pass its native check. Your current app is still running.\n" + detail, "system");
                 state["proposal"] = QJsonObject();
             } else {
                 const auto proposal = state["proposal"].toObject();
@@ -73,7 +78,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                     + QString::number(state["revision"].toInt()) + ".json";
                 if (!Workspace::writeFile(archivePath, QJsonDocument(state["annotations"].toArray()).toJson(), &error)) {
                     addMessage(state, state["agentName"].toString(), "Could not preserve the current sketch: " + error, "system");
-                } else if (m_workspace.applySource(id, proposal["qml"].toString(), proposal["message"].toString(), &error)) {
+                } else if (m_workspace.applySource(id, proposalSource(proposal), proposal["message"].toString(), &error)) {
                     state["revision"] = state["revision"].toInt() + 1;
                     auto decisions = state["decisions"].toArray();
                     decisions.append(QJsonObject{{"summary", proposal["message"]}, {"authors", proposal["accepted"]},
@@ -259,7 +264,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         QString error;
         const auto id = !projects.isEmpty() ? projects.first().toMap()["id"].toString()
             : m_workspace.createProject(starter ? "Family board" : command["name"].toString(),
-                starter ? "A little space for everyday things, made together." : command["description"].toString(), &error);
+                starter ? "A little space for everyday things, made together." : command["description"].toString(), &error, command["appFormat"].toString());
         if (id.isEmpty()) { fail(error); return; }
         publish(id);
         reply(sender, {{"type", starter ? "opened" : "created"}, {"projectId", id}});
@@ -424,6 +429,10 @@ void Session::finishAgent(const QJsonObject &reply) {
     } else {
         if (reply["kind"] == "proposal" || reply["kind"] == "restore") {
             auto proposal = reply;
+            if (reply["kind"] == "proposal" && ((state["appFormat"] == "gtk4-v1") != reply["gtk"].isObject())) {
+                addMessage(state, state["agentName"].toString(), "The agent returned the wrong app format. Your app is unchanged.", "system");
+                persist(id, state); publish(id); return;
+            }
             if (reply["kind"] == "restore") {
                 QString error;
                 const auto source = m_workspace.sourceAt(id, reply["checkpoint"].toString(), &error);
@@ -434,7 +443,8 @@ void Session::finishAgent(const QJsonObject &reply) {
                     return;
                 }
                 // Restore the exact checkpoint, never model-supplied replacement source.
-                proposal["qml"] = source;
+                if (state["appFormat"] == "gtk4-v1") proposal["gtk"] = QJsonDocument::fromJson(source.toUtf8()).object();
+                else proposal["qml"] = source;
             } else proposal.remove("checkpoint");
             const auto conflict = reply["conflict"];
             QJsonArray authors{requester};
@@ -487,17 +497,18 @@ void Session::agentError(const QString &message) {
 
 void Session::applyProposal(const QString &id, QJsonObject state) {
     const auto path = m_workspace.projectPath(id);
+    const bool gtk = state["appFormat"] == "gtk4-v1";
+    const auto candidate = path + (gtk ? "/.centaur/candidate.gtk.json" : "/.centaur/candidate.qml");
     QString error;
-    if (!Workspace::writeFile(path + "/.centaur/candidate.qml", state["proposal"].toObject()["qml"].toString().toUtf8(), &error)) {
+    if (!Workspace::writeFile(candidate, proposalSource(state["proposal"].toObject()).toUtf8(), &error)) {
         emit this->error(error); return;
     }
     m_validatingProject = id;
     m_validatingEpoch = state["epoch"].toInt();
     auto env = QProcessEnvironment::systemEnvironment();
-    env.insert("QT_QPA_PLATFORM", "offscreen");
-    env.insert("QT_QUICK_BACKEND", "software");
+    if (!gtk) { env.insert("QT_QPA_PLATFORM", "offscreen"); env.insert("QT_QUICK_BACKEND", "software"); }
     m_validator.setProcessEnvironment(env);
-    m_validator.start(runner(), {"--check", path + "/.centaur/candidate.qml"});
+    m_validator.start(runner(gtk), {"--check", candidate});
     const int epoch = m_validatingEpoch;
     QTimer::singleShot(10000, &m_validator, [this, id, epoch] {
         if (m_validatingProject == id && m_validatingEpoch == epoch && m_validator.state() != QProcess::NotRunning) m_validator.kill();

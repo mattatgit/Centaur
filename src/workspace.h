@@ -9,7 +9,8 @@ public:
     explicit Workspace(QString root);
     QString root() const { return m_root; }
     QVariantList projects() const;
-    QString createProject(const QString &name, const QString &description, QString *error);
+    QString createProject(const QString &name, const QString &description, QString *error, const QString &format = {});
+    static QString sourceName(const QJsonObject &state);
     bool deleteProject(const QString &id, QString *error = nullptr);
     QJsonObject load(const QString &id) const;
     bool save(const QString &id, const QJsonObject &state, QString *error = nullptr) const;

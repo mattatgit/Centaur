@@ -72,27 +72,33 @@ QVariantList Workspace::projects() const {
     return result;
 }
 
-QString Workspace::createProject(const QString &name, const QString &description, QString *error) {
+QString Workspace::createProject(const QString &name, const QString &description, QString *error, const QString &format) {
     if (name.trimmed().isEmpty() || name.size() > 100) {
         if (error) *error = "Give the project a name of up to 100 characters.";
         return {};
     }
+    if (!format.isEmpty() && format != "gtk4-v1") {
+        if (error) *error = "Unsupported application format.";
+        return {};
+    }
+    const bool gtk = format == "gtk4-v1";
+    const auto filename = gtk ? QString("App.gtk.json") : QString("App.qml");
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const auto path = projectPath(id);
     QDir().mkpath(path + "/.centaur");
-    QFile starter(":/templates/App.qml");
+    QFile starter(gtk ? ":/templates/App.gtk.json" : ":/templates/App.qml");
     if (!starter.open(QIODevice::ReadOnly)) {
         if (error) *error = "The native starter app resource is missing.";
         QDir(path).removeRecursively();
         return {};
     }
     const QByteArray source = starter.readAll();
-    if (source.isEmpty() || !writeFile(path + "/App.qml", source, error)
+    if (source.isEmpty() || !writeFile(path + "/" + filename, source, error)
         || !writeFile(path + "/.gitignore", ".centaur/\n", error)
         || !writeFile(path + "/README.md", ("# " + name.trimmed() + "\n\n" + description +
-            "\n\nNative Qt Quick app. Run with `centaur-preview App.qml`.\n").toUtf8(), error)
+            (gtk ? "\n\nNative GTK4 app. Source bundle: App.gtk.json; behaviour, GtkBuilder UI and CSS are separate.\n" : "\n\nNative Qt Quick app. Run with `centaur-preview App.qml`.\n")).toUtf8(), error)
         || !git(path, {"init", "-b", "main"}, error)
-        || !git(path, {"add", "App.qml", "README.md", ".gitignore"}, error)
+        || !git(path, {"add", filename, "README.md", ".gitignore"}, error)
         || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost", "commit", "-m", "Start native app"}, error)) {
         QDir(path).removeRecursively();
         return {};
@@ -101,14 +107,19 @@ QString Workspace::createProject(const QString &name, const QString &description
         {"updated", now()}, {"revision", 1}, {"epoch", 0}, {"agentName", "centaur"},
         {"messages", QJsonArray()}, {"annotations", QJsonArray()}, {"decisions", QJsonArray()},
         {"contributors", QJsonArray()}, {"proposal", QJsonObject()}};
+    if (gtk) state["appFormat"] = format;
     if (!save(id, state, error)) { QDir(path).removeRecursively(); return {}; }
     return id;
+}
+
+QString Workspace::sourceName(const QJsonObject &state) {
+    return state["appFormat"] == "gtk4-v1" ? "App.gtk.json" : "App.qml";
 }
 
 QString Workspace::source(const QString &id) const {
     const auto path = projectPath(id);
     if (path.isEmpty()) return {};
-    QFile file(path + "/App.qml");
+    QFile file(path + "/" + sourceName(load(id)));
     return file.open(QIODevice::ReadOnly) ? QString::fromUtf8(file.readAll()) : QString();
 }
 
@@ -156,7 +167,7 @@ QString Workspace::sourceAt(const QString &id, const QString &checkpoint, QStrin
         return {};
     }
     QByteArray output;
-    if (!git(path, {"show", checkpoint + ":App.qml"}, error, &output)) return {};
+    if (!git(path, {"show", checkpoint + ":" + sourceName(load(id))}, error, &output)) return {};
     const auto source = QString::fromUtf8(output);
     if (source.trimmed().isEmpty() || source.size() > 256000) {
         if (error) *error = "That saved app is empty or too large for this prototype.";
@@ -168,14 +179,15 @@ QString Workspace::sourceAt(const QString &id, const QString &checkpoint, QStrin
 bool Workspace::applySource(const QString &id, const QString &qml, const QString &summary, QString *error) {
     const auto path = projectPath(id);
     if (path.isEmpty() || qml.trimmed().isEmpty()) { if (error) *error = "Missing native app source."; return false; }
+    const auto filename = sourceName(load(id));
     const auto previous = source(id).toUtf8();
-    if (!writeFile(path + "/.centaur/previous.qml", previous, error)
-        || !writeFile(path + "/App.qml", qml.toUtf8(), error)) return false;
-    if (!git(path, {"add", "App.qml"}, error)
+    if (!writeFile(path + (filename == "App.qml" ? "/.centaur/previous.qml" : "/.centaur/previous-App.gtk.json"), previous, error)
+        || !writeFile(path + "/" + filename, qml.toUtf8(), error)) return false;
+    if (!git(path, {"add", filename}, error)
         || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost",
             "commit", "--allow-empty", "-m", summary.left(200)}, error)) {
-        writeFile(path + "/App.qml", previous);
-        git(path, {"reset", "--", "App.qml"}, nullptr);
+        writeFile(path + "/" + filename, previous);
+        git(path, {"reset", "--", filename}, nullptr);
         return false;
     }
     return true;

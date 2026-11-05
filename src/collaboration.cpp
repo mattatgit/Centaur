@@ -245,6 +245,9 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         const auto id = data["project"].toString();
         auto share = m_shares[id].toObject();
         if (share.isEmpty() || m_workspace.load(id).isEmpty()) { reject("This project is no longer shared."); return; }
+        if (m_workspace.load(id)["appFormat"] == "gtk4-v1" && !data["appFormats"].toArray().contains("gtk4-v1")) {
+            reject("This project requires the GTK4 version of Centaur."); return;
+        }
         const auto token = data["memberToken"].toString();
         if (token.size() != 43) { reject("The participant credential is invalid."); return; }
         const auto hash = digest(token.toUtf8());
@@ -345,7 +348,7 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     while (decisions.size() > 20) decisions.removeFirst();
     for (int i = 0; i < decisions.size(); ++i) { auto decision = decisions[i].toObject(); decision["summary"] = decision["summary"].toString().left(2000); decisions[i] = decision; }
     state["decisions"] = decisions;
-    auto proposal = state["proposal"].toObject(); proposal.remove("qml"); state["proposal"] = proposal;
+    auto proposal = state["proposal"].toObject(); proposal.remove("qml"); proposal.remove("gtk"); state["proposal"] = proposal;
     write(socket, {{"type", "project"}, {"version", 1}, {"state", state}, {"source", source},
         {"sourceHash", digest(source.toUtf8())}, {"busy", m_snapshot["busyProject"] == peer.project}, {"agentAvailable", m_snapshot["agentAvailable"]}});
 }
@@ -357,7 +360,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     m_editLock = std::make_unique<QLockFile>(path() + "/client.lock");
     if (m_editLock->tryLock(0)) m_outbox = m_connection["outbox"].toArray();
     m_snapshot = readObject(path() + "/snapshot.json");
-    if (!m_snapshot.isEmpty()) Workspace::writeFile(path() + "/App.qml", m_snapshot["source"].toString().toUtf8());
+    if (!m_snapshot.isEmpty()) Workspace::writeFile(path() + "/" + Workspace::sourceName(m_snapshot["state"].toObject()), m_snapshot["source"].toString().toUtf8());
     if (m_connection["transport"] == "iroh") {
         m_iroh = std::make_unique<IrohBridge>(m_root);
         connect(m_iroh.get(), &IrohBridge::tunnelReady, this, [this](quint16 port) {
@@ -382,7 +385,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
         if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", QJsonArray{"qml", "gtk4-v1"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
@@ -482,7 +485,7 @@ void SharedProject::receive(const QJsonObject &data) {
     } else if (type == "project") {
         const auto state = data["state"].toObject(); const auto source = data["source"].toString();
         if (state["id"] != id() || source.size() > 256000 || source.trimmed().isEmpty() || digest(source.toUtf8()) != data["sourceHash"].toString()) { m_socket.abort(); return; }
-        if (!privateFile(path() + "/snapshot.json", data) || !Workspace::writeFile(path() + "/App.qml", source.toUtf8())) {
+        if (!privateFile(path() + "/snapshot.json", data) || !Workspace::writeFile(path() + "/" + Workspace::sourceName(state), source.toUtf8())) {
             emit error("Could not save the shared app on this device."); m_socket.abort(); return;
         }
         m_snapshot = data; m_connected = true; m_delay = 1000;

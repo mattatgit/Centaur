@@ -33,6 +33,11 @@ if [[ $package_attribute == gtk4-embedding-test ]]; then
   test -x "$output/bin/centaur-gtk4-test"
   test -x "$output/bin/centaur-gtk4-check"
   version_command=("$output/bin/centaur-gtk4-test")
+elif [[ $package_attribute == gtk4-preview ]]; then
+  for executable in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-bridge centaur-host centaur-network; do
+    test -x "$output/bin/$executable"
+  done
+  version_command=("$output/bin/centaur-gtk4")
 else
   for executable in centaur centaur-host centaur-preview centaur-network centaur-update centaur-cache-setup; do
     test -x "$output/bin/$executable"
