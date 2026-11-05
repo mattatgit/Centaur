@@ -2,7 +2,7 @@
 let
   python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pillow ]);
   casilda = pkgs.casilda.overrideAttrs (old: {
-    version = "1.6.0-centaur1";
+    version = "1.6.0-centaur2";
     src = pkgs.fetchzip {
       url = "https://gitlab.gnome.org/jpu/casilda/-/archive/1.6.0/casilda-1.6.0.tar.gz";
       hash = "sha256-1Iq0RKte56gg69MRlEhfu5aWc+Vl7HgopS7RGIrf59w=";
@@ -11,6 +11,8 @@ let
     patches = (old.patches or [ ]) ++ [
       (builtins.toFile "casilda-initial-keymap.patch"
         (builtins.readFile ./patches/casilda-initial-keymap.patch))
+      (builtins.toFile "casilda-key-event-state.patch"
+        (builtins.readFile ./patches/casilda-key-event-state.patch))
     ];
   });
 in pkgs.stdenvNoCC.mkDerivation {

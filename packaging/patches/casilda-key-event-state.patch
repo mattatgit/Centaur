@@ -1,0 +1,58 @@
+--- a/src/casilda-compositor.c
++++ b/src/casilda-compositor.c
+@@ -1690,9 +1690,8 @@
+ }
+ 
+ static xkb_mod_mask_t
+-gkeyboard_get_xkb_mod_mask (GdkDevice *gkeyboard)
+-{
+-  GdkModifierType state = gdk_device_get_modifier_state (gkeyboard);
++gkeyboard_get_xkb_mod_mask (GdkModifierType state)
++{
+   guint retval = 0;
+ 
+   if (state & GDK_SHIFT_MASK)
+@@ -1721,23 +1720,28 @@
+                                     uint32_t                  state)
+ {
+   uint32_t time_msec = gtk_event_controller_get_current_event_time (GTK_EVENT_CONTROLLER (self));
+-  xkb_mod_mask_t depressed = gkeyboard_get_xkb_mod_mask (priv->gkeyboard);
+-
+-  /*
+-   * NOTE: we do not use GdkDevice:modifiers-state because that changes before we the the mod key press event
+-   * and we do not use EventControllerKey::modifiers signal because it changes after the mod key release
+-   */
+-
+-  /* Send key event first */
++  /* GdkDevice state may already describe a later queued event. Synchronise
++   * from this event's snapshot, then advance the virtual keyboard in order. */
++  GdkModifierType event_state = gtk_event_controller_get_current_event_state (GTK_EVENT_CONTROLLER (self));
++  xkb_mod_mask_t depressed = gkeyboard_get_xkb_mod_mask (event_state) & ~WLR_MODIFIER_CAPS;
++  xkb_mod_mask_t locked = priv->keyboard.modifiers.locked & ~WLR_MODIFIER_CAPS;
++  if (event_state & GDK_LOCK_MASK)
++    locked |= WLR_MODIFIER_CAPS;
++
++  wlr_keyboard_notify_modifiers (&priv->keyboard, depressed,
++                                  priv->keyboard.modifiers.latched, locked,
++                                  priv->keyboard.modifiers.group);
++  wlr_seat_keyboard_notify_modifiers (priv->seat, &priv->keyboard.modifiers);
+   wlr_seat_keyboard_notify_key (priv->seat, time_msec, key - 8, state);
+ 
+-
+-  /* Update modifiers if necessary after */
+-  if (priv->keyboard.modifiers.depressed != depressed)
+-    {
+-      priv->keyboard.modifiers.depressed = depressed;
+-      wlr_seat_keyboard_send_modifiers (priv->seat, &priv->keyboard.modifiers);
+-    }
++  struct wlr_keyboard_key_event event = {
++    .time_msec = time_msec,
++    .keycode = key - 8,
++    .update_state = true,
++    .state = state,
++  };
++  wlr_keyboard_notify_key (&priv->keyboard, &event);
++  wlr_seat_keyboard_notify_modifiers (priv->seat, &priv->keyboard.modifiers);
+ }
+ 
+ static gboolean
