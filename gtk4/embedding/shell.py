@@ -89,6 +89,7 @@ class Centaur(Gtk.Application):
         self.pending_message = None
         self.drafts = {}
         self.active_form = None
+        self.open_id = None
         self.targets = {}
 
     def do_activate(self):
@@ -107,7 +108,7 @@ class Centaur(Gtk.Application):
         self.nav = {}
         for key, title, icon in [('projects','Projects','project-icon-default.svg'),('systems','Design Systems','ds-icon-default.svg'),('settings','Settings','settings-icon-default.svg')]:
             item = button(title, lambda k=key:self.navigate(k), icon, 'navigation')
-            self.nav[key] = item
+            self.nav[key] = item; self.targets['nav-'+key]=item
             sidebar.append(item)
         spacer = box(); spacer.set_vexpand(True); sidebar.append(spacer)
         self.identity = button('Your settings', lambda:self.navigate('settings'), css='navigation')
@@ -260,6 +261,8 @@ class Centaur(Gtk.Application):
         self.breadcrumb_arrow.set_visible(workspace); self.breadcrumb.set_visible(workspace)
         if workspace:
             GLib.idle_add(self.start_preview)
+        else:
+            self.stop_preview()
 
     def set_mode(self,mode):
         self.mode=mode
@@ -303,7 +306,8 @@ class Centaur(Gtk.Application):
         if self.project_key!=key:
             self.project_key=key; self.refresh_cards()
         if self.project:
-            if old_id!=self.project['id']: self.navigate('workspace')
+            if old_id!=self.project['id'] or self.open_id==self.project['id']:
+                self.open_id=None; self.navigate('workspace')
             self.breadcrumb.set_text(self.project.get('name',''))
             model=data.get('agentModel','')
             model=model.replace('openai-codex/','OpenAI Codex · ').replace('gpt-','GPT ').replace('-',' ').replace(' sol',' Sol')
@@ -341,7 +345,7 @@ class Centaur(Gtk.Application):
             actions.append(button('Leave project' if project.get('remote') else 'Delete project',lambda p=project:self.delete(p),css='danger'))
             pop.set_child(actions); menu.set_popover(pop); row.append(menu); card.append(row)
             card.append(label(project.get('description',''),'muted',True))
-            open_button=button('Open',lambda p=project:self.service.send('open',projectId=p['id']))
+            open_button=button('Open',lambda p=project:self.open_project(p['id']))
             self.targets['open-'+project['id']]=open_button
             card.append(open_button)
             self.cards.append(card)
@@ -421,6 +425,9 @@ class Centaur(Gtk.Application):
         row.append(button(action,done,css='primary')); content.append(row); dialog.set_child(content); dialog.present()
         next(iter(entries.values())).grab_focus()
 
+    def open_project(self,project_id):
+        self.open_id=project_id; self.service.send('open',projectId=project_id)
+
     def new_project(self):
         self.form('New project',[('name','Project name','')],lambda v:self.service.send('create',name=v['name'],description=''))
 
@@ -485,13 +492,15 @@ class Centaur(Gtk.Application):
             self.child_report=runtime/'client.json'; self.child_report.unlink(missing_ok=True)
             def launch():
                 if self.closing or self.preview_key!=key or not self.backend: return False
+                if not self.backend.widget.get_realized() or self.backend.widget.get_width()!=bundle['width']+192 or self.backend.widget.get_height()!=bundle['height']+192:
+                    return True
                 try:
                     self.viewport.set_zoom(ZOOM_MODES[self.zoom.get_selected()])
                     self.backend.start(AppSpec((os.environ['CENTAUR_GTK_RUNNER'],str(path)),bundle['width'],bundle['height']),runtime,self.child_report)
                     self.preview_status='Connecting native app…'
                 except Exception as error: self.preview_status='Could not launch app: '+str(error)
                 return False
-            GLib.idle_add(launch)
+            GLib.timeout_add(16,launch)
         except Exception as error:
             self.preview_status='Could not open app: '+str(error)
         return False

@@ -40,6 +40,7 @@ class Driver:
 
     def click(self, window, x, y):
         if self.wayland:
+            self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
             self.ipc('seat seat0 cursor press button1')
@@ -84,6 +85,7 @@ class Driver:
 
     def drag_path(self, window, x, y, moves, button=1):
         if self.wayland:
+            self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
             name = 'left' if button == 1 else 'middle'
@@ -103,6 +105,7 @@ class Driver:
 
     def screenshot(self, window, path):
         if self.wayland:
+            self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
             command('grim', '-g', f"{r['x']},{r['y']} {r['width']}x{r['height']}", str(path))
         else:

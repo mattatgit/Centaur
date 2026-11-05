@@ -131,6 +131,12 @@ def main():
         until(lambda:(hs().get('child') or {}).get('title')=='Family board' and (gs().get('child') or {}).get('title')=='Family board','Exact GTK history restoration failed',timeout=20)
         assert json.loads(source.read_text())==original
         summary['checks'].append('exact-history-restore-propagates-to-both-profiles')
+        old_child=hs()['childPid']
+        click(hs,hw,'nav-projects')
+        until(lambda:hs().get('page')=='projects' and hs().get('childPid') is None,'Leaving workspace did not stop the preview')
+        click(hs,hw,'open-'+project_id)
+        until(lambda:(hs().get('child') or {}).get('ready') and hs().get('childPid')!=old_child,'Reopening the same project did not start its preview')
+        summary['checks'].append('project-navigation-stops-preview-and-reopens-same-project')
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['passed']=True
