@@ -218,6 +218,10 @@ def main():
         assert summary['clipboard_client_to_host'] and summary['clipboard_host_to_client'], 'Clipboard must work in both directions'
         summary['automated_core_passed'] = True
     finally:
+        try:
+            driver.screenshot(window, folder / 'final.png')
+        except (UnboundLocalError, subprocess.SubprocessError):
+            pass
         process.send_signal(signal.SIGTERM)
         process.wait(timeout=5)
         summary['host_exit_code'] = process.returncode

@@ -35,6 +35,8 @@ class PreviewViewport(Gtk.Widget):
         if self.child is None:
             return
         geometry = self.model.geometry(width, height)
+        self.child.measure(Gtk.Orientation.HORIZONTAL, -1)
+        self.child.measure(Gtk.Orientation.VERTICAL, geometry['stage_width'])
         point = Graphene.Point().init(geometry['stage_x'], geometry['stage_y'])
         transform = Gsk.Transform.new().translate(point).scale(geometry['scale'], geometry['scale'])
         # GTK uses this same transform for snapshotting and input picking. The

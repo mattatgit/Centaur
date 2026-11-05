@@ -94,7 +94,9 @@ class Probe(Gtk.Application):
         GLib.timeout_add(150, self.update)
 
     def update(self):
-        self.state['selection_length'] = abs(self.entry.get_position() - self.entry.get_property('selection-bound'))
+        bounds = self.entry.get_selection_bounds()
+        self.state['selection_bounds'] = list(bounds)
+        self.state['selection_length'] = abs(bounds[-1]-bounds[-2]) if len(bounds) >= 2 else 0
         self.write()
         return GLib.SOURCE_CONTINUE
 
