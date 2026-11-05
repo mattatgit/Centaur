@@ -23,10 +23,10 @@ let
   });
 in pkgs.stdenvNoCC.mkDerivation {
   pname = if services == null then "centaur-gtk4-embedding-test" else "centaur-gtk4-preview";
-  version = "0.1.0";
+  version = if services == null then "0.1.0" else "0.4.0-preview";
   src = ../gtk4/embedding;
   nativeBuildInputs = [ pkgs.wrapGAppsHook4 pkgs.gobject-introspection ];
-  buildInputs = [ pkgs.gtk4 casilda ];
+  buildInputs = [ pkgs.gtk4 pkgs.librsvg casilda ];
   dontBuild = true;
   installPhase = ''
     runHook preInstall
@@ -78,13 +78,12 @@ in pkgs.stdenvNoCC.mkDerivation {
       gappsWrapperArgs+=(--set CENTAUR_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_RUNNER "$out/bin/centaur-gtk4-preview")
-      gappsWrapperArgs+=(--run 'export PATH="$HOME/.local/bin:$PATH"')
     ''}
     gappsWrapperArgs+=(--set CENTAUR_GTK4_BUILD_ID ${pkgs.lib.escapeShellArg buildId})
     gappsWrapperArgs+=(--set CENTAUR_GTK4_CASILDA_VERSION ${casilda.version})
   '';
   passthru = {
-    inherit python;
+    inherit python services;
     dbusConfig = "${pkgs.dbus}/share/dbus-1/session.conf";
     dbusForTests = pkgs.dbus;
     waylandTestSeat = import ./gtk4-test-seat.nix { inherit pkgs; };

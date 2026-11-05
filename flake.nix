@@ -31,7 +31,7 @@
         pname = "centaur-network";
         version = "0.3.0";
         src = ./networking;
-        cargoLock.lockFile = ./networking/Cargo.lock;
+        cargoLock.lockFile = builtins.toFile "Cargo.lock" (builtins.readFile ./networking/Cargo.lock);
         doCheck = true;
       };
       package = pkgs: serviceOnly:
@@ -42,12 +42,19 @@
         in pkgs.stdenv.mkDerivation {
         pname = if serviceOnly then "centaur-services" else "centaur";
         version = "0.3.1";
-        src = self;
+        src = if serviceOnly then pkgs.lib.cleanSourceWith {
+          src = self;
+          filter = path: type:
+            let relative = pkgs.lib.removePrefix (toString self + "/") path;
+            in path == toString self || relative == "CMakeLists.txt"
+              || builtins.any (directory: relative == directory || pkgs.lib.hasPrefix (directory + "/") relative)
+                [ "src" "templates" "assets" "tests" ];
+        } else self;
         nativeBuildInputs = with pkgs; [ cmake ninja qt6.wrapQtAppsHook ];
         buildInputs = libs;
         cmakeFlags = [ "-DBUILD_TESTING=ON"
           "-DCENTAUR_NETWORK_EXECUTABLE=${network pkgs}/bin/centaur-network"
-          "-DCENTAUR_BUILD_ID=${self.shortRev or self.dirtyShortRev or "dev"}" ]
+          "-DCENTAUR_BUILD_ID=${if serviceOnly then "service" else self.shortRev or self.dirtyShortRev or "dev"}" ]
           ++ pkgs.lib.optional serviceOnly "-DCENTAUR_SERVICE_ONLY=ON";
         nativeCheckInputs = [ pkgs.git pkgs.openssl ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux pkgs.gdb;
         doCheck = true;

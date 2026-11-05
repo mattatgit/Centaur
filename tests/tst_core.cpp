@@ -61,7 +61,7 @@ private slots:
         QTemporaryDir dir;
         const auto agentPath = dir.path() + "/agent";
         const auto checker = dir.path() + "/checker";
-        QVERIFY(Workspace::writeFile(checker, "#!/bin/sh\nexit 0\n"));
+        QVERIFY(Workspace::writeFile(checker, ("#!" + QStandardPaths::findExecutable("sh") + "\nexit 0\n").toUtf8()));
         QVERIFY(QFile::setPermissions(checker, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
         const auto previous = qgetenv("CENTAUR_GTK_RUNNER");
         qputenv("CENTAUR_GTK_RUNNER", checker.toUtf8());

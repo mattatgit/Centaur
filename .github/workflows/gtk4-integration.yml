@@ -43,7 +43,15 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint && shellcheck scripts/publish-binary-cache.sh scripts/check-gtk4-wayland.sh'
-      - name: Build GTK4 preview and run retained core, network and Iroh regressions
+      - name: Build retained service and run core, network and Iroh regressions
+        run: nix build -L --no-update-lock-file .#gtk4-preview.services -o result-services
+      - name: Cache service only after its regressions pass
+        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
+        run: nix shell --inputs-from . nixpkgs#cachix -c cachix push "$CENTAUR_CACHIX_CACHE" "$(realpath result-services)"
+      - name: Build GTK4 development frontend
         run: nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
       - name: Native embedding, scaling, capture and two-profile GTK4 integration
         env:

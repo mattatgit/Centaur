@@ -85,6 +85,8 @@ class Centaur(Gtk.Application):
         self.page = 'projects'
         self.last_invite = ''
         self.closing = False
+        self.pending_message = None
+        self.drafts = {}
         self.targets = {}
 
     def do_activate(self):
@@ -120,7 +122,7 @@ class Centaur(Gtk.Application):
         self.mode_buttons = {}
         for title, icon in [('Interact','interact-grey.svg'),('Build','comment-grey.svg')]:
             item = button(title, lambda t=title:self.set_mode(t), icon)
-            self.mode_buttons[title] = item; self.modes.append(item)
+            self.mode_buttons[title] = item; self.modes.append(item); self.targets['mode-'+title]=item
         top.append(self.modes)
         self.invite_button = button('Invite', self.invite, 'share.svg')
         top.append(self.invite_button)
@@ -157,6 +159,8 @@ class Centaur(Gtk.Application):
         scroll.set_child(self.cards); page.append(scroll)
         self.empty_projects = label('Create a project, or join one with an invitation.','muted',True)
         page.append(self.empty_projects)
+        self.join_progress=label('','muted',True); page.append(self.join_progress)
+        self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); page.append(self.cancel_join); self.cancel_join.set_visible(False)
         self.stack.add_named(page,'projects')
 
     def build_systems(self):
@@ -174,6 +178,10 @@ class Centaur(Gtk.Application):
         page.append(button('Save name',lambda:self.service.send('author',name=self.name.get_text())))
         page.append(label('Agent','name'))
         self.agent_detail = label('', 'muted', True); page.append(self.agent_detail)
+        self.agent_name_button=button('Agent name',lambda:self.form('Agent name',[('name','Name used after @',self.project.get('agentName','centaur'))],lambda v:self.service.send('agentName',name=v['name'])))
+        page.append(self.agent_name_button)
+        self.stop_sharing_button=button('Stop sharing this project',lambda:self.notice('Stop sharing?','Disconnect guests from this project?',lambda:self.service.send('stopSharing'),'Stop sharing'))
+        page.append(self.stop_sharing_button)
         page.append(label('The host runs OMP. Guests use the host’s agent and do not need their own credentials.','muted',True))
         page.append(label('Project storage','name')); page.append(label(str(self.root),'muted',True))
         page.append(button('Open project folder',lambda:Gio.AppInfo.launch_default_for_uri(self.root.as_uri(),None)))
@@ -194,7 +202,7 @@ class Centaur(Gtk.Application):
         canvas_panel.append(tools)
         self.overlay = Gtk.Overlay(hexpand=True,vexpand=True)
         self.preview_holder=box(True,0); self.preview_holder.set_hexpand(True); self.preview_holder.set_vexpand(True)
-        self.overlay.set_child(self.preview_holder)
+        self.overlay.set_child(self.preview_holder); self.targets['canvas']=self.overlay
         self.ink = Gtk.DrawingArea(hexpand=True,vexpand=True)
         self.ink.set_draw_func(self.draw_ink)
         self.overlay.add_overlay(self.ink)
@@ -211,7 +219,7 @@ class Centaur(Gtk.Application):
         self.tool_buttons={}
         for tool,title,icon in [('draw','Draw',None),('comment','Comment','comment-grey.svg')]:
             item=button(title,lambda t=tool:self.set_tool(t),icon); self.tool_buttons[tool]=item; self.build_tools.append(item)
-        self.build_tools.append(button('Undo',lambda:self.service.send('undo')))
+        undo=button('Undo',lambda:self.service.send('undo')); self.build_tools.append(undo); self.targets['undo']=undo
         canvas_panel.append(self.build_tools)
         self.panes.set_start_child(canvas_panel); self.panes.set_resize_start_child(True)
         chat=margins(box(True,12,'chat'),20); chat.set_size_request(340,-1)
@@ -224,7 +232,7 @@ class Centaur(Gtk.Application):
         composer=box(True,8,'composer')
         self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False)
         self.editor.set_size_request(-1,80); composer.append(self.editor); self.targets['editor']=self.editor
-        key=Gtk.EventControllerKey(); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
+        key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
         row=box(); self.mention=label('@centaur','name'); self.mention.set_hexpand(True); row.append(self.mention)
         self.stop_button=button('Stop',lambda:self.service.send('cancel')); row.append(self.stop_button)
         self.send_button=button('Send',self.send,'comment-enter-default.svg'); row.append(self.send_button); self.targets['send']=self.send_button
@@ -267,15 +275,25 @@ class Centaur(Gtk.Application):
 
     def receive(self,data):
         if data.get('type')=='error':
+            self.pending_message=None; self.send_button.set_sensitive(self.data.get('connected',False))
             self.error_label.set_text(data.get('message','Could not complete that action.')); self.error_label.set_visible(True); return
-        if data.get('type')=='sent':
-            buffer=self.editor.get_buffer()
-            if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==data.get('text'):
-                buffer.set_text('')
-            return
+        if data.get('type')=='sent': return
         if data.get('type')!='snapshot': return
         old_id=self.project.get('id')
         self.data=data; self.project=data.get('project',{})
+        new_id=self.project.get('id')
+        buffer=self.editor.get_buffer()
+        if old_id!=new_id:
+            if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
+            buffer.set_text(self.drafts.get(new_id,'')); self.pending_message=None
+        pending=self.pending_message
+        if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'] and m.get('author')==data.get('author') for m in self.project.get('messages',[])):
+            if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==pending['text']: buffer.set_text('')
+            self.pending_message=None
+        self.join_progress.set_text(data.get('joinStatus','') if data.get('joining') else '')
+        self.cancel_join.set_visible(data.get('joining',False))
+        self.agent_name_button.set_sensitive(bool(self.project) and not data.get('remote',False))
+        self.stop_sharing_button.set_visible(bool(self.project.get('sharing',{}).get('enabled')) and not data.get('remote',False))
         self.identity.set_label(data.get('author','Your settings'))
         if not self.name.has_focus(): self.name.set_text(data.get('author',''))
         self.agent_detail.set_text('OMP · '+('Available on this host' if data.get('agentAvailable') else 'Agent unavailable'))
@@ -290,7 +308,7 @@ class Centaur(Gtk.Application):
             status=data.get('status','')
             self.chat_status.set_text(status+' · '+(model or 'Model not reported yet') if data.get('agentAvailable') else status+' · Agent unavailable')
             self.mention.set_text('@'+self.project.get('agentName','centaur'))
-            self.stop_button.set_visible(data.get('busy',False)); self.send_button.set_sensitive(data.get('connected',False))
+            self.stop_button.set_visible(data.get('busy',False)); self.send_button.set_sensitive(data.get('connected',False) and self.pending_message is None)
             self.footer.set_text('Chatting as '+data.get('author','')+' · '+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'))
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[])],sort_keys=True)
             if messages!=self.message_key:
@@ -307,6 +325,8 @@ class Centaur(Gtk.Application):
 
     def refresh_cards(self):
         self.clear(self.cards)
+        for key in list(self.targets):
+            if key.startswith('open-'): del self.targets[key]
         projects=self.data.get('projects',[])
         self.empty_projects.set_visible(not projects)
         for project in projects:
@@ -315,7 +335,7 @@ class Centaur(Gtk.Application):
             menu=Gtk.MenuButton(); menu.add_css_class('meatball'); menu.set_tooltip_text('Project options')
             menu.set_child(Gtk.Image.new_from_file(str(ASSETS/'tile-menu.svg')))
             pop=Gtk.Popover(); actions=box(True,4)
-            actions.append(button('Rename',lambda p=project:self.rename(p)))
+            rename=button('Rename',lambda p=project:self.rename(p)); rename.set_sensitive(not project.get('remote',False)); actions.append(rename)
             actions.append(button('Leave project' if project.get('remote') else 'Delete project',lambda p=project:self.delete(p),css='danger'))
             pop.set_child(actions); menu.set_popover(pop); row.append(menu); card.append(row)
             card.append(label(project.get('description',''),'muted',True))
@@ -354,7 +374,7 @@ class Centaur(Gtk.Application):
 
     def send(self):
         buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
-        if text.strip() and self.data.get('connected'):
+        if text.strip() and self.data.get('connected') and self.pending_message is None:
             fields={'text':text}
             agent='@'+self.project.get('agentName','centaur').lower()
             if agent in text.lower() and self.viewport:
@@ -373,7 +393,9 @@ class Centaur(Gtk.Application):
                 except Exception as error:
                     self.error_label.set_text('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
                     self.error_label.set_visible(True)
-            self.service.send('message',**fields)
+            self.pending_message={'text':text,'seen':{m['id'] for m in self.project.get('messages',[])}}
+            self.send_button.set_sensitive(False)
+            if not self.service.send('message',**fields): self.pending_message=None
 
     def editor_key(self,controller,keyval,keycode,state):
         if keyval in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state & Gdk.ModifierType.SHIFT_MASK:
@@ -540,6 +562,7 @@ class Centaur(Gtk.Application):
             self.reports.mkdir(parents=True,exist_ok=True)
             data={'pid':os.getpid(),'page':self.page,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
+                  'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
             try: data['child']=json.loads(self.child_report.read_text()) if self.backend else None
             except (AttributeError,FileNotFoundError,ValueError): data['child']=None
@@ -567,7 +590,9 @@ def main():
     parser.add_argument('--report-dir',type=Path)
     parser.add_argument('--stop-host',action='store_true')
     parser.add_argument('--version',action='version',version='Centaur GTK4 0.4.0-preview+'+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'))
-    args=parser.parse_args(); root=args.data_dir.expanduser().resolve(); root.mkdir(parents=True,exist_ok=True)
+    args=parser.parse_args()
+    os.environ['PATH']=str(Path.home()/'.local/bin')+os.pathsep+os.environ.get('PATH','')
+    root=args.data_dir.expanduser().resolve(); root.mkdir(parents=True,exist_ok=True)
     if args.stop_host: return subprocess.call([os.environ['CENTAUR_GTK_HOST'],'--stop','--data-dir',str(root)])
     app=Centaur(root,args.report_dir)
     for signum in (signal.SIGINT,signal.SIGTERM): GLib.unix_signal_add(GLib.PRIORITY_DEFAULT,signum,lambda:(app.quit(),GLib.SOURCE_REMOVE)[1])

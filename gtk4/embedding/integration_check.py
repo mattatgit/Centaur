@@ -85,12 +85,25 @@ def main():
         message(gs,gw,'Hello from Guest')
         until(lambda:any(m.get('text')=='Hello from Guest' and m.get('author')=='Guest' for m in hs()['project']['messages']),'Host did not receive attributed guest chat')
         summary['checks'].append('two-independent-profiles-invite-join-and-attributed-chat')
+        click(hs,hw,'mode-Build')
+        until(lambda:hs().get('mode')=='Build','Build mode did not switch')
+        assert 'editor' in hs()['targets'],'Build mode hid chat'
+        cx,cy,cw,ch=hs()['targets']['canvas']; view=hs()['viewport']
+        driver.drag(hw,round(cx+view['app_x']+60*view['scale']),round(cy+view['app_y']+80*view['scale']),50,30,button=1)
+        until(lambda:len(gs()['project'].get('annotations',[]))==1,'Drawing did not synchronise to guest')
+        click(hs,hw,'undo')
+        until(lambda:not gs()['project'].get('annotations'),'Undo did not synchronise')
+        message(hs,hw,'We can still chat in Build')
+        click(hs,hw,'mode-Interact')
+        summary['checks'].append('build-mode-keeps-chat-visible-and-drawing-undo-synchronise')
         proposal(changed)
         message(gs,gw,'@centaur Change the application title to Family Planner.')
         until(lambda:(hs().get('child') or {}).get('title')=='Family Planner' and (gs().get('child') or {}).get('title')=='Family Planner','Agent change did not reach both native apps',timeout=20)
         assert len(hs()['projects'])==1 and len(gs()['projects'])==1,'App changes duplicated a project'
         assert not hs()['project'].get('proposal'),'Compatible request required author approval'
         summary['checks'].append('guest-agent-request-native-validation-and-live-update-without-approval-or-duplicates')
+        assert list((source.parent/'.centaur').glob('remote-*.png')), 'Guest canvas image did not reach the host'
+        summary['checks'].append('canvas-image-attached-from-guest-without-chat')
         revision=hs()['project']['revision']
         invalid=json.loads(json.dumps(changed)); invalid['files']['style.css']='window { made-up-property: broken; }'
         proposal(invalid)
@@ -119,6 +132,11 @@ def main():
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['passed']=True
     finally:
+        for name in ('host','guest'):
+            try:
+                window=hw if name=='host' else gw
+                driver.screenshot(window,folder/('final-'+name+'.png'))
+            except (UnboundLocalError,subprocess.SubprocessError,StopIteration): pass
         if control: control.close()
         for process in processes:
             if process.poll() is None: process.send_signal(signal.SIGTERM)
