@@ -174,4 +174,32 @@ CI keeps the two windows visible side by side on a disposable 2560×1000 Wayland
 
 **Verified distribution:** artifact **`13393996028`**, `Centaur GTK4 0.4.0-preview+e082a94`, installable **`github:mattatgit/Centaur/e082a941a52ca63f778e1cb538acf4c4f8a36b42#gtk4-preview`**, store path `/nix/store/v653pz40gy7a5wf11l9vsgy9mba8p00z-centaur-gtk4-preview-0.4.0-preview`. All **531 runtime paths** were downloaded into an empty store and signature-verified with builders disabled; `verifiedSignedClosureDownload` is true. Use this immutable source, not a later documentation-only branch tip. The Qt branch was rechecked at `3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450` and remains unchanged.
 
-**Next acceptance:** the ARM64 UTM VM needs hands-on review of the new frontend and a real signed-in OMP request against a new GTK project, followed by a physical remote client once its platform is established. Use a separate GTK development profile/data directory through Centaur Install; stop only the GTK host before updating that profile. This result does not migrate existing Qt projects or approve production replacement. Comprehensive design systems, generated-app data synchronisation, deployment, native macOS embedding, IME/alternative layouts, Num Lock, fractional display scaling and GPU/default-renderer acceptance remain outside this result.
+**Remaining acceptance:** Matt's hands-on frontend and live OMP results for this immutable preview are recorded below. A physical remote client still needs hands-on testing once its platform is established. Use a separate GTK development profile/data directory through Centaur Install; stop only the GTK host before updating that profile. This result does not migrate existing Qt projects or approve production replacement. Comprehensive design systems, generated-app data synchronisation, deployment, native macOS embedding, IME/alternative layouts, Num Lock, fractional display scaling and GPU/default-renderer acceptance remain outside this result.
+
+### Phase 3 ARM64 UTM VM hands-on acceptance (recorded 9 November 2026)
+
+Matt's owner-reported hands-on results from **Centaur Install**, on **ARM64 NixOS (KDE) in UTM**, for the **first integrated GTK4 Phase 3 preview** at immutable source [`e082a941a52ca63f778e1cb538acf4c4f8a36b42`](https://github.com/mattatgit/Centaur/commit/e082a941a52ca63f778e1cb538acf4c4f8a36b42), version **`0.4.0-preview+e082a94`**, on **`codex/gtk4-migration`**. These findings are separate from the earlier isolated `a02d0b8` and `90dad3a` acceptance records above and from the automated integration evidence.
+
+**Passed:**
+
+- Installed the precompiled preview in its isolated GTK4 profile and launched with **`GSK_RENDERER=cairo`**.
+- Created **GTK4 Test** and reopened the same project.
+- The native GTK4 app was visibly embedded alongside chat; basic input and interaction worked.
+- A live OMP request, **`@centaur Change the visible heading A little space for us. to Family Planner, leaving everything else as it is`**, automatically changed the visible heading to **Family Planner** in the same project.
+- **Family Planner** remained after **Restart app** and after reopening the project.
+- **75%** and **150%** zoom displayed correctly, with correct centring and clicks.
+- **Fit** scaled the preview as the host window resized.
+- At **150%**, middle-button panning and **Centre** reset worked.
+- In **Build**, drawing and **Undo** worked inside the embedded app, and chat remained usable. Switching back to **Interact** restored app interaction.
+
+**Observed issues and incomplete workflows:**
+
+- **Drawing clips at the embedded-app boundary:** a stroke started inside the app clipped exactly at its boundary and could not continue into the surrounding canvas. The drawing/Undo pass above covers drawing inside the app only.
+- **Arrow commenting has the same boundary restriction:** only the arrow marker was observed. A complete comment-text entry/save workflow was not verified. Matt also reported that the comment workflow is unfinished in Qt.
+- **Runtime to-do state was lost:** a user-added to-do disappeared on agent regeneration and on **Restart app**, while the agent's source change to **Family Planner** persisted. The cause was not established; in-memory fixture state is a possible explanation, not a verified diagnosis. This does not establish generated-app user-data persistence or synchronisation.
+- **No user-visible History interface was found.** The retained backend has Git/checkpoint support, and historical-bundle restore has automated evidence above; neither establishes an available History UI. No hands-on history browsing or restore workflow passed in this run.
+- **Visual refinement remains:** Matt found the interface visually rough and in need of design refinement.
+
+**Acceptance boundary and limitations:** this records the verified behaviour of this exact preview on the tested VM/Cairo path, with the issues above still open. **No hands-on multiuser remote-client test was performed, and no comprehensive GTK production acceptance was performed.** The two-profile CI result remains automated evidence only. Other checks and limitations retain the scope of their earlier records; this run does not establish hands-on confirmation of the slider endpoint/return or modal-shadow fixes, default/GPU rendering, other desktop scales/layouts/IME, native macOS embedding or arbitrary generated apps. It does not approve a production Qt replacement or Casilda for production.
+
+**Scope preserved:** this acceptance record requires no changes to the production Qt profile, VM installation, OMP path or credentials, application code or release configuration. The earlier `a02d0b8` and `90dad3a` records remain unchanged.
