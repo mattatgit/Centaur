@@ -775,6 +775,7 @@ class Centaur(Gtk.Application):
         if self.reports:
             self.reports.mkdir(parents=True,exist_ok=True)
             data={'pid':os.getpid(),'page':self.page,'windowSize':[self.window.get_width(),self.window.get_height()],
+                  'focus':self.window.get_focus().__gtype__.name if self.window.get_focus() else None,
                   'form':self.active_form.get_title() if self.active_form and self.active_form.get_visible() else None,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',

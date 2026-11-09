@@ -247,10 +247,15 @@ class Modal:
     def key(self, controller, keyval, keycode, state):
         if keyval not in (Gdk.KEY_Tab,Gdk.KEY_ISO_Left_Tab): return False
         def walk(widget):
-            if widget.get_mapped() and widget.is_sensitive() and widget.get_focusable(): yield widget
+            if not widget.get_mapped() or not widget.is_sensitive(): return
+            descendants=[]
             child=widget.get_first_child()
             while child:
-                yield from walk(child); child=child.get_next_sibling()
+                descendants.extend(walk(child)); child=child.get_next_sibling()
+            # Entry and scrolled-window delegates must be one Tab stop, not a
+            # container stop followed by the actual editable widget.
+            if descendants: yield from descendants
+            elif widget.get_focusable(): yield widget
         items=list(walk(self.content))
         if items:
             current=self.owner.window.get_focus(); backwards=bool(state&Gdk.ModifierType.SHIFT_MASK) or keyval==Gdk.KEY_ISO_Left_Tab

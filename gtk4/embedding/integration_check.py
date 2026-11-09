@@ -109,7 +109,9 @@ def main():
         control.close(); control=None
         guest,gs,gw=launch('guest')
         click(gs,gw,'join'); until(lambda:gs().get('form')=='Join project','Join form did not open')
-        driver.key('ctrl+a'); driver.type('Guest'); driver.key('Tab'); driver.type(code); driver.key('Return')
+        driver.key('ctrl+a'); driver.type('Guest'); driver.key('Tab')
+        until(lambda:gs().get('focus')=='GtkTextView','Tab did not enter the invitation field')
+        driver.type(code); driver.key('Return')
         until(lambda:(gs().get('child') or {}).get('ready'),'Guest did not join and embed the GTK app')
         assert gs()['status']=='Guest connected'
         message(gs,gw,'Hello from Guest')
