@@ -43,8 +43,11 @@ class Driver:
             self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
             self.ipc(f"seat seat0 cursor set {r['x'] + x} {r['y'] + y}")
-            self.ipc('seat seat0 cursor press button1')
-            self.ipc('seat seat0 cursor release button1')
+            # Use the same persistent pointer as drags and wheel events. Its
+            # protocol helper emits a pointer frame and waits for a Wayland
+            # roundtrip for each button event, including nested popup grabs.
+            self.seat_command('left press')
+            self.seat_command('left release')
         else:
             command('xdotool', 'mousemove', '--window', window, str(x), str(y), 'click', '1')
 
