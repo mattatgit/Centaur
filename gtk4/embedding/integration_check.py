@@ -59,7 +59,17 @@ def main():
         reply_file.write_text(json.dumps({'kind':'proposal','message':'Update the native app','conflict':conflict,'gtk':bundle}))
     try:
         host,hs,hw=launch('host')
+        def resize_host(width,height):
+            driver.resize(hw,width,height)
+            until(lambda:hs().get('windowSize')==[width,height],'UI audit resize did not settle')
+            driver.ipc(f'[con_id={hw}] move position 0 px 0 px'); time.sleep(.3)
+        resize_host(1440,944)
+        driver.screenshot(hw,folder/'ui-projects-empty.png')
+        click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
+        click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
+        click(hs,hw,'nav-projects')
         click(hs,hw,'create'); until(lambda:hs().get('form')=='New project','New project form did not open')
+        driver.screenshot(hw,folder/'ui-new-project.png')
         driver.type('Family test'); driver.key('Return')
         until(lambda:(hs().get('child') or {}).get('ready'),'GTK project did not launch')
         project=hs()['project']; project_id=project['id']
@@ -68,9 +78,19 @@ def main():
         changed['files']['app.ui']=changed['files']['app.ui'].replace('Family board','Family Planner')
         checkpoint=subprocess.check_output(['git','-C',str(source.parent),'rev-parse','HEAD'],text=True).strip()
         driver.screenshot(hw,folder/'gtk4-workspace.png')
+        until(lambda:hs().get('targets',{}).get('chat-panel',[0,0,0])[2]==432,'Reference chat width was not preserved')
+        workspace=hs(); mode=workspace['targets']['mode-switch']
+        assert mode[2:]==[240,48] and abs(mode[0]+mode[2]/2-720)<=1,'Mode switch is not centred at its reference size'
+        assert not workspace['layout']['sidebarVisible'],'Workspace retained a sidebar absent from the Qt reference'
+        assert workspace['targets']['composer'][3]==104,'Composer is not on the agreed grid'
+        driver.screenshot(hw,folder/'ui-interact.png')
+        click(hs,hw,'mode-Build'); driver.screenshot(hw,folder/'ui-build.png'); click(hs,hw,'mode-Interact')
+        (folder/'ui-workspace-metrics.json').write_text(json.dumps(workspace,indent=2))
         with Image.open(folder/'gtk4-workspace.png') as image:
             assert sum(abs(r-250)<2 and abs(g-251)<2 and abs(b-247)<2 for r,g,b in image.convert('RGB').getdata())>5000, 'Native sample was not rendered inside the GTK workspace'
         summary['checks'].append('native-project-create-and-embedded-gtk-app')
+        summary['checks'].append('qt-reference-workspace-layout-typography-assets-and-8px-controls')
+        resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
         original_pid=hs()['childPid']
         message(hs,hw,'Hello from Matt')
         assert hs()['childPid']==original_pid,'Ordinary chat restarted the app'
@@ -138,6 +158,24 @@ def main():
         click(hs,hw,'open-'+project_id)
         until(lambda:(hs().get('child') or {}).get('ready') and hs().get('childPid')!=old_child,'Reopening the same project did not start its preview')
         summary['checks'].append('project-navigation-stops-preview-and-reopens-same-project')
+        click(hs,hw,'nav-projects'); resize_host(1440,944)
+        driver.screenshot(hw,folder/'ui-project-cards.png')
+        card=hs()['targets']['open-'+project_id]
+        assert card[3]==256 and hs()['layout']['tileColumns']==3,'Project grid did not retain reference card geometry'
+        click(hs,hw,'menu-'+project_id); driver.screenshot(hw,folder/'ui-project-menu.png')
+        click(hs,hw,'menu-rename-'+project_id); until(lambda:hs().get('form')=='Rename project','Rename did not open')
+        driver.screenshot(hw,folder/'ui-rename.png'); driver.key('Escape')
+        click(hs,hw,'menu-'+project_id); click(hs,hw,'menu-delete-'+project_id)
+        until(lambda:hs().get('form')=='Delete project?','Delete confirmation did not open')
+        driver.screenshot(hw,folder/'ui-delete-confirmation.png'); driver.key('Escape')
+        assert len(hs()['projects'])==1,'Cancelling deletion removed a project'
+        for width,count in [(720,1),(1440,3),(2048,5)]:
+            resize_host(width,944)
+            until(lambda:hs()['layout']['tileColumns']==count,'Project grid column breakpoint failed')
+            assert hs()['layout']['sidebarWidth']==(72 if width<760 else 216)
+        resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
+        click(hs,hw,'open-'+project_id); until(lambda:(hs().get('child') or {}).get('ready'),'UI audit did not reopen app')
+        summary['checks'].append('responsive-project-grid-original-menu-rename-and-cancelled-delete')
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['passed']=True

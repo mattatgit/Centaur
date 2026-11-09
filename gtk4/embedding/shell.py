@@ -21,51 +21,9 @@ from bundle import load_bundle
 from service import Service
 from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
-
-ASSETS = Path(os.environ.get('CENTAUR_GTK_ASSETS', Path(__file__).parent / 'assets'))
-
-
-def label(text='', css=None, wrap=False):
-    widget = Gtk.Label(label=text, xalign=0, wrap=wrap, wrap_mode=Pango.WrapMode.WORD_CHAR)
-    if css:
-        for name in css.split(): widget.add_css_class(name)
-    return widget
-
-
-def box(vertical=False, spacing=8, css=None):
-    widget = Gtk.Box(orientation=Gtk.Orientation.VERTICAL if vertical else Gtk.Orientation.HORIZONTAL, spacing=spacing)
-    if css:
-        widget.add_css_class(css)
-    return widget
-
-
-def margins(widget, value):
-    for edge in ('top','bottom','start','end'):
-        getattr(widget,'set_margin_'+edge)(value)
-    return widget
-
-
-def button(text, callback, icon=None, css=None):
-    widget = Gtk.Button()
-    row = box(spacing=8)
-    if icon:
-        image=Gtk.Image.new_from_file(str(ASSETS / icon)); image.set_pixel_size(20)
-        row.append(image); widget.centaur_image=image; widget.centaur_icon=icon
-    if text:
-        row.append(label(text))
-    widget.set_child(row)
-    widget.set_tooltip_text(text or 'Project options')
-    if css:
-        widget.add_css_class(css)
-    if icon in ('interact-grey.svg','comment-grey.svg'):
-        motion=Gtk.EventControllerMotion()
-        def icon_state(hover=False):
-            state='white' if widget.has_css_class('selected') else 'hover' if hover else 'grey'
-            widget.centaur_image.set_from_file(str(ASSETS / icon.replace('grey',state)))
-        motion.connect('enter',lambda c,x,y:icon_state(True)); motion.connect('leave',lambda c:icon_state(False))
-        widget.add_controller(motion); widget.centaur_icon_state=icon_state
-    widget.connect('clicked', lambda b: callback())
-    return widget
+from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
+                CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit,
+                label, box, margins, button, button_text, selected)
 
 
 class Centaur(Gtk.Application):
@@ -96,154 +54,212 @@ class Centaur(Gtk.Application):
         provider = Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).with_name('shell.css')))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-        self.window = Gtk.ApplicationWindow(application=self, title='Centaur', default_width=1400, default_height=940,
+        self.window = Gtk.ApplicationWindow(application=self, title='Centaur', default_width=1440, default_height=944,
                                             decorated=not bool(os.environ.get('CENTAUR_GTK4_TEST_UNDECORATED')))
-        self.window.set_size_request(520, 440)
-        root = box(spacing=0)
-        sidebar = margins(box(True, 8, 'sidebar'), 8)
-        sidebar.set_size_request(180, -1)
-        brand = button('', lambda:self.navigate('projects'), 'centaur.svg', 'brand')
-        brand.set_tooltip_text('Projects'); brand.centaur_image.set_pixel_size(40)
-        sidebar.append(brand)
-        self.nav = {}
+        self.window.set_size_request(360, 680)
+        self.root_overlay = Gtk.Overlay()
+        root = box(spacing=0); self.root_overlay.set_child(root)
+        self.sidebar = box(True, 0, 'sidebar'); self.sidebar.set_size_request(SIDEBAR, -1)
+        brand_row = box(spacing=0); brand_row.set_size_request(-1, HEADER)
+        brand = button('', lambda:self.navigate('projects'), 'centaur.svg', 'brand', tone='plain', width=32, icon_size=32)
+        brand.set_margin_start(24); brand.set_valign(Gtk.Align.CENTER); brand.set_tooltip_text('Projects')
+        brand_row.append(brand); self.sidebar.append(brand_row); self.sidebar_brand = brand
+        self.nav = {}; self.nav_labels = []
+        links = box(True, 0); links.set_margin_top(24); links.set_margin_start(8); links.set_margin_end(8)
         for key, title, icon in [('projects','Projects','project-icon-default.svg'),('systems','Design Systems','ds-icon-default.svg'),('settings','Settings','settings-icon-default.svg')]:
-            item = button(title, lambda k=key:self.navigate(k), icon, 'navigation')
-            self.nav[key] = item; self.targets['nav-'+key]=item
-            sidebar.append(item)
-        spacer = box(); spacer.set_vexpand(True); sidebar.append(spacer)
-        self.identity = button('Your settings', lambda:self.navigate('settings'), css='navigation')
-        sidebar.append(self.identity)
-        root.append(sidebar)
-        content = box(True, 0); content.set_hexpand(True)
-        top = margins(box(spacing=12, css='topbar'), 16)
-        top.append(button('Projects', lambda:self.navigate('projects')))
-        self.breadcrumb_arrow = Gtk.Image.new_from_file(str(ASSETS / 'breadcrumb-arrow.svg'))
-        top.append(self.breadcrumb_arrow)
-        self.breadcrumb = label(''); top.append(self.breadcrumb)
-        flexible = box(); flexible.set_hexpand(True); top.append(flexible)
-        self.modes = box(spacing=2, css='mode-switch')
+            item = button(title, lambda k=key:self.navigate(k), icon, 'navigation', tone='plain', height=40, icon_size=32)
+            item.get_child().set_halign(Gtk.Align.START)
+            self.nav[key] = item; self.nav_labels.append(item.centaur_label); self.targets['sidebar-'+key] = item
+            self.targets['nav-'+key] = item; links.append(item)
+        self.sidebar.append(links)
+        spacer = box(); spacer.set_vexpand(True); self.sidebar.append(spacer)
+        self.identity = button('', lambda:self.navigate('settings'), css='profile', tone='plain', height=88)
+        profile = box(spacing=16); profile.set_valign(Gtk.Align.CENTER)
+        self.profile_avatar = label('M', 'profile-avatar'); self.profile_avatar.set_size_request(40,40); self.profile_avatar.set_xalign(.5)
+        profile.append(self.profile_avatar)
+        self.profile_text = box(True, 8); self.profile_name = label('', 'nav-label'); self.profile_name.set_ellipsize(Pango.EllipsizeMode.END)
+        self.profile_text.append(self.profile_name); self.profile_text.append(label('This device', 'small muted')); profile.append(self.profile_text)
+        self.identity.set_child(profile); self.sidebar.append(self.identity); root.append(self.sidebar)
+        content = box(True,0); content.set_hexpand(True)
+        self.top = Gtk.CenterBox(); self.top.add_css_class('topbar'); self.top.set_size_request(-1,HEADER)
+        self.top_start = box(spacing=16); self.top_start.set_margin_start(24); self.top_start.set_valign(Gtk.Align.CENTER)
+        self.workspace_brand = button('',lambda:self.navigate('projects'),'centaur.svg','brand',tone='plain',width=32,icon_size=32)
+        self.workspace_brand.set_tooltip_text('Projects'); self.top_start.append(self.workspace_brand)
+        self.projects_crumb = button('Projects',lambda:self.navigate('projects'),tone='plain'); self.top_start.append(self.projects_crumb)
+        self.breadcrumb_arrow = Svg('breadcrumb-arrow.svg',16); self.top_start.append(self.breadcrumb_arrow)
+        self.breadcrumb = label('', 'breadcrumb'); self.breadcrumb.set_ellipsize(Pango.EllipsizeMode.END); self.top_start.append(self.breadcrumb)
+        self.page_title = label('Projects','section-title'); self.top_start.append(self.page_title); self.top.set_start_widget(self.top_start)
+        self.modes = margins(box(spacing=0,css='mode-switch'),0); self.modes.set_valign(Gtk.Align.CENTER)
         self.mode_buttons = {}
-        for title, icon in [('Interact','interact-grey.svg'),('Build','comment-grey.svg')]:
-            item = button(title, lambda t=title:self.set_mode(t), icon)
-            self.mode_buttons[title] = item; self.modes.append(item); self.targets['mode-'+title]=item
-        top.append(self.modes)
-        self.invite_button = button('Invite', self.invite, 'share.svg')
-        top.append(self.invite_button)
-        top.append(button('Deploy', lambda:self.notice('Deploy', 'Deployment is planned for a later version.'), css='primary'))
-        content.append(top)
+        for title,icon in [('Interact','interact-grey.svg'),('Build','comment-grey.svg')]:
+            item = button(title,lambda t=title:self.set_mode(t),icon,'mode-button',tone='plain',width=112)
+            self.mode_buttons[title] = item; self.modes.append(item); self.targets['mode-'+title] = item
+        self.top.set_center_widget(self.modes)
+        self.targets['mode-switch']=self.modes
+        self.top_actions = box(spacing=16); self.top_actions.set_margin_end(24); self.top_actions.set_valign(Gtk.Align.CENTER)
+        self.join_button = button('Join project',self.join,tone='plain'); self.top_actions.append(self.join_button); self.targets['join'] = self.join_button
+        self.create_button = button('+ New project',self.new_project,tone='dark'); self.top_actions.append(self.create_button); self.targets['create'] = self.create_button
+        self.import_button = button('Import',lambda:None); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
+        self.invite_button = button('Invite',self.invite,tone='plain'); self.top_actions.append(self.invite_button)
+        self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg'); self.top_actions.append(self.deploy_button)
+        self.top.set_end_widget(self.top_actions); content.append(self.top)
         self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)
-        content.append(self.stack)
-        self.error_label = label('', 'error', True)
-        margins(self.error_label, 12); self.error_label.set_visible(False)
-        content.append(self.error_label)
-        root.append(content); self.window.set_child(root)
-        self.build_projects()
-        self.build_workspace()
-        self.build_systems()
-        self.build_settings()
-        self.navigate('projects')
-        self.set_mode('Interact')
-        self.window.connect('close-request', lambda w:self.close())
-        self.window.present()
-        self.service = Service(self.root, self.receive)
-        GLib.timeout_add(200, self.poll)
+        self.stack.set_margin_end(8); self.stack.set_margin_bottom(8); content.append(self.stack)
+        root.append(content)
+        self.modal_shade = box(css='modal-shade'); self.modal_shade.set_hexpand(True); self.modal_shade.set_vexpand(True)
+        self.root_overlay.add_overlay(self.modal_shade); self.modal_shade.set_visible(False)
+        self.error_label = margins(label('','error toast',True),24); self.error_label.set_halign(Gtk.Align.CENTER); self.error_label.set_valign(Gtk.Align.END)
+        self.root_overlay.add_overlay(self.error_label); self.error_label.set_visible(False)
+        self.window.set_child(self.root_overlay)
+        self.build_projects(); self.build_workspace(); self.build_systems(); self.build_settings()
+        self.navigate('projects'); self.set_mode('Interact')
+        self.window.connect('close-request',lambda w:self.close()); self.window.present()
+        self.service = Service(self.root,self.receive)
+        GLib.timeout_add(200,self.poll)
 
     def build_projects(self):
-        page = margins(box(True,20,'panel'),24)
-        title = box(); title.append(label('Projects','heading'))
-        title.get_first_child().set_hexpand(True)
-        join = button('Join project',self.join)
-        create = button('New project',self.new_project,css='primary')
-        title.append(join); title.append(create); self.targets['create'] = create; self.targets['join'] = join
-        page.append(title)
+        page = box(True,0,'panel')
+        self.projects_inner = margins(box(True,24),40); self.projects_inner.set_vexpand(True); page.append(self.projects_inner)
         scroll = Gtk.ScrolledWindow(vexpand=True,hexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.cards = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, min_children_per_line=1,max_children_per_line=5,
-                                 row_spacing=16,column_spacing=16,homogeneous=True,valign=Gtk.Align.START)
-        scroll.set_child(self.cards); page.append(scroll)
-        self.empty_projects = label('Create a project, or join one with an invitation.','muted',True)
-        page.append(self.empty_projects)
-        self.join_progress=label('','muted',True); page.append(self.join_progress)
-        self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); page.append(self.cancel_join); self.cancel_join.set_visible(False)
+        self.cards = ProjectGrid(); scroll.set_child(self.cards)
+        overlay = Gtk.Overlay(vexpand=True); overlay.set_child(scroll)
+        self.empty_projects = margins(box(True,16,'empty-project'),32)
+        self.empty_projects.set_halign(Gtk.Align.CENTER); self.empty_projects.set_valign(Gtk.Align.CENTER); self.empty_projects.set_size_request(424,264)
+        self.empty_projects.append(label('Make something together.','empty-heading',True))
+        self.empty_projects.append(label('A little idea can become an app for the people you care about.','empty-description',True))
+        spacer=box(); spacer.set_vexpand(True); self.empty_projects.append(spacer)
+        first=button('Create your first project',self.new_project,tone='lime'); first.set_halign(Gtk.Align.START); self.empty_projects.append(first)
+        overlay.add_overlay(self.empty_projects); self.projects_inner.append(overlay)
+        self.join_progress=label('','small muted',True); self.projects_inner.append(self.join_progress); self.join_progress.set_visible(False)
+        self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); self.cancel_join.set_halign(Gtk.Align.START)
+        self.projects_inner.append(self.cancel_join); self.cancel_join.set_visible(False)
         self.stack.add_named(page,'projects')
 
     def build_systems(self):
-        page = box(True,16,'panel'); page.set_halign(Gtk.Align.CENTER); page.set_valign(Gtk.Align.CENTER)
-        image = Gtk.Image.new_from_file(str(ASSETS/'design-system-empty-suitcase.png')); image.set_pixel_size(176)
-        page.append(image); page.append(label('No design systems added yet','muted'))
-        page.append(label('Design-system import is not available yet.','small muted'))
-        self.stack.add_named(page,'systems')
+        page=Gtk.Overlay(); page.add_css_class('panel'); page.set_child(box())
+        group=box(True,16); group.set_halign(Gtk.Align.CENTER); group.set_valign(Gtk.Align.CENTER)
+        image=Gtk.Picture.new_for_filename(str(ASSETS/'design-system-empty-suitcase.png'))
+        image.set_content_fit(Gtk.ContentFit.CONTAIN); image.set_size_request(176,176); image.set_halign(Gtk.Align.CENTER)
+        group.append(image)
+        for text,css in [('No design systems added yet','muted'),('Design-system import is not available yet.','small muted')]:
+            item=label(text,css,True); item.set_xalign(.5); group.append(item)
+        page.add_overlay(group); self.stack.add_named(page,'systems')
 
     def build_settings(self):
-        page = margins(box(True,20,'panel'),24)
-        page.append(label('Settings','heading'))
-        page.append(label('Your name','name'))
-        self.name = Gtk.Entry(max_length=50); page.append(self.name)
-        page.append(button('Save name',lambda:self.service.send('author',name=self.name.get_text())))
-        page.append(label('Agent','name'))
-        self.agent_detail = label('', 'muted', True); page.append(self.agent_detail)
-        self.agent_name_button=button('Agent name',lambda:self.form('Agent name',[('name','Name used after @',self.project.get('agentName','centaur'))],lambda v:self.service.send('agentName',name=v['name'])))
-        page.append(self.agent_name_button)
+        page=box(True,0,'panel'); scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
+        self.settings_inner=margins(box(True,24),40); self.settings_limit=WidthLimit(self.settings_inner,720)
+        scroll.set_child(self.settings_limit); page.append(scroll)
+        def section(title):
+            group=box(True,16); group.append(label(title,'section-title')); self.settings_inner.append(group); return group
+        def rule(): self.settings_inner.append(Gtk.Separator())
+        space=section('Your space'); space.append(label('Your name'))
+        self.name=Gtk.Entry(max_length=50); self.name.set_size_request(-1,40); space.append(self.name)
+        self.name.connect('activate',lambda e:self.save_name())
+        focus=Gtk.EventControllerFocus(); focus.connect('leave',lambda c:self.save_name()); self.name.add_controller(focus)
+        space.append(label('People in this conversation see this name.','small muted',True)); rule()
+        agent=section('Agent'); self.agent_detail=label('','',True); agent.append(self.agent_detail)
+        self.agent_path=label('','small muted',True); agent.append(self.agent_path)
+        self.agent_model=label('','small muted',True); agent.append(self.agent_model)
+        agent.append(label('Sign in and select a model in OMP. Credentials stay with the agent on this device.','small muted',True))
+        self.agent_name_caption=label("Address this project's agent as"); agent.append(self.agent_name_caption)
+        self.agent_name_button=Gtk.Entry(max_length=30); self.agent_name_button.set_size_request(-1,40); agent.append(self.agent_name_button)
+        self.agent_name_button.connect('activate',lambda e:self.save_agent_name())
+        focus=Gtk.EventControllerFocus(); focus.connect('leave',lambda c:self.save_agent_name()); self.agent_name_button.add_controller(focus)
+        self.project_settings_actions=box(spacing=8); self.open_repo_button=button('Open repo',self.open_repo)
+        self.project_settings_actions.append(self.open_repo_button)
+        self.project_settings_actions.append(button('Restart app',lambda:self.start_preview(force=True),'reload.svg'))
+        self.archive_button=button('Archive',lambda:self.notice('Archive this project?','Your app and conversation stay saved in the project folder.',lambda:self.service.send('archive',projectId=self.project['id']),'Archive'))
+        self.project_settings_actions.append(self.archive_button); agent.append(self.project_settings_actions); rule()
+        group=section('Grid'); self.settings_grid=self.grid_controls(group); rule()
+        storage=section('Collaboration and storage')
+        storage.append(label('Invite people from a project to collaborate across computers. The background host keeps sharing while its Centaur window is closed. Keep the host computer awake.','small muted',True))
+        storage.append(label(str(self.root),'small muted',True))
+        open_folder=button('Open data folder',lambda:Gio.AppInfo.launch_default_for_uri(self.root.as_uri(),None)); open_folder.set_halign(Gtk.Align.START); storage.append(open_folder)
+        self.back_to_app=button('Back to app',lambda:self.navigate('workspace')); self.back_to_app.set_halign(Gtk.Align.START); storage.append(self.back_to_app)
         self.stop_sharing_button=button('Stop sharing this project',lambda:self.notice('Stop sharing?','Disconnect guests from this project?',lambda:self.service.send('stopSharing'),'Stop sharing'))
-        page.append(self.stop_sharing_button)
-        page.append(label('The host runs OMP. Guests use the host’s agent and do not need their own credentials.','muted',True))
-        page.append(label('Project storage','name')); page.append(label(str(self.root),'muted',True))
-        page.append(button('Open project folder',lambda:Gio.AppInfo.launch_default_for_uri(self.root.as_uri(),None)))
-        self.stack.add_named(page,'settings')
+        self.stop_sharing_button.set_halign(Gtk.Align.START); storage.append(self.stop_sharing_button)
+        storage.append(label('Centaur v'+self.version(),'small muted')); self.stack.add_named(page,'settings')
 
     def build_workspace(self):
-        self.panes = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,wide_handle=True)
-        self.panes.set_position(760)
-        canvas_panel = margins(box(True,8,'canvas-panel'),12)
-        tools = box(spacing=8)
-        spacer=box(); spacer.set_hexpand(True); tools.append(spacer)
-        grid_button=button('',self.grid_settings,'grid.svg'); grid_button.set_tooltip_text('Canvas grid'); tools.append(grid_button)
-        self.zoom = Gtk.DropDown.new_from_strings(ZOOM_MODES); self.zoom.set_selected(2)
-        self.zoom.connect('notify::selected',lambda c,p:self.zoom_changed())
-        tools.append(self.zoom); self.targets['zoom']=self.zoom
-        tools.append(button('Centre',lambda:self.viewport.centre() if self.viewport else None))
-        tools.append(button('Restart app',lambda:self.start_preview(force=True),'reload.svg'))
-        canvas_panel.append(tools)
-        self.overlay = Gtk.Overlay(hexpand=True,vexpand=True)
+        wrapper=margins(box(spacing=0),16); wrapper.set_margin_top(0)
+        self.panes=Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL,wide_handle=True); self.panes.set_hexpand(True); self.panes.set_vexpand(True)
+        wrapper.append(self.panes)
+        self.overlay=Gtk.Overlay(hexpand=True,vexpand=True); self.overlay.add_css_class('canvas-panel'); self.overlay.set_overflow(Gtk.Overflow.HIDDEN)
         self.preview_holder=box(True,0); self.preview_holder.set_hexpand(True); self.preview_holder.set_vexpand(True)
         self.overlay.set_child(self.preview_holder); self.targets['canvas']=self.overlay
-        self.ink = Gtk.DrawingArea(hexpand=True,vexpand=True)
-        self.ink.set_draw_func(self.draw_ink)
-        self.overlay.add_overlay(self.ink)
-        draw = Gtk.GestureDrag(button=1)
-        draw.connect('drag-begin',self.ink_begin); draw.connect('drag-update',self.ink_update); draw.connect('drag-end',self.ink_end)
-        self.ink.add_controller(draw)
+        self.ink=Gtk.DrawingArea(hexpand=True,vexpand=True); self.ink.set_draw_func(self.draw_ink); self.overlay.add_overlay(self.ink)
+        draw=Gtk.GestureDrag(button=1); draw.connect('drag-begin',self.ink_begin); draw.connect('drag-update',self.ink_update); draw.connect('drag-end',self.ink_end); self.ink.add_controller(draw)
         pan=Gtk.GestureDrag(button=2)
-        pan.connect('drag-begin',lambda gesture,x,y:self.viewport.drag_begin(gesture,x,y) if self.viewport else None)
-        pan.connect('drag-update',lambda gesture,dx,dy:self.viewport.drag_update(gesture,dx,dy) if self.viewport else None)
-        self.ink.add_controller(pan)
-        canvas_panel.append(self.overlay)
-        self.preview_label=label('','muted'); self.preview_label.set_halign(Gtk.Align.CENTER); canvas_panel.append(self.preview_label)
-        self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER)
+        pan.connect('drag-begin',lambda g,x,y:self.viewport.drag_begin(g,x,y) if self.viewport else None)
+        pan.connect('drag-update',lambda g,x,y:self.viewport.drag_update(g,x,y) if self.viewport else None); self.ink.add_controller(pan)
+        self.grid_button=button('',self.toggle_grid,'grid.svg','grid-toggle',width=24,height=24)
+        self.grid_button.set_tooltip_text('Show grid'); self.grid_button.set_halign(Gtk.Align.START); self.grid_button.set_valign(Gtk.Align.START)
+        self.grid_button.set_margin_start(8); self.grid_button.set_margin_top(8); self.overlay.add_overlay(self.grid_button); self.targets['grid']=self.grid_button
+        tools=box(spacing=8); tools.set_halign(Gtk.Align.END); tools.set_valign(Gtk.Align.START); tools.set_margin_top(8); tools.set_margin_end(8)
+        self.zoom=Gtk.DropDown.new_from_strings(ZOOM_MODES); self.zoom.add_css_class('zoom'); self.zoom.set_selected(2); self.zoom.set_size_request(80,32)
+        self.zoom.connect('notify::selected',lambda c,p:self.zoom_changed()); tools.append(self.zoom); self.targets['zoom']=self.zoom
+        tools.append(button('Centre',lambda:self.viewport.centre() if self.viewport else None))
+        restart=button('',lambda:self.start_preview(force=True),'reload.svg',width=32); restart.set_tooltip_text('Restart app'); tools.append(restart)
+        self.overlay.add_overlay(tools)
+        self.preview_label=label('','small muted',True); self.preview_label.set_halign(Gtk.Align.CENTER); self.preview_label.set_valign(Gtk.Align.CENTER); self.preview_label.set_can_target(False)
+        self.overlay.add_overlay(self.preview_label)
+        self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER); self.build_tools.set_valign(Gtk.Align.END); self.build_tools.set_margin_bottom(16)
         self.tool_buttons={}
-        for tool,title,icon in [('draw','Draw',None),('comment','Comment','comment-grey.svg')]:
-            item=button(title,lambda t=tool:self.set_tool(t),icon); self.tool_buttons[tool]=item; self.build_tools.append(item)
-        undo=button('Undo',lambda:self.service.send('undo')); self.build_tools.append(undo); self.targets['undo']=undo
-        canvas_panel.append(self.build_tools)
-        self.panes.set_start_child(canvas_panel); self.panes.set_resize_start_child(True)
-        chat=margins(box(True,12,'chat'),20); chat.set_size_request(340,-1)
-        chat.append(label('Chat','heading'))
-        self.chat_status=label('Connecting…','muted'); self.chat_status.set_ellipsize(Pango.EllipsizeMode.END); chat.append(self.chat_status)
-        chat.append(Gtk.Separator())
+        for tool,title,icon,width in [('draw','✎  Draw',None,80),('comment','Comment','arrow.svg',104)]:
+            item=button(title,lambda t=tool:self.set_tool(t),icon,width=width)
+            self.tool_buttons[tool]=item; self.build_tools.append(item)
+        self.undo_button=button('↶  Undo',lambda:self.service.send('undo'),width=80); self.build_tools.append(self.undo_button); self.targets['undo']=self.undo_button
+        self.overlay.add_overlay(self.build_tools); self.panes.set_start_child(self.overlay); self.panes.set_resize_start_child(True); self.panes.set_shrink_start_child(False)
+        self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
+        self.targets['chat-panel']=self.chat
+        chat=margins(box(True,16),24); chat.set_vexpand(True); self.chat.append(chat)
+        heading=box(True,8); heading.append(label('Chat','chat-heading'))
+        self.chat_status=label('Connecting…','chat-status muted'); self.chat_status.set_ellipsize(Pango.EllipsizeMode.END); heading.append(self.chat_status)
+        chat.append(heading); chat.append(Gtk.Separator())
         self.chat_scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.messages=box(True,20); self.chat_scroll.set_child(self.messages); chat.append(self.chat_scroll)
-        self.proposal=box(True,8,'proposal'); chat.append(self.proposal)
-        composer=box(True,8,'composer')
-        self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False)
-        self.editor.set_size_request(-1,80); composer.append(self.editor); self.targets['editor']=self.editor
+        self.messages=box(True,24); self.chat_scroll.set_child(self.messages)
+        message_overlay=Gtk.Overlay(vexpand=True); message_overlay.set_child(self.chat_scroll)
+        self.empty_chat=box(True,16); self.empty_chat.set_halign(Gtk.Align.FILL); self.empty_chat.set_valign(Gtk.Align.CENTER)
+        self.empty_chat.append(label('Start with a conversation.','empty-heading',True))
+        self.empty_chat.append(label('Talk to each other here. When you’re ready for help, mention @centaur.','message',True))
+        self.empty_chat.append(label('Sketch on the canvas or point with Comment. Your marks accompany the next request to the agent.','message muted',True))
+        message_overlay.add_overlay(self.empty_chat); chat.append(message_overlay)
+        self.busy=box(spacing=8,css='busy'); busy_text=label('Centaur is working…','chat-name'); busy_text.set_hexpand(True); self.busy.append(busy_text)
+        self.stop_button=button('Stop',lambda:self.service.send('cancel'),tone='plain'); self.busy.append(self.stop_button); chat.append(self.busy); self.busy.set_visible(False)
+        self.proposal=box(True,8,'proposal'); chat.append(self.proposal); self.proposal.set_visible(False)
+        self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False); self.editor.add_css_class('message'); self.targets['editor']=self.editor
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
-        row=box(); self.mention=label('@centaur','name'); self.mention.set_hexpand(True); row.append(self.mention)
-        self.stop_button=button('Stop',lambda:self.service.send('cancel')); row.append(self.stop_button)
-        self.send_button=button('Send',self.send,'comment-enter-default.svg'); row.append(self.send_button); self.targets['send']=self.send_button
-        composer.append(row); chat.append(composer)
-        self.footer=label('','small muted'); chat.append(self.footer)
-        self.panes.set_end_child(chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
-        self.stack.add_named(self.panes,'workspace')
-        self.set_tool('draw')
+        row=box(spacing=8); self.mention=button('@centaur',self.insert_mention,tone='plain'); row.append(self.mention)
+        spacer=box(); spacer.set_hexpand(True); row.append(spacer)
+        self.send_button=button('',self.send,'comment-enter-active.svg',tone='dark',width=32,icon_size=24); self.send_button.set_tooltip_text('Send message'); row.append(self.send_button); self.targets['send']=self.send_button
+        self.composer=Composer(self.editor,row); chat.append(self.composer)
+        self.targets['composer']=self.composer
+        self.editor.get_buffer().connect('changed',lambda b:self.update_send())
+        footer=box(spacing=8); self.footer=label('','chat-time muted'); self.footer.set_hexpand(True); self.footer.set_ellipsize(Pango.EllipsizeMode.END)
+        footer.append(self.footer); self.version_label=label('v'+self.version(),'version muted'); footer.append(self.version_label); chat.append(footer)
+        self.panes.set_end_child(self.chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
+        self.stack.add_named(wrapper,'workspace'); self.set_tool('draw'); self.initial_pane=True
+
+    @staticmethod
+    def version(): return '0.4.0-preview+'+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev')
+
+    def save_name(self):
+        text=self.name.get_text().strip()
+        if hasattr(self,'service') and text and text!=self.data.get('author') and not self.data.get('remote'): self.service.send('author',name=text)
+
+    def save_agent_name(self):
+        text=self.agent_name_button.get_text().strip()
+        if hasattr(self,'service') and text and self.project and text!=self.project.get('agentName') and not self.data.get('remote'): self.service.send('agentName',name=text)
+
+    def open_repo(self):
+        if self.data.get('sourcePath'): Gio.AppInfo.launch_default_for_uri(Path(self.data['sourcePath']).parent.as_uri(),None)
+
+    def insert_mention(self):
+        buffer=self.editor.get_buffer(); buffer.insert_at_cursor('@'+self.project.get('agentName','centaur')+' '); self.editor.grab_focus()
+
+    def update_send(self):
+        buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
+        self.send_button.set_sensitive(bool(text.strip()) and self.data.get('connected',False) and self.pending_message is None)
 
     @staticmethod
     def clear(widget):
@@ -254,11 +270,14 @@ class Centaur(Gtk.Application):
         self.page=page
         self.stack.set_visible_child_name(page)
         for key,item in self.nav.items():
-            (item.add_css_class if key==page else item.remove_css_class)('selected')
-            item.centaur_image.set_from_file(str(ASSETS/item.centaur_icon.replace('default','selected' if key==page else 'default')))
+            selected(item,key==page)
         workspace=page=='workspace'
-        self.modes.set_visible(workspace); self.invite_button.set_visible(workspace and not self.data.get('remote',False))
-        self.breadcrumb_arrow.set_visible(workspace); self.breadcrumb.set_visible(workspace)
+        self.sidebar.set_visible(not workspace); self.modes.set_visible(workspace)
+        for item in (self.workspace_brand,self.projects_crumb,self.breadcrumb_arrow,self.breadcrumb,self.invite_button,self.deploy_button): item.set_visible(workspace)
+        self.page_title.set_visible(not workspace); self.page_title.set_text({'projects':'Projects','systems':'Design Systems','settings':'Settings'}.get(page,''))
+        self.join_button.set_visible(page=='projects'); self.create_button.set_visible(page=='projects'); self.import_button.set_visible(page=='systems')
+        self.targets['nav-projects']=self.projects_crumb if workspace else self.nav['projects']
+        self.window.set_size_request(1000 if workspace else 360,680)
         if workspace:
             GLib.idle_add(self.start_preview)
         else:
@@ -267,20 +286,18 @@ class Centaur(Gtk.Application):
     def set_mode(self,mode):
         self.mode=mode
         for key,item in self.mode_buttons.items():
-            (item.add_css_class if key==mode else item.remove_css_class)('selected')
-            item.centaur_icon_state()
+            selected(item,key==mode)
         self.build_tools.set_visible(mode=='Build')
         self.ink.set_can_target(mode=='Build')
 
     def set_tool(self,tool):
         self.tool=tool
         for key,item in self.tool_buttons.items():
-            (item.add_css_class if key==tool else item.remove_css_class)('selected')
-            if hasattr(item,'centaur_icon_state'): item.centaur_icon_state()
+            selected(item,key==tool)
 
     def receive(self,data):
         if data.get('type')=='error':
-            self.pending_message=None; self.send_button.set_sensitive(self.data.get('connected',False))
+            self.pending_message=None; self.update_send()
             self.error_label.set_text(data.get('message','Could not complete that action.')); self.error_label.set_visible(True); return
         if data.get('type')=='sent': return
         if data.get('type')!='snapshot': return
@@ -296,12 +313,20 @@ class Centaur(Gtk.Application):
             if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==pending['text']: buffer.set_text('')
             self.pending_message=None
         self.join_progress.set_text(data.get('joinStatus','') if data.get('joining') else '')
+        self.join_progress.set_visible(data.get('joining',False))
         self.cancel_join.set_visible(data.get('joining',False))
         self.agent_name_button.set_sensitive(bool(self.project) and not data.get('remote',False))
         self.stop_sharing_button.set_visible(bool(self.project.get('sharing',{}).get('enabled')) and not data.get('remote',False))
-        self.identity.set_label(data.get('author','Your settings'))
+        self.profile_name.set_text(data.get('author','Your settings')); self.profile_avatar.set_text(data.get('author','?')[:1].upper())
         if not self.name.has_focus(): self.name.set_text(data.get('author',''))
-        self.agent_detail.set_text('OMP · '+('Available on this host' if data.get('agentAvailable') else 'Agent unavailable'))
+        self.name.set_sensitive(not data.get('remote',False))
+        self.agent_detail.set_text('OMP is available' if data.get('agentAvailable') else 'OMP is not connected')
+        self.agent_path.set_text('OMP runs on the project host.' if data.get('remote') else data.get('agentExecutable') or 'Launch Centaur with your OMP executable configured.')
+        self.agent_model.set_text(data.get('agentModel') or 'The model is reported after an agent request.')
+        for widget in (self.agent_name_caption,self.agent_name_button,self.project_settings_actions,self.back_to_app): widget.set_visible(bool(self.project))
+        for widget in (self.open_repo_button,self.archive_button): widget.set_visible(not data.get('remote',False))
+        if not self.agent_name_button.has_focus(): self.agent_name_button.set_text(self.project.get('agentName','centaur'))
+        self.sync_grid()
         key=json.dumps(data.get('projects',[]),sort_keys=True)
         if self.project_key!=key:
             self.project_key=key; self.refresh_cards()
@@ -313,9 +338,13 @@ class Centaur(Gtk.Application):
             model=model.replace('openai-codex/','OpenAI Codex · ').replace('gpt-','GPT ').replace('-',' ').replace(' sol',' Sol')
             status=data.get('status','')
             self.chat_status.set_text(status+' · '+(model or 'Model not reported yet') if data.get('agentAvailable') else status+' · Agent unavailable')
-            self.mention.set_text('@'+self.project.get('agentName','centaur'))
-            self.stop_button.set_visible(data.get('busy',False)); self.send_button.set_sensitive(data.get('connected',False) and self.pending_message is None)
-            self.footer.set_text('Chatting as '+data.get('author','')+' · '+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'))
+            button_text(self.mention,'@'+self.project.get('agentName','centaur'))
+            self.composer.placeholder.set_text('Message, or ask @'+self.project.get('agentName','centaur'))
+            self.busy.set_visible(data.get('busy',False)); self.update_send()
+            footer='Chatting as '+data.get('author','')+' · Shift + Enter for a new line'
+            self.footer.set_text(footer); self.footer.set_tooltip_text(footer)
+            remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
+            self.undo_button.set_sensitive(any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[])],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
@@ -328,39 +357,60 @@ class Centaur(Gtk.Application):
         if invitation and invitation!=self.last_invite:
             self.last_invite=invitation
             self.invitation_dialog(invitation)
+        if hasattr(self,'join_dialog') and self.join_dialog.get_visible():
+            self.join_feedback.set_text(data.get('joinStatus',''))
+            self.join_submit.set_sensitive(not data.get('joining',False))
+            if data.get('remote') and data.get('connected'): self.dismiss_dialog(self.join_dialog)
 
     def refresh_cards(self):
-        self.clear(self.cards)
+        self.cards.clear()
         for key in list(self.targets):
-            if key.startswith('open-'): del self.targets[key]
+            if key.startswith(('open-','menu-')): del self.targets[key]
         projects=self.data.get('projects',[])
         self.empty_projects.set_visible(not projects)
         for project in projects:
-            card=margins(box(True,12,'project-card'),16); card.set_size_request(210,140)
-            row=box(); title=label(project['name'],'name',True); title.set_hexpand(True); row.append(title)
+            card=Gtk.Overlay(); open_button=Gtk.Button(); open_button.add_css_class('project-card')
+            open_button.connect('clicked',lambda b,p=project:self.open_project(p['id']))
+            content=box(True,16)
+            badge=label(project['name'][:1].upper(),'project-badge'); badge.set_xalign(.5); badge.set_size_request(56,56); badge.set_halign(Gtk.Align.START); content.append(badge)
+            title=label(project['name'],'project-title'); title.set_ellipsize(Pango.EllipsizeMode.END); content.append(title)
+            description=label(project.get('description') or 'A new idea, ready to take shape.','project-description muted',True)
+            description.set_lines(2); description.set_ellipsize(Pango.EllipsizeMode.END); content.append(description)
+            spacer=box(); spacer.set_vexpand(True); content.append(spacer); content.append(Gtk.Separator())
+            content.append(label('Shared project' if project.get('remote') or project.get('shared') else 'Native app','project-meta muted'))
+            open_button.set_child(content); card.set_child(open_button)
             menu=Gtk.MenuButton(); menu.add_css_class('meatball'); menu.set_tooltip_text('Project options')
-            menu.set_child(Gtk.Image.new_from_file(str(ASSETS/'tile-menu.svg')))
-            pop=Gtk.Popover(); actions=box(True,4)
-            rename=button('Rename',lambda p=project:self.rename(p)); rename.set_sensitive(not project.get('remote',False)); actions.append(rename)
-            actions.append(button('Leave project' if project.get('remote') else 'Delete project',lambda p=project:self.delete(p),css='danger'))
-            pop.set_child(actions); menu.set_popover(pop); row.append(menu); card.append(row)
-            card.append(label(project.get('description',''),'muted',True))
-            open_button=button('Open',lambda p=project:self.open_project(p['id']))
+            menu.set_child(Svg('tile-menu.svg',24)); menu.set_size_request(32,32); menu.set_halign(Gtk.Align.END); menu.set_valign(Gtk.Align.START)
+            menu.set_margin_top(24); menu.set_margin_end(16)
+            pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); pop.add_css_class('project-menu'); actions=box(True,0)
+            def action(callback,popover=pop): popover.popdown(); callback()
+            rename=button('Rename',lambda p=project,a=action:a(lambda:self.rename(p)),tone='plain',height=40)
+            rename.get_child().set_halign(Gtk.Align.START); rename.set_sensitive(not project.get('remote',False)); actions.append(rename)
+            delete=button('Leave project' if project.get('remote') else 'Delete project',lambda p=project,a=action:a(lambda:self.delete(p)),tone='plain',height=40)
+            delete.get_child().set_halign(Gtk.Align.START); actions.append(delete)
+            self.targets['menu-rename-'+project['id']]=rename; self.targets['menu-delete-'+project['id']]=delete
+            pop.set_child(actions); menu.set_popover(pop); card.add_overlay(menu)
             self.targets['open-'+project['id']]=open_button
-            card.append(open_button)
+            self.targets['menu-'+project['id']]=menu
             self.cards.append(card)
 
     def refresh_messages(self):
         self.clear(self.messages)
+        self.empty_chat.set_visible(not self.project.get('messages'))
         for message in self.project.get('messages',[]):
-            item=box(True,6); head=box()
+            item=box(True,8); head=box(spacing=8)
             author=message.get('author','')
-            if message.get('kind') in ('agent','system') and author.lower().lstrip('@')=='centaur': author='Centaur'
-            name=label(author,'name'); name.set_hexpand(True); head.append(name)
+            agent=message.get('kind') in ('agent','system') and author.lower().lstrip('@')==self.project.get('agentName','centaur').lower()
+            if agent: author=author.lstrip('@').capitalize()
+            avatar=label(author[:1].upper(),'avatar agent' if agent else 'avatar'); avatar.set_xalign(.5); avatar.set_size_request(24,24); head.append(avatar)
+            self.targets['chat-avatar']=avatar
+            name=label(author,'chat-name'); name.set_hexpand(True); name.set_ellipsize(Pango.EllipsizeMode.END); head.append(name)
             try: time=datetime.fromisoformat(message['time'].replace('Z','+00:00')).astimezone().strftime('%H:%M')
             except (KeyError,ValueError): time=''
-            head.append(label(time,'small muted')); item.append(head)
-            item.append(label(message.get('text',''),'message',True)); self.messages.append(item)
+            head.append(label(time,'chat-time muted')); item.append(head)
+            body=label(message.get('text',''),'message muted' if message.get('kind')=='system' else 'message',True); body.set_selectable(True)
+            self.chat_body=body
+            item.append(body); self.messages.append(item)
         def bottom():
             adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size())); return False
         GLib.idle_add(bottom)
@@ -370,12 +420,14 @@ class Centaur(Gtk.Application):
         proposal=self.project.get('proposal',{})
         conflict=proposal.get('conflict')
         if isinstance(conflict,dict):
-            self.proposal.append(label(conflict.get('reason','Agreement needed'),'message',True))
+            self.proposal.append(label('Resolve conflicting requests','chat-name',True))
+            self.proposal.append(label(conflict.get('reason','Agreement needed'),'chat-name',True))
             authors=proposal.get('authors',[]); accepted=proposal.get('accepted',[])
-            self.proposal.append(label('Agreement: '+', '.join(accepted)+' / '+', '.join(authors),'small muted',True))
-            agree=button('Agree to this change',lambda:self.service.send('accept'))
+            for author in authors: self.proposal.append(label(('✓  ' if author in accepted else '○  ')+author,'chat-name'))
+            agree=button('Agree to compromise',lambda:self.service.send('accept'),tone='dark')
             agree.set_sensitive(self.data.get('author') in authors and self.data.get('author') not in accepted and not self.data.get('busy'))
             self.proposal.append(agree); self.targets['accept']=agree
+            self.proposal.append(label('Only people whose requests conflict need to agree.','small muted',True))
         self.proposal.set_visible(bool(conflict))
 
     def send(self):
@@ -410,26 +462,56 @@ class Centaur(Gtk.Application):
             self.send(); return True
         return False
 
-    def form(self,title,fields,submit,action='Save'):
-        dialog=Gtk.Window(title=title,transient_for=self.window,modal=True,default_width=420)
-        self.active_form=dialog
-        content=margins(box(True,12),24); entries={}
+    def dialog(self,title,width=424):
+        if self.active_form: self.dismiss_dialog(self.active_form)
+        dialog=Gtk.Window(title=title,transient_for=self.window,modal=True,decorated=False,default_width=width,resizable=False)
+        dialog.add_css_class('dialog'); self.active_form=dialog; self.modal_shade.set_visible(True)
+        content=box(True,16,'dialog-card'); content.append(label(title,'dialog-title',True)); dialog.set_child(content)
+        dialog.connect('notify::visible',lambda d,p:self.modal_shade.set_visible(False) if not d.get_visible() and self.active_form is d else None)
+        key=Gtk.EventControllerKey()
+        def escape(c,keyval,keycode,state):
+            if keyval==Gdk.KEY_Escape:
+                if dialog is getattr(self,'join_dialog',None): self.service.send('cancelJoin')
+                self.dismiss_dialog(dialog); return True
+            return False
+        key.connect('key-pressed',escape); dialog.add_controller(key)
+        return dialog,content
+
+    def dismiss_dialog(self,dialog):
+        dialog.destroy()
+        if self.active_form is dialog: self.active_form=None; self.modal_shade.set_visible(False)
+
+    def form(self,title,fields,submit,action='Save',width=400):
+        dialog,content=self.dialog(title,width); entries={}
         for key,caption,value in fields:
-            content.append(label(caption,'name')); entry=Gtk.Entry(text=value); entries[key]=entry; content.append(entry)
-        row=box(); row.append(button('Cancel',dialog.destroy))
+            content.append(label(caption)); entry=Gtk.Entry(text=value); entry.set_size_request(-1,40); entries[key]=entry; content.append(entry)
         def done():
             values={key:entry.get_text() for key,entry in entries.items()}
-            if all(value.strip() for value in values.values()):
-                submit(values); dialog.destroy()
-        for entry in entries.values(): entry.connect('activate',lambda e:done())
-        row.append(button(action,done,css='primary')); content.append(row); dialog.set_child(content); dialog.present()
-        next(iter(entries.values())).grab_focus()
+            if all(value.strip() for value in values.values()): submit(values); self.dismiss_dialog(dialog)
+        row=box(spacing=8); row.set_halign(Gtk.Align.END)
+        row.append(button('Cancel',lambda:self.dismiss_dialog(dialog),tone='plain'))
+        save=button(action,done,tone='dark'); row.append(save); content.append(row)
+        def valid(e): save.set_sensitive(all(e.get_text().strip() for e in entries.values()))
+        for entry in entries.values(): entry.connect('activate',lambda e:done()); entry.connect('changed',valid)
+        valid(None); dialog.present(); first=next(iter(entries.values())); first.grab_focus(); first.select_region(0,-1)
 
     def open_project(self,project_id):
         self.open_id=project_id; self.service.send('open',projectId=project_id)
 
     def new_project(self):
-        self.form('New project',[('name','Project name','')],lambda v:self.service.send('create',name=v['name'],description=''))
+        dialog,content=self.dialog('New project',464)
+        content.append(label('Make something together.','empty-heading',True))
+        name=Gtk.Entry(placeholder_text='Project name',max_length=100); name.set_size_request(-1,40); content.append(name)
+        description=Gtk.Entry(placeholder_text='What would you like to make? (optional)'); description.set_size_request(-1,40); content.append(description)
+        row=box(spacing=8); row.set_halign(Gtk.Align.END)
+        row.append(button('Cancel',lambda:self.dismiss_dialog(dialog),tone='plain'))
+        def done():
+            if name.get_text().strip():
+                self.service.send('create',name=name.get_text(),description=description.get_text()); self.dismiss_dialog(dialog)
+        create=button('Create project',done,tone='dark'); create.set_sensitive(False); row.append(create); content.append(row)
+        name.connect('changed',lambda e:create.set_sensitive(bool(e.get_text().strip())))
+        for entry in (name,description): entry.connect('activate',lambda e:done())
+        dialog.present(); name.grab_focus()
 
     def rename(self,project):
         self.form('Rename project',[('name','Project name',project['name'])],lambda v:self.service.send('rename',projectId=project['id'],name=v['name']))
@@ -441,34 +523,96 @@ class Centaur(Gtk.Application):
                     lambda:self.service.send('leave' if leave else 'delete',projectId=project['id']), 'Leave' if leave else 'Delete')
 
     def notice(self,title,text,confirm=None,action='OK'):
-        dialog=Gtk.Window(title=title,transient_for=self.window,modal=True,default_width=420)
-        content=margins(box(True,16),24); content.append(label(text,None,True)); row=box()
-        if confirm: row.append(button('Cancel',dialog.destroy))
+        dialog,content=self.dialog(title)
+        content.append(label(text,None,True)); row=box(spacing=8); row.set_halign(Gtk.Align.END)
+        cancel=button('Cancel',lambda:self.dismiss_dialog(dialog),tone='plain')
+        if confirm: row.append(cancel)
         def done():
             if confirm: confirm()
-            dialog.destroy()
-        row.append(button(action,done,css='primary')); content.append(row); dialog.set_child(content); dialog.present()
+            self.dismiss_dialog(dialog)
+        row.append(button(action,done,tone='dark')); content.append(row); dialog.present()
+        if confirm: cancel.grab_focus()
 
     def join(self):
-        self.form('Join project',[('name','Your name',self.data.get('author','')),('code','Invitation','')],lambda v:self.service.send('join',**v), 'Join')
+        dialog,content=self.dialog('Join project',480); self.join_dialog=dialog
+        name=Gtk.Entry(text=self.data.get('author',''),placeholder_text='Your name',max_length=50); name.set_size_request(-1,40); content.append(name)
+        invitation=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False); invitation.add_css_class('small')
+        field=Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER); field.add_css_class('text-field'); field.set_size_request(-1,104); field.set_child(invitation); content.append(field)
+        content.append(label('Only join people you trust. The shared native app runs on this device. You don’t need to set up OMP to participate.','small muted',True))
+        self.join_feedback=label('','small muted',True); content.append(self.join_feedback)
+        def done():
+            buffer=invitation.get_buffer(); code=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
+            if name.get_text().strip() and code.strip() and not self.data.get('joining'): self.service.send('join',name=name.get_text(),code=code)
+        row=box(spacing=8); row.set_halign(Gtk.Align.END)
+        row.append(button('Cancel',lambda:(self.service.send('cancelJoin'),self.dismiss_dialog(dialog)),tone='plain'))
+        self.join_submit=button('Join project',done,tone='dark'); row.append(self.join_submit); content.append(row)
+        key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key.connect('key-pressed',lambda c,k,code,state:(done(),True)[1] if k in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state&Gdk.ModifierType.SHIFT_MASK else False)
+        invitation.add_controller(key); dialog.present(); name.grab_focus(); name.select_region(0,-1)
 
     def invite(self):
-        self.service.send('invite',address='iroh')
+        dialog,content=self.dialog('Invite people',504); self.invite_dialog=dialog
+        content.append(label('Invite people nearby or on another network. Keep this computer awake; sharing continues when you close its Centaur window.',None,True))
+        row=box(spacing=8); caption=label('Local network only'); caption.set_hexpand(True); row.append(caption)
+        address=Gtk.Entry(text=self.data.get('localAddress',''),placeholder_text='192.168.1.10'); address.set_size_request(-1,40); address.set_visible(False)
+        local=Switch(False,lambda active:address.set_visible(active)); row.append(local); content.append(row); content.append(address)
+        self.invite_create=button('Create invitation',lambda:self.service.send('invite',address=address.get_text() if local.get_active() else 'iroh'),tone='dark')
+        self.invite_create.set_halign(Gtk.Align.START); content.append(self.invite_create)
+        self.invite_result=box(True,16); content.append(self.invite_result)
+        members=self.project.get('sharing',{}).get('members',[])
+        if members: content.append(label('Members: '+', '.join(members),'small muted',True))
+        row=box(spacing=8)
+        if self.project.get('sharing',{}).get('enabled'): row.append(button('Stop sharing',lambda:(self.service.send('stopSharing'),self.dismiss_dialog(dialog))))
+        spacer=box(); spacer.set_hexpand(True); row.append(spacer); row.append(button('Done',lambda:self.dismiss_dialog(dialog),tone='plain')); content.append(row)
+        self.invitation_dialog(self.data.get('invitation','')); dialog.present()
 
     def invitation_dialog(self,code):
-        self.notice('Invite someone','Keep Centaur’s host machine online. Share this invitation with the person joining.\n\n'+code,
-                    lambda:self.window.get_display().get_clipboard().set(code),'Copy invitation')
+        if not hasattr(self,'invite_dialog') or not self.invite_dialog.get_visible(): return
+        self.clear(self.invite_result)
+        if not code: return
+        self.invite_result.append(label('Send this code to one person. It can be used once and expires in 20 minutes.','small muted',True))
+        text=Gtk.TextView(editable=False,wrap_mode=Gtk.WrapMode.WORD_CHAR); text.add_css_class('small'); text.get_buffer().set_text(code)
+        field=Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER); field.add_css_class('text-field'); field.set_size_request(-1,104); field.set_child(text); self.invite_result.append(field)
+        copy=button('Copy invitation',lambda:self.window.get_display().get_clipboard().set(code)); copy.set_halign(Gtk.Align.START); self.invite_result.append(copy)
+
+    def send_grid(self,**fields):
+        if getattr(self,'syncing_grid',False) or not hasattr(self,'service'): return
+        values=dict(self.data.get('grid',{})); values.update(fields); self.service.send('grid',**values)
+
+    def toggle_grid(self): self.send_grid(enabled=not self.data.get('grid',{}).get('enabled',False))
+
+    def grid_controls(self,content):
+        controls={}
+        def row(caption,widget):
+            line=box(spacing=16); text=label(caption); text.set_hexpand(True); line.append(text); line.append(widget); content.append(line)
+        controls['enabled']=Switch(False,lambda value:self.send_grid(enabled=value)); row('Show grid',controls['enabled'])
+        colour=button('#BAE6FF',self.grid_colour,width=112); controls['colour']=colour; row('Grid colour',colour)
+        controls['size']=Stepper(8,2,64,lambda value:self.send_grid(size=value)); size=box(spacing=8); size.append(controls['size']); size.append(label('pt','small muted')); row('Grid point size',size)
+        opacity=Gtk.DropDown.new_from_strings([str(n)+'%' for n in range(0,101,10)]); opacity.set_size_request(128,40); opacity.set_selected(5)
+        opacity.connect('notify::selected',lambda w,p:self.send_grid(opacity=w.get_selected()*10)); controls['opacity']=opacity; row('Grid opacity',opacity)
+        content.append(label('Saved on this device. The grid is aligned with the native app.','small muted',True)); return controls
+
+    def sync_grid(self):
+        values=self.data.get('grid',{}); self.syncing_grid=True
+        selected(self.grid_button,values.get('enabled',False))
+        for controls in (self.settings_grid,getattr(self,'popup_grid',{})):
+            if not controls: continue
+            controls['enabled'].set_active(values.get('enabled',False)); controls['size'].set_value(values.get('size',8))
+            controls['opacity'].set_selected(round(values.get('opacity',50)/10)); button_text(controls['colour'],values.get('color','#BAE6FF').upper())
+        self.syncing_grid=False
+
+    def grid_colour(self):
+        dialog=Gtk.ColorDialog(title='Grid colour',with_alpha=False); color=Gdk.RGBA(); color.parse(self.data.get('grid',{}).get('color','#BAE6FF'))
+        def done(dialog,result):
+            try:
+                value=dialog.choose_rgba_finish(result)
+                self.send_grid(color='#'+''.join(f'{round(channel*255):02x}' for channel in (value.red,value.green,value.blue)))
+            except GLib.Error: pass
+        dialog.choose_rgba(self.window,color,None,done)
 
     def grid_settings(self):
-        grid=self.data.get('grid',{})
-        dialog=Gtk.Window(title='Canvas grid',transient_for=self.window,modal=True)
-        content=margins(box(True,12),20)
-        enabled=Gtk.CheckButton(label='Show grid',active=grid.get('enabled',False)); content.append(enabled)
-        size=Gtk.SpinButton.new_with_range(2,64,1); size.set_value(grid.get('size',8)); content.append(label('Grid size')); content.append(size)
-        opacity=Gtk.SpinButton.new_with_range(0,100,1); opacity.set_value(grid.get('opacity',50)); content.append(label('Opacity (%)')); content.append(opacity)
-        def done():
-            self.service.send('grid',enabled=enabled.get_active(),size=size.get_value_as_int(),opacity=opacity.get_value_as_int()); dialog.destroy()
-        content.append(button('Done',done)); dialog.set_child(content); dialog.present()
+        dialog,content=self.dialog('Canvas grid',400); self.popup_grid=self.grid_controls(content); self.sync_grid()
+        done=button('Done',lambda:self.dismiss_dialog(dialog),tone='plain'); done.set_halign(Gtk.Align.END); content.append(done); dialog.present()
 
     def zoom_changed(self):
         if self.viewport: self.viewport.set_zoom(ZOOM_MODES[self.zoom.get_selected()])
@@ -537,7 +681,8 @@ class Centaur(Gtk.Application):
         g=self.viewport.describe(); scale=g['scale']
         grid=self.data.get('grid',{})
         if grid.get('enabled'):
-            step=max(2,grid.get('size',8)*scale); cr.set_source_rgba(.73,.90,1,grid.get('opacity',50)/100); cr.set_line_width(.7)
+            colour=Gdk.RGBA(); colour.parse(grid.get('color','#BAE6FF'))
+            step=max(2,grid.get('size',8)*scale); cr.set_source_rgba(colour.red,colour.green,colour.blue,grid.get('opacity',50)/100); cr.set_line_width(.7)
             x=g['app_x']%step
             while x<width: cr.move_to(x,0); cr.line_to(x,height); x+=step
             y=g['app_y']%step
@@ -565,6 +710,23 @@ class Centaur(Gtk.Application):
 
     def poll(self):
         if self.closing: return False
+        # Preserve the reference breakpoints and the chat width on window resize.
+        compact=self.window.get_width()<760
+        self.sidebar.set_size_request(COMPACT_SIDEBAR if compact else SIDEBAR,-1)
+        (self.sidebar.add_css_class if compact else self.sidebar.remove_css_class)('compact')
+        for item in self.nav_labels: item.set_visible(not compact)
+        self.profile_text.set_visible(not compact)
+        button_text(self.create_button,'+ New' if self.window.get_width()<600 else '+ New project')
+        self.projects_inner.set_margin_top(24 if self.stack.get_width()<720 else 40)
+        for edge in ('bottom','start','end'): getattr(self.projects_inner,'set_margin_'+edge)(self.projects_inner.get_margin_top())
+        setting_margin=24 if self.stack.get_width()<600 else 40
+        margins(self.settings_inner,setting_margin); self.settings_limit.maximum=640+2*setting_margin
+        if self.page=='workspace' and self.panes.get_width()>0:
+            available=self.panes.get_width()-8
+            if self.initial_pane:
+                self.panes.set_position(available-CHAT_WIDTH); self.initial_pane=False
+            elif self.chat.get_width()>CHAT_MAX: self.panes.set_position(available-CHAT_MAX)
+        if hasattr(self,'invite_create'): self.invite_create.set_sensitive(not self.data.get('inviting',False))
         if self.backend and self.backend.process:
             if self.backend.process.poll() is not None: self.preview_status='App stopped · Restart app to try again'
             elif self.child_report.exists(): self.preview_status=''
@@ -579,6 +741,11 @@ class Centaur(Gtk.Application):
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
+            data['layout']={'sidebarVisible':self.sidebar.get_visible(),'sidebarWidth':self.sidebar.get_width(),
+                            'chatWidth':self.chat.get_width(),'tileColumns':__import__('ui').columns(self.cards.get_width()),
+                            'bodyFont':self.chat_body.get_pango_context().get_font_description().to_string() if hasattr(self,'chat_body') else None,
+                            'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
+                            'headerText':self.chat_status.get_text()}
             try: data['child']=json.loads(self.child_report.read_text()) if self.backend else None
             except (AttributeError,FileNotFoundError,ValueError): data['child']=None
             for name,widget in self.targets.items():
@@ -589,8 +756,10 @@ class Centaur(Gtk.Application):
         return True
 
     def close(self):
+        if self.closing: return False
         self.closing=True; self.stop_preview()
         if hasattr(self,'service'): self.service.close()
+        self.composer.release(); self.cards.clear(); self.settings_limit.release()
         self.runtime.cleanup()
         return False
 
