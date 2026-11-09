@@ -1,0 +1,90 @@
+# GTK4 interface reference
+
+The preserved Qt frontend is the visual and interaction reference for the GTK4
+development preview. Reference source is `codex/native-prototype` at
+`3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450`, particularly `qml/Theme.qml`,
+`FlatButton.qml`, `Main.qml`, `SideNavigation.qml`, `ProjectsView.qml`,
+`WorkspaceView.qml`, `ChatPanel.qml` and `SettingsView.qml`.
+
+The owner requested that component dimensions and padding also follow an 8px
+grid. Fixed geometry is rounded to an 8px step; typography and thin borders keep
+their reference sizes. Responsive project-card widths round down to an 8px step
+while retaining 32px gutters and a maximum of five columns. Flexible window and
+canvas extents can follow the desktop's allocation.
+
+## Layout and controls
+
+| Element | GTK4 reference metric |
+| --- | --- |
+| Header | 80px high |
+| Sidebar | 216px; 72px compact below a 760px window width; hidden in a project |
+| Sidebar navigation | 40px high; original 32px SVGs; 8px inset/radius |
+| Profile avatar | 40px square, 8px radius |
+| Page panel | White, 16px radius |
+| Project/settings page padding | 40px, reducing to 24px on small pages |
+| Project cards | 256px high; 24px padding; 32px gutters; one to five columns |
+| Project badge | 56px square, 16px radius |
+| Card options | 32px button; rounded hover/pressed background; Rename/Delete menu |
+| Workspace margins | 16px inside the existing 8px page edge |
+| Canvas/chat splitter | 8px; chat preferred 432px, minimum 368px, maximum 624px |
+| Interact/Build switch | 240 × 48px, centred in the window; two 112 × 32px buttons |
+| Standard buttons | 32px high; 8px radius; reference plain/soft/dark/lime/selected tones |
+| Build toolbar | 296 × 48px, 16px above the canvas bottom; Draw/Comment/Undo |
+| Chat inset/spacing | 24px inset; 16px sections; 24px between messages |
+| Chat avatars | 24px square, 8px radius; human and agent reference colours |
+| Composer | 104–184px high; 16px radius; mention control and 32px icon send button |
+
+Chat remains available in both modes. The sidebar, project actions and settings
+retain the Qt structure. Deployment and design-system import remain placeholders.
+Deleting a project still requires explicit confirmation; cancelling is the safe
+initial action. Local names, agent naming, grid preferences, invitations and
+sharing use the retained controller rather than a second set of UI-only state.
+
+## Typography and assets
+
+Inter is used through 12pt (16px); Inter Tight is used above 12pt. Fonts are the
+bundled originals, independent of the desktop's installed fonts.
+
+| Chat element | Family | Size | Weight |
+| --- | --- | --- | --- |
+| Chat heading | Inter Tight | 14pt | 600 |
+| Body and composer | Inter Tight | 12.5pt | 400 |
+| User/agent names | Inter | 10.5pt | 600 |
+| Status/model line | Inter | 10.5pt | 400 |
+| Avatar letters | Inter | 9pt | 600 |
+| Timestamps and footer hint | Inter | 9pt | 400 |
+| Version | Inter | 8.5pt | 400 |
+
+Other reference sizes include 14pt/600 project titles, 11pt descriptions, 10pt
+card metadata, 14px navigation text, 16px/600 section titles and 12px/600 button
+labels. Text sizes do not round to 8px steps.
+
+SVG geometry comes directly from `assets/dialogue`, with the same alpha-mask
+colour treatment used by the Qt SVG renderer. The Centaur mark comes from
+`packaging/centaur.svg`; the Design Systems suitcase is the approved original
+`design-system-empty-suitcase.png` at 176px. Build continues to reuse the approved
+Comment SVG; Draw and Undo retain the previously approved temporary glyphs.
+
+## Preserved preview boundary
+
+This is a restoration of Centaur's interface, not a generated-app redesign. The
+tested Casilda backend, separate app process, logical app dimensions, five zoom
+levels, Fit, centring, panning, clipping and app shadow remain behind the existing
+viewport interface. Canvas controls float over the canvas without adding an app
+frame. Agent canvas images contain the app and annotations, excluding Centaur's
+floating controls and chat.
+
+The VM acceptance issues in `GTK4_MIGRATION.md` remain separate: drawing beyond
+app bounds, the unfinished comment-text workflow, generated-app runtime data
+persistence and a visible History interface are not resolved by this UI pass.
+Neither production Qt replacement nor native macOS embedding is implied.
+
+## Verification
+
+Native ARM64 CI captures the actual GTK frontend on a disposable Wayland desktop,
+including empty projects, Design Systems, settings, project dialogs, Interact,
+Build, project menus, cancelled deletion and all five grid column counts. It
+checks allocated geometry as well as two-profile collaboration, fixture-agent
+changes, genuine-conflict agreement, invalid-change rejection, history restore,
+preview reopen and clean shutdown. These are automated checks, distinct from
+hands-on UTM testing and real OMP/provider requests.

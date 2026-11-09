@@ -177,7 +177,7 @@ class Composer(Gtk.Widget):
         return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
     def do_measure(self, orientation, for_size):
-        if orientation == Gtk.Orientation.HORIZONTAL: return (0, 384, -1, -1)
+        if orientation == Gtk.Orientation.HORIZONTAL: return (CHAT_MIN - 48, 384, -1, -1)
         buffer = self.editor.get_buffer()
         text = buffer.get_text(buffer.get_start_iter(), buffer.get_end_iter(), False)
         layout = self.editor.create_pango_layout(text or ' ')

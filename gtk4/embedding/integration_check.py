@@ -93,6 +93,9 @@ def main():
         resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
         original_pid=hs()['childPid']
         message(hs,hw,'Hello from Matt')
+        until(lambda:'Inter Tight' in (hs()['layout']['bodyFont'] or ''),'Chat body did not use the bundled Inter Tight style')
+        assert hs()['targets']['chat-avatar'][2:]==[24,24]
+        assert hs()['layout']['statusFont']=='Inter 14px'
         assert hs()['childPid']==original_pid,'Ordinary chat restarted the app'
         control=Bridge(roots[0],env)
         until(lambda:control.data.get('projects'),'Service bridge did not connect')
@@ -127,6 +130,11 @@ def main():
         assert not hs()['project'].get('proposal'),'Compatible request required author approval'
         summary['checks'].append('guest-agent-request-native-validation-and-live-update-without-approval-or-duplicates')
         assert list((source.parent/'.centaur').glob('remote-*.png')), 'Guest canvas image did not reach the host'
+        with Image.open(next((source.parent/'.centaur').glob('remote-*.png'))) as context:
+            # The centred sample leaves this corner clear. Zoom/restart controls
+            # float here in Centaur but must not be sent as part of the app.
+            corner=context.convert('RGB').crop((context.width-40,8,context.width-8,40))
+            assert all(low==high==255 for low,high in corner.getextrema()),'Centaur canvas controls leaked into agent context'
         summary['checks'].append('canvas-image-attached-from-guest-without-chat')
         revision=hs()['project']['revision']
         invalid=json.loads(json.dumps(changed)); invalid['files']['style.css']='window { made-up-property: broken; }'

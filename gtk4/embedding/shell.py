@@ -451,11 +451,13 @@ class Centaur(Gtk.Application):
                 try:
                     # Capture only the canvas, including aligned annotations;
                     # the conversation and other application windows stay out.
-                    paintable=Gtk.WidgetPaintable.new(self.overlay)
                     snapshot=Gtk.Snapshot.new()
                     width,height=self.overlay.get_width(),self.overlay.get_height()
-                    snapshot.append_color(Gdk.RGBA(red=.94,green=.945,blue=.93,alpha=1),Graphene.Rect().init(0,0,width,height))
-                    paintable.snapshot(snapshot,width,height)
+                    snapshot.append_color(Gdk.RGBA(red=1,green=1,blue=1,alpha=1),Graphene.Rect().init(0,0,width,height))
+                    # Canvas controls now float over the preview. Keep them out
+                    # of agent context, just as when they lived outside it.
+                    for layer in (self.preview_holder,self.ink):
+                        Gtk.WidgetPaintable.new(layer).snapshot(snapshot,width,height)
                     node=snapshot.to_node()
                     texture=self.window.get_renderer().render_texture(node,None)
                     target=Path(self.data['sourcePath']).parent/'.centaur'/('context-'+uuid.uuid4().hex+'.png')
