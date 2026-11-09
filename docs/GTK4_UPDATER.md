@@ -187,7 +187,40 @@ checks enabled (`verifiedSignedClosureDownload: true`).
 The public `gtk4-preview` prerelease body was read back and names this exact
 source/path after successful acceptance. No extra user token is required;
 the workflow's scoped built-in GitHub token successfully published discovery.
-Hands-on acceptance on Matt's UTM VM remains pending. No real OMP/provider request,
+Hands-on acceptance for this initial build was pending at publication. No real OMP/provider request,
 physical remote-client update, power-loss recovery or production replacement is
 claimed by these automated results. Initial installation guidance stays in
 Centaur Install; subsequent normal updates use the Settings button.
+
+## Live download counter — verified 9 November 2026
+
+The owner subsequently reported the `55ae238` update and canvas-boundary fixes
+working on the ARM64 UTM VM. This is owner-reported hands-on acceptance, separate
+from CI. The counter's hands-on review awaits a future download started from a
+version containing it.
+
+Counter source: `e48a4e088a935e1420eb5a60fbb196e865534cd1`.
+Version: `Centaur GTK4 0.4.0-preview+e48a4e0`.
+Store path:
+`/nix/store/wvfxfgivrr6hija365b4abc8vrmi5x7a-centaur-gtk4-preview-0.4.0-preview`.
+[Product/update CI 42562980792](https://github.com/mattatgit/Centaur/actions/runs/42562980792)
+and [standalone embedding CI 42562980675](https://github.com/mattatgit/Centaur/actions/runs/42562980675)
+passed. All 32 Python checks passed, including streamed subprocess events before
+exit, parallel/retried transfers, compressed totals excluding present paths,
+malformed/unknown progress, failed downloads and timeouts. Core/network/Iroh,
+the two-profile drawing/arrow regressions and real Settings activation/restart
+also passed.
+
+Updater artifact `13650153592` includes a real Cachix download of a signed,
+reference-free package into an empty store. Its byte counter recorded
+`0 / 71848` then `71848 / 71848`, matching the compressed file size. The local
+streaming test additionally observed intermediate bytes before process exit;
+the same signed download on the development Mac reported `0`, `1360`, `71848`.
+This checks progress transport/accounting without removing any installed path.
+The GUI update candidate remains already realised in CI, as described above.
+
+Separately, signed distribution artifact `13650263299` verifies the complete
+**531-path** GTK runtime closure in an empty store with all builders disabled.
+Native product evidence: `13650148570`. The public `gtk4-preview` release feed
+was read back and advertises this exact source/path. No protocol or machine
+configuration changes are required. Update guidance remains in Centaur Install.

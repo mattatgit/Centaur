@@ -324,6 +324,7 @@ supplied the fresh-download check. The public `gtk4-preview` release feed was
 read back and advertises this exact source/store path.
 
 Users already running the in-app updater can receive this build through
-Settings. The owner confirmed version `6a9300f` launches and checks for updates
-on the UTM VM; the first hands-on update/restart and crossing-mark review on
-that VM remain pending. Guidance continues in Centaur Install.
+Settings. The owner subsequently reported the update and boundary fixes working
+on the UTM VM. The next published build, `e48a4e0`, adds live download MB to
+Settings; see [updater verification](GTK4_UPDATER.md#live-download-counter--verified-9-november-2026).
+Guidance continues in Centaur Install.
