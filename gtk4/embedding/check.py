@@ -104,6 +104,9 @@ def main():
         click_client('menu')
         click_client('popup_action')
         until(lambda: 'popup' in client().get('events', []), 'Popup action did not receive input')
+        # The probe records the action before calling popdown(). Wait for the
+        # mapped popup to disappear before clicking through its former grab.
+        until(lambda: 'popup_action' not in client().get('targets', {}), 'Popup did not finish dismissing')
         summary['checks'].append('popup')
         click_client('dialog')
         until(lambda: 'dialog-opened' in client().get('events', []), 'Dialog did not open')
@@ -197,6 +200,7 @@ def main():
             click_client('menu')
             click_client('popup_action')
             until(lambda: client()['events'].count('popup') > popups, 'Scaled popup missed at ' + mode)
+            until(lambda: 'popup_action' not in client().get('targets', {}), 'Scaled popup did not finish dismissing at ' + mode)
             dialogs = client()['events'].count('dialog-closed')
             click_client('dialog')
             until(lambda: client()['events'].count('dialog-opened') > dialogs, 'Scaled dialog did not open')
