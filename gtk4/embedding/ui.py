@@ -208,7 +208,10 @@ class WidthLimit(Gtk.Widget):
     def do_get_request_mode(self): return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
     def do_measure(self, orientation, for_size):
-        if orientation == Gtk.Orientation.HORIZONTAL: return (0, self.maximum, -1, -1)
+        if orientation == Gtk.Orientation.HORIZONTAL:
+            minimum,natural,_,_=self.child.measure(orientation,-1)
+            minimum=min(minimum,self.maximum)
+            return (minimum,max(minimum,min(natural,self.maximum)),-1,-1)
         return self.child.measure(orientation, min(self.maximum, for_size if for_size >= 0 else self.maximum))
 
     def do_size_allocate(self, width, height, baseline):
