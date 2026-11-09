@@ -90,7 +90,8 @@ def check_update(current_id,source_timestamp,fetch=None):
 def process_identity(pid):
     try:
         # /proc stat's command can contain spaces and parentheses.
-        return Path(f'/proc/{int(pid)}/stat').read_text().rsplit(')',1)[1].split()[19]
+        fields=Path(f'/proc/{int(pid)}/stat').read_text().rsplit(')',1)[1].split()
+        return None if fields[0]=='Z' else fields[19]
     except (OSError,ValueError,IndexError): return None
 
 
@@ -128,9 +129,25 @@ class Runtime:
     def activate(self,profile,path): self.nix('build','--offline','--no-link','--profile',str(profile),path)
 
     def stop_host(self,package,data,token=''):
+        hosts=[]
+        for entry in Path('/proc').iterdir():
+            if not entry.name.isdigit(): continue
+            try:
+                if entry.stat().st_uid!=os.getuid(): continue
+                args=[os.fsdecode(a) for a in (entry/'cmdline').read_bytes().split(b'\0') if a]
+                if not args or Path(args[0]).name not in ('centaur-host','.centaur-host-wrapped'): continue
+                if any(args[i]=='--data-dir' and args[i+1]==str(data) for i in range(len(args)-1)):
+                    hosts.append((int(entry.name),process_identity(int(entry.name))))
+            except (OSError,ValueError): continue
         args=[str(Path(package)/'bin/centaur-host'),'--stop-if-idle','--data-dir',str(data)]
         if token: args+=['--update-token',token]
-        self.run(args,timeout=15)
+        self.run(args,timeout=20)
+        # The local socket/lock can close before TLS/Iroh destructors finish.
+        # Wait for the actual old process before a new host binds its ports.
+        deadline=time.monotonic()+8
+        while any(identity and process_identity(pid)==identity for pid,identity in hosts):
+            if time.monotonic()>deadline: raise UpdateError('The previous host is still closing. No new version was activated.')
+            time.sleep(.1)
 
     def release_host(self,package,data,token):
         self.run([str(Path(package)/'bin/centaur-host'),'--finish-update',token,'--data-dir',str(data)],timeout=15)

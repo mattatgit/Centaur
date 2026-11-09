@@ -16,6 +16,7 @@ class UpdateControls:
         self.install_after_check=False
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
         self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
+        self.restore_page_pending=bool(owner.update_session)
         self.version=label('Centaur v'+owner.version(),'small muted'); section.append(self.version)
         row=box(spacing=16)
         self.button=button('Update app',self.clicked); self.button.set_halign(Gtk.Align.START)
@@ -80,7 +81,11 @@ class UpdateControls:
 
     def restore(self):
         owner=self.owner
-        if not owner.update_session or self.restored or not owner.data.get('connected') or not owner.data.get('snapshotReady'): return
+        if not owner.update_session or not owner.data.get('connected') or not owner.data.get('snapshotReady'): return
+        if self.restored:
+            if self.restore_page_pending and (not self.resume.get('projectId') or owner.project.get('id')==self.resume['projectId']):
+                self.restore_page_pending=False; owner.navigate('settings')
+            return
         resume=self.resume
         owner.drafts=resume.get('drafts',{})
         project=resume.get('projectId')
@@ -88,6 +93,7 @@ class UpdateControls:
         self.restored=True
         if project: owner.open_project(project)
         owner.navigate('settings')
+        if not project: self.restore_page_pending=False
 
     def tick(self):
         owner=self.owner

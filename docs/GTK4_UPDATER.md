@@ -8,6 +8,8 @@ unattended installation or separate update-management screen.
 
 An existing build without this feature needs one normal, precompiled update
 through **Centaur Install** first. Subsequent normal updates use Settings.
+That initial setup should launch through the dedicated GTK profile rather than
+a shortcut pinned to an older store path; the Qt shortcut stays separate.
 Current testing is ARM64 NixOS in UTM, using the existing GTK profile and Cairo
 launch environment. The Air and macOS are outside this implementation.
 

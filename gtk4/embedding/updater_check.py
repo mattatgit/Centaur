@@ -86,8 +86,11 @@ def main():
         control.send('message',text='Keep this conversation')
         until(lambda:any(m.get('text')=='Keep this conversation' for m in state()['project'].get('messages',[])),'Fixture chat did not persist')
         control.send('grid',enabled=True,size=16,opacity=40,color='#BAE6FF')
+        control.send('invite',address='127.0.0.1')
+        until(lambda:control.data.get('invitation'),'Fixture collaboration identity was not created')
         time.sleep(.2); control.close(); control=None
-        before={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file() and p.suffix in ('.json','.ini','.jsonl','.key')}
+        auth=home/'.config/omp/auth.json'; auth.parent.mkdir(parents=True,exist_ok=True); auth.write_text('opaque-test-credentials')
+        before={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file() and p.suffix in ('.json','.ini','.jsonl','.key','.pem')}
         click('nav-projects'); click('nav-settings')
         until(lambda:state().get('updater',{}).get('available'),'Published update was not detected')
         assert state()['updater']['version'].endswith('+0000000'),'Settings reported the wrong installed version'
@@ -106,6 +109,7 @@ def main():
         assert any(m.get('text')=='Keep this conversation' for m in state()['project']['messages'])
         for name,content in before.items(): assert (data/name).read_bytes()==content,'Updater modified project/configuration '+name
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
+        assert auth.read_text()=='opaque-test-credentials','Updater changed existing OMP credentials'
         new_window=driver.find_window('org.centaur.Gtk4',new_pid); driver.screenshot(new_window,folder/'updated-app.png')
         summary['checks']+=['settings-version-and-published-update','settings-click-detached-download-signature-verification',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
