@@ -34,7 +34,7 @@ if [[ $package_attribute == gtk4-embedding-test ]]; then
   test -x "$output/bin/centaur-gtk4-check"
   version_command=("$output/bin/centaur-gtk4-test")
 elif [[ $package_attribute == gtk4-preview ]]; then
-  for executable in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-bridge centaur-host centaur-network; do
+  for executable in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-bridge centaur-host centaur-network centaur-gtk4-update; do
     test -x "$output/bin/$executable"
   done
   version_command=("$output/bin/centaur-gtk4")
@@ -102,6 +102,10 @@ manifest = {
     'verifiedSignedClosureDownload': True,
     'publishedAt': datetime.datetime.now(datetime.timezone.utc).isoformat(),
 }
+if package_attribute == 'gtk4-preview':
+    import subprocess
+    manifest.update(updateProtocol=1, branch='codex/gtk4-migration',
+                    sourceTimestamp=int(subprocess.check_output(['git','show','-s','--format=%ct',revision],text=True)))
 (folder / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 key_list = ' '.join(json.dumps(key) for key in cache['publicSigningKeys'])
 (folder / 'cache-config.nix').write_text(

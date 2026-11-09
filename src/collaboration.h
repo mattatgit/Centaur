@@ -33,6 +33,8 @@ public:
     QJsonObject sharing(const QString &id) const;
     static QString suggestedAddress();
     quint16 port() const { return m_server.serverPort(); }
+    bool preparingInvitation() const { return !m_invitations.isEmpty(); }
+    void setUpdating(bool value) { m_updating = value; }
 signals:
     void command(const QJsonObject &command, QIODevice *sender);
     void membershipChanged();
@@ -58,6 +60,7 @@ private:
     struct Peer { QByteArray buffer; QString project; QString member; QString name; qint64 lastSeen = 0; };
     QHash<QSslSocket *, Peer> m_peers;
     QTimer m_watchdog;
+    bool m_updating = false;
 };
 
 class SharedProject : public QObject {
@@ -75,6 +78,7 @@ public:
     bool writable() const { return m_connected && m_editLock && m_editLock->isLocked(); }
     bool agentAvailable() const { return m_snapshot["agentAvailable"].toBool(); }
     bool busy() const { return m_snapshot["busy"].toBool(); }
+    int pendingCount() const { return m_outbox.size(); }
     bool connected() const { return m_connected; }
     bool failed() const { return m_terminal; }
     bool removed() const { return m_removed; }

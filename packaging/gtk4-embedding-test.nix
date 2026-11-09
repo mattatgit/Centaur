@@ -1,4 +1,4 @@
-{ pkgs, buildId, services ? null }:
+{ pkgs, buildId, services ? null, sourceTimestamp ? 0, updaterFixture ? false }:
 let
   python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pycairo p.pillow ]);
   fonts = pkgs.runCommandNoCC "centaur-inter-fonts" { } ''
@@ -50,16 +50,22 @@ in pkgs.stdenvNoCC.mkDerivation {
       chmod +x "$out/bin/centaur-gtk4-$entry"
     done
     ${pkgs.lib.optionalString (services != null) ''
-      for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check; do
+      for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check centaur-gtk4-update centaur-gtk4-updater-check; do
         case "$entry" in
           centaur-gtk4) module=shell ;;
           centaur-gtk4-preview) module=runner ;;
           centaur-gtk4-integration-check) module=integration_check ;;
+          centaur-gtk4-update) module=updater ;;
+          centaur-gtk4-updater-check) module=updater_check ;;
         esac
         cat > "$out/bin/$entry" <<EOF
       #!${python}/bin/python3
       import sys
       sys.path.insert(0, "$out/share/centaur-gtk4-test")
+      ${pkgs.lib.optionalString updaterFixture ''
+      import os, updater
+      updater.FEED = os.environ["CENTAUR_UPDATER_FIXTURE_FEED"]
+      ''}
       from $module import main
       raise SystemExit(main())
       EOF
@@ -78,6 +84,8 @@ in pkgs.stdenvNoCC.mkDerivation {
       gappsWrapperArgs+=(--set CENTAUR_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_RUNNER "$out/bin/centaur-gtk4-preview")
+      gappsWrapperArgs+=(--set CENTAUR_GTK_PACKAGE "$out")
+      gappsWrapperArgs+=(--set CENTAUR_GTK4_SOURCE_TIME ${toString sourceTimestamp})
     ''}
     gappsWrapperArgs+=(--set CENTAUR_GTK4_BUILD_ID ${pkgs.lib.escapeShellArg buildId})
     gappsWrapperArgs+=(--set CENTAUR_GTK4_CASILDA_VERSION ${casilda.version})
@@ -88,6 +96,12 @@ in pkgs.stdenvNoCC.mkDerivation {
     dbusForTests = pkgs.dbus;
     waylandTestSeat = import ./gtk4-test-seat.nix { inherit pkgs; };
     runtimeVersions = { gtk = pkgs.gtk4.version; casilda = casilda.version; glib = pkgs.glib.version; };
+    updaterPrevious = if updaterFixture || services == null then null else import ./gtk4-embedding-test.nix {
+      inherit pkgs services;
+      buildId = "0000000";
+      sourceTimestamp = 1;
+      updaterFixture = true;
+    };
   };
   meta = {
     description = "Isolated experimental GTK4 host and separate native GTK4 app via Casilda";

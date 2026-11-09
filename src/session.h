@@ -22,6 +22,7 @@ public:
     bool connected() const { return m_host || m_client.state() == QLocalSocket::ConnectedState; }
     void send(QJsonObject command);
     bool isHost() const { return m_host; }
+    bool updateBlocked() const;
     QString root() const { return m_workspace.root(); }
 signals:
     void snapshot(const QJsonObject &data);
@@ -59,5 +60,7 @@ private:
     int m_validatingEpoch = 0;
     bool m_host = false;
     bool m_starting = true;
+    QString m_updateToken;
+    bool m_updateStopping = false;
     std::unique_ptr<QLockFile> m_lock;
 };

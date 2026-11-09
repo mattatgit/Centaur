@@ -50,6 +50,8 @@ public:
     bool agentAvailable() const;
     QString agentModel() const { return project().value("agentModel").toString(); }
     bool agentBusy() const;
+    bool updateBlocked() const;
+    bool updateHeld() const { return m_localSnapshot["updateHeld"].toBool(); }
     QString previewStatus() const { return m_previewStatus; }
     bool previewRunning() const { return m_preview.state() == QProcess::Running; }
     bool embeddingSupported() const;

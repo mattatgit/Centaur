@@ -12,6 +12,7 @@ on:
       - 'packaging/patches/casilda-*.patch'
       - 'scripts/check-gtk4-wayland.sh'
       - 'scripts/publish-binary-cache.sh'
+      - 'scripts/publish-gtk4-update.py'
       - 'CMakeLists.txt'
       - 'flake.*'
       - '.github/workflows/gtk4-integration.yml'
@@ -29,6 +30,8 @@ jobs:
     name: GTK4 product and preserved service regressions ARM64
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 25
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
@@ -39,7 +42,7 @@ jobs:
           skipPush: true
       - name: Check Python, bundle contract and workflow
         run: |
-          python3 -m py_compile gtk4/embedding/*.py
+          python3 -m py_compile gtk4/embedding/*.py scripts/publish-gtk4-update.py
           python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \
             'actionlint && shellcheck scripts/publish-binary-cache.sh scripts/check-gtk4-wayland.sh'
@@ -52,7 +55,9 @@ jobs:
           CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
         run: nix shell --inputs-from . nixpkgs#cachix -c cachix push "$CENTAUR_CACHIX_CACHE" "$(realpath result-services)"
       - name: Build GTK4 development frontend
-        run: nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
+        run: |
+          nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
+          nix build -L --no-update-lock-file .#gtk4-preview.updaterPrevious -o result-updater-previous
       - name: Native embedding, scaling, capture and two-profile GTK4 integration
         env:
           GTK_A11Y: none
@@ -92,3 +97,35 @@ jobs:
           name: gtk4-product-distribution-aarch64-linux
           path: ${{ runner.temp }}/gtk4-distribution/metadata/
           if-no-files-found: error
+      - name: Exercise Settings update against the published signed package
+        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          GTK_A11Y: none
+          GSK_RENDERER: cairo
+          LIBGL_ALWAYS_SOFTWARE: '1'
+          CENTAUR_GTK4_UPDATER: '1'
+        run: |
+          export XDG_RUNTIME_DIR="$RUNNER_TEMP/gtk4-update-runtime"
+          mkdir -m 700 "$XDG_RUNTIME_DIR"
+          CENTAUR_UPDATER_PREVIOUS=$(realpath result-updater-previous)
+          export CENTAUR_UPDATER_PREVIOUS
+          export CENTAUR_UPDATER_MANIFEST="$RUNNER_TEMP/gtk4-distribution/metadata/manifest.json"
+          dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
+          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
+            -c dbus-run-session --config-file="$dbus_config" -- \
+            timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-update-evidence" result-test-seat/bin/centaur-test-seat
+      - name: Save updater screenshots and transaction evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gtk4-updater-aarch64-linux
+          path: ${{ runner.temp }}/gtk4-update-evidence/
+          if-no-files-found: ignore
+      - name: Advertise the verified in-app update
+        if: >-
+          success() && github.repository == 'mattatgit/Centaur' &&
+          github.ref == 'refs/heads/codex/gtk4-migration' &&
+          vars.CENTAUR_CACHIX_CACHE != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish-gtk4-update.py "$RUNNER_TEMP/gtk4-distribution/metadata/manifest.json"

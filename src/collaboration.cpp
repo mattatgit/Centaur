@@ -283,6 +283,9 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         return;
     }
     if (data["type"] == "ping") { write(socket, {{"type", "pong"}}); return; }
+    // Do not acknowledge work that the restarting coordinator cannot persist.
+    // Disconnecting leaves the guest's authenticated outbox intact for retry.
+    if (m_updating) { socket->disconnectFromHost(); return; }
     const auto sequence = qint64(data["sequence"].toDouble());
     auto state = m_workspace.load(peer.project);
     if (state.isEmpty()) { reject("This project is unavailable."); return; }

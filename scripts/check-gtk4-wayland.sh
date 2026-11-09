@@ -62,7 +62,9 @@ for _ in {1..100}; do
 done
 [[ $inputs == *keyboard* && $inputs == *pointer* ]] || { echo 'Test input devices were not attached.' >&2; exit 1; }
 export GDK_BACKEND=wayland CENTAUR_GTK4_TEST_BACKEND=wayland CENTAUR_GTK4_TEST_UNDECORATED=1
-if [[ ${CENTAUR_GTK4_PRODUCT:-0} == 1 ]]; then
+if [[ ${CENTAUR_GTK4_UPDATER:-0} == 1 ]]; then
+    "$package/bin/centaur-gtk4-updater-check" "$CENTAUR_UPDATER_PREVIOUS" "$CENTAUR_UPDATER_MANIFEST" "$reports/updater"
+elif [[ ${CENTAUR_GTK4_PRODUCT:-0} == 1 ]]; then
     "$package/bin/centaur-gtk4-check" "$reports/embedding"
     "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
 else

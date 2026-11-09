@@ -22,6 +22,7 @@ static QString proposalSource(const QJsonObject &proposal) {
 }
 
 Session::Session(const QString &root, QObject *parent) : QObject(parent), m_workspace(root) {
+    m_updateToken = qEnvironmentVariable("CENTAUR_UPDATE_STARTING");
     m_socketName = "centaur-" + QString::fromLatin1(QCryptographicHash::hash(
         QFileInfo(root).absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex().left(24));
     connect(&m_server, &QLocalServer::newConnection, this, &Session::acceptConnection);
@@ -141,6 +142,7 @@ void Session::start(bool background) {
         emit error("Could not connect to the Centaur background host. Check its installation.");
         return;
     }
+    qunsetenv("CENTAUR_UPDATE_STARTING");
     m_lock = std::make_unique<QLockFile>(m_workspace.root() + "/session.lock");
     // QLockFile detects a dead host; never unlink a live host's socket.
     if (m_lock->tryLock(0)) {
@@ -150,6 +152,7 @@ void Session::start(bool background) {
         m_host = true;
         m_starting = false;
         m_network = std::make_unique<CollaborationHost>(m_workspace.root());
+        m_network->setUpdating(!m_updateToken.isEmpty());
         connect(m_network.get(), &CollaborationHost::membershipChanged, this, [this] { publish(); });
         connect(m_network.get(), &CollaborationHost::command, this, [this](const QJsonObject &command, QIODevice *sender) { handle(command, sender); });
         for (const auto &project : m_workspace.projects()) {
@@ -225,7 +228,8 @@ void Session::publish(const QString &id) {
     }
     QJsonObject data{{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(m_workspace.projects())},
         {"states", states}, {"agentAvailable", m_agent.available()}, {"agentExecutable", m_agent.executable()},
-        {"busyProject", m_agent.busy() ? m_agentProject : m_validatingProject}, {"changedProject", id}};
+        {"busyProject", m_agent.busy() ? m_agentProject : m_validatingProject}, {"changedProject", id},
+        {"updateBlocked", updateBlocked()}, {"updateHeld", !m_updateToken.isEmpty()}, {"localWindows", m_peers.size()}};
     emit snapshot(data);
     for (auto *peer : m_peers) reply(peer, data);
     if (m_network) m_network->publish(data);
@@ -252,9 +256,41 @@ bool Session::persist(const QString &id, QJsonObject state) {
     return false;
 }
 
+bool Session::updateBlocked() const {
+    if (m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning
+        || (m_network && m_network->preparingInvitation())) return true;
+    for (const auto &project : m_workspace.projects()) {
+        const auto state = m_workspace.load(project.toMap()["id"].toString());
+        if (!state["agentQueue"].toArray().isEmpty()) return true;
+    }
+    return false;
+}
+
 void Session::handle(const QJsonObject &command, QIODevice *sender) {
     const auto type = command["type"].toString();
     auto fail = [this, sender](const QString &message) { reply(sender, {{"type", "error"}, {"message", message}}); };
+    if (type == "shutdownIfIdle" || type == "finishUpdate") {
+        // Maintenance is restricted to the per-user LOCAL socket, never TLS peers.
+        auto *local = qobject_cast<QLocalSocket *>(sender);
+        if (!local || !m_peers.contains(local)) { fail("Updates require a local connection."); return; }
+        if (!m_updateToken.isEmpty() && command["token"].toString() != m_updateToken) {
+            fail("Another update is starting Centaur."); return;
+        }
+        if (type == "finishUpdate") {
+            if (m_updateToken.isEmpty()) { fail("No update is waiting."); return; }
+            m_updateToken.clear(); if (m_network) m_network->setUpdating(false);
+            reply(sender, {{"type", "updateResumed"}}); publish();
+            QTimer::singleShot(0, this, &Session::nextRequest); return;
+        }
+        if (updateBlocked() || (m_peers.size() > 1 && m_updateToken.isEmpty())) {
+            fail("Centaur is busy or another window is open. Finish its work and try again."); return;
+        }
+        m_updateStopping = true;
+        if (m_network) m_network->setUpdating(true);
+        reply(sender, {{"type", "updateStopping"}});
+        QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return;
+    }
+    if (m_updateStopping || !m_updateToken.isEmpty()) { fail("Centaur is restarting for an update. Try again shortly."); return; }
     if (type == "shutdown") { QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return; }
     if (type == "create" || type == "openStarter") {
         // Only the host has the authoritative list at startup. Resolve this in
@@ -520,7 +556,7 @@ void Session::retryRequest(QJsonObject &state) {
     auto queue = state["agentQueue"].toArray(); queue.prepend(m_activeRequest); state["agentQueue"] = queue;
 }
 void Session::nextRequest() {
-    if (!m_host || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
+    if (!m_host || m_updateStopping || !m_updateToken.isEmpty() || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
     for (const auto &project : m_workspace.projects()) {
         const auto id = project.toMap()["id"].toString();
         auto state = m_workspace.load(id); auto queue = state["agentQueue"].toArray();

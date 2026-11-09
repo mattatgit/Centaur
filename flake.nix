@@ -132,6 +132,7 @@
           gtk4-preview = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";
+            sourceTimestamp = self.lastModified or 0;
             inherit services;
           };
           gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {

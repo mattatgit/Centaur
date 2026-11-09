@@ -22,16 +22,18 @@ from bundle import load_bundle
 from service import Service
 from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
+from update_ui import UpdateControls
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal,
                 label, box, margins, button, button_text, selected)
 
 
 class Centaur(Gtk.Application):
-    def __init__(self, root, report_dir=None):
+    def __init__(self, root, report_dir=None, update_session=None):
         super().__init__(application_id='org.centaur.Gtk4', flags=Gio.ApplicationFlags.NON_UNIQUE)
         self.root = root
         self.reports = report_dir
+        self.update_session = update_session
         self.runtime = tempfile.TemporaryDirectory(prefix='centaur-gtk4-')
         self.data = {}
         self.project = {}
@@ -114,6 +116,7 @@ class Centaur(Gtk.Application):
         self.navigate('projects'); self.set_mode('Interact')
         self.window.connect('close-request',lambda w:self.close()); self.window.present()
         self.service = Service(self.root,self.receive)
+        os.environ.pop('CENTAUR_UPDATE_STARTING',None)
         GLib.timeout_add(200,self.poll)
 
     def build_projects(self):
@@ -150,6 +153,7 @@ class Centaur(Gtk.Application):
         def section(title):
             group=box(True,16); group.append(label(title,'section-title')); self.settings_inner.append(group); return group
         def rule(): self.settings_inner.append(Gtk.Separator())
+        self.updates=UpdateControls(self,section('App')); rule()
         space=section('Your space'); space.append(label('Your name'))
         self.name=Gtk.Entry(max_length=50); self.name.set_size_request(-1,40); space.append(self.name)
         self.name.connect('activate',lambda e:self.save_name())
@@ -176,7 +180,7 @@ class Centaur(Gtk.Application):
         self.back_to_app=button('Back to app',lambda:self.navigate('workspace')); self.back_to_app.set_halign(Gtk.Align.START); storage.append(self.back_to_app)
         self.stop_sharing_button=button('Stop sharing this project',lambda:self.notice('Stop sharing?','Disconnect guests from this project?',lambda:self.service.send('stopSharing'),'Stop sharing'))
         self.stop_sharing_button.set_halign(Gtk.Align.START); storage.append(self.stop_sharing_button)
-        storage.append(label('Centaur v'+self.version(),'small muted')); self.stack.add_named(page,'settings')
+        self.stack.add_named(page,'settings')
 
     def build_workspace(self):
         wrapper=margins(box(spacing=0),16); wrapper.set_margin_top(0)
@@ -271,6 +275,7 @@ class Centaur(Gtk.Application):
 
     def navigate(self,page):
         self.page=page
+        if page=='settings' and hasattr(self,'updates') and not self.updates.checked: self.updates.check()
         self.stack.set_visible_child_name(page)
         for key,item in self.nav.items():
             selected(item,key==page)
@@ -368,6 +373,7 @@ class Centaur(Gtk.Application):
         if hasattr(self,'join_dialog') and self.join_dialog.get_visible():
             self.join_feedback.set_text(data.get('joinStatus',''))
             if data.get('remote') and data.get('connected'): self.dismiss_dialog(self.join_dialog)
+        self.updates.restore()
 
     def refresh_cards(self):
         self.cards.clear()
@@ -748,6 +754,7 @@ class Centaur(Gtk.Application):
 
     def poll(self):
         if self.closing: return False
+        self.updates.tick()
         # Preserve the reference breakpoints and the chat width on window resize.
         compact=self.window.get_width()<760
         self.sidebar.set_size_request(COMPACT_SIDEBAR if compact else SIDEBAR,-1)
@@ -786,6 +793,10 @@ class Centaur(Gtk.Application):
                             'bodyFont':self.chat_body.get_pango_context().get_font_description().to_string() if hasattr(self,'chat_body') else None,
                             'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
                             'headerText':self.chat_status.get_text()}
+            data['updater']={'version':self.version(),'status':self.updates.status.get_text(),
+                             'available':bool(self.updates.manifest),'running':bool(self.updates.process),
+                             'work':str(self.updates.work) if self.updates.work else None,
+                             'package':os.environ.get('CENTAUR_GTK_PACKAGE')}
             try: data['child']=json.loads(self.child_report.read_text()) if self.backend else None
             except (AttributeError,FileNotFoundError,ValueError): data['child']=None
             for name,widget in self.targets.items():
@@ -813,13 +824,14 @@ def main():
     parser=argparse.ArgumentParser(description='Centaur GTK4 development preview')
     parser.add_argument('--data-dir',type=Path,default=Path.home()/'.local/share/Centaur/GTK4')
     parser.add_argument('--report-dir',type=Path)
+    parser.add_argument('--update-session',type=Path)
     parser.add_argument('--stop-host',action='store_true')
     parser.add_argument('--version',action='version',version='Centaur GTK4 0.4.0-preview+'+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'))
     args=parser.parse_args()
     os.environ['PATH']=str(Path.home()/'.local/bin')+os.pathsep+os.environ.get('PATH','')
     root=args.data_dir.expanduser().resolve(); root.mkdir(parents=True,exist_ok=True)
     if args.stop_host: return subprocess.call([os.environ['CENTAUR_GTK_HOST'],'--stop','--data-dir',str(root)])
-    app=Centaur(root,args.report_dir)
+    app=Centaur(root,args.report_dir,args.update_session)
     for signum in (signal.SIGINT,signal.SIGTERM): GLib.unix_signal_add(GLib.PRIORITY_DEFAULT,signum,lambda:(app.quit(),GLib.SOURCE_REMOVE)[1])
     return app.run([])
 
