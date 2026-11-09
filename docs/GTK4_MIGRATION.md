@@ -272,3 +272,11 @@ Store path:
 The UI source is identical to the inspected `c9d1a6b` screenshots; subsequent
 changes are confined to the test driver/checks. Use this immutable build for the
 pending VM visual review, keeping installation guidance in Centaur Install.
+
+### GTK4 in-app updater
+
+Settings now includes the current build, Update app and inline status. The detached
+helper uses signed cached packages, an authoritative idle/startup gate, atomic
+profile activation and previous-version recovery. See [the updater architecture
+and verified ARM64 acceptance](GTK4_UPDATER.md). Normal updates do not evaluate the
+moving branch or compile locally; the Qt installation remains separate.

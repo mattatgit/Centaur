@@ -130,3 +130,46 @@ startup token, idle gate and refusal to interrupt an active agent.
 CI advertising runs only after that acceptance passes. The manifest and
 screenshots identify the tested immutable build; hands-on VM results must be
 recorded separately from these automated results.
+
+## Verified build — 9 November 2026
+
+Immutable source: `6a9300f787ff8effe3374e0ce665a62b4fe79254`.
+Version: `Centaur GTK4 0.4.0-preview+6a9300f`.
+Installable:
+`github:mattatgit/Centaur/6a9300f787ff8effe3374e0ce665a62b4fe79254#gtk4-preview`.
+Store path:
+`/nix/store/lk74lyib0hmkd1hv6fhn8yflnhqvgdra-centaur-gtk4-preview-0.4.0-preview`.
+
+[Product/update CI 42556610224](https://github.com/mattatgit/Centaur/actions/runs/42556610224)
+and [embedding CI 42556610246](https://github.com/mattatgit/Centaur/actions/runs/42556610246)
+passed. Updater evidence is artifact `13648150224`; product UI evidence is
+`13647531789`; signed distribution metadata is `13647143362`. The updater
+receipt records `phase: complete` and version `0.4.0-preview+6a9300f`; the native
+summary records `passed: true`. Screenshots of availability and the restarted
+Settings version/status were inspected. The final log contains no GTK warnings,
+criticals or Python tracebacks.
+
+The native test clicked the button in the older `0000000` fixture, switched a
+real dedicated profile to this candidate, restarted the real GTK frontend and
+restored the same project/conversation. Preferences, TLS certificates/keys,
+sharing metadata, an OMP credential sentinel and the Qt profile/data sentinel
+were unchanged. A separate real host verified the startup-token gate and
+refused both another-window and active-agent shutdown attempts.
+
+All 22 GTK/Python tests pass, including simulated download/signature, activation,
+startup and recovery failures; the existing 21 installation-helper tests also
+pass under the GNU/Nix development environment. Retained core/network/Iroh and
+native product/embedding regressions passed in ARM64 CI. Failure-injection tests
+use temporary profiles and subprocess doubles; the successful GUI restart uses
+the real Nix store/profile and Cachix signatures. That candidate is already
+realised in the CI store. Separately, publication verified a fresh download of
+all **531 runtime paths** into an empty store with builders disabled and signature
+checks enabled (`verifiedSignedClosureDownload: true`).
+
+The public `gtk4-preview` prerelease body was read back and names this exact
+source/path after successful acceptance. No extra user token is required;
+the workflow's scoped built-in GitHub token successfully published discovery.
+Hands-on acceptance on Matt's UTM VM remains pending. No real OMP/provider request,
+physical remote-client update, power-loss recovery or production replacement is
+claimed by these automated results. Initial installation guidance stays in
+Centaur Install; subsequent normal updates use the Settings button.
