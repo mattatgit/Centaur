@@ -250,3 +250,25 @@ No embedding-backend changes were made in this UI pass.
 Hands-on review of this restored interface on the ARM64 UTM VM remains pending.
 The earlier VM limitations above remain open. Installation guidance belongs in
 Centaur Install; retain the isolated GTK profile/data and existing OMP setup.
+
+**Final verified package (supersedes the UI build above):** source
+`4b37834878b46348d4d366570e287f215637d45b`, version
+`0.4.0-preview+4b37834`. Both [product run
+42546728465](https://github.com/mattatgit/Centaur/actions/runs/42546728465) and
+[standalone embedding run
+42546728508](https://github.com/mattatgit/Centaur/actions/runs/42546728508)
+passed after test clicks were moved to the same persistent Wayland pointer used
+for drags/wheel events. This supplies explicit pointer frames and roundtrips;
+the app's embedding backend was not changed. The earlier failed runs above are
+retained as investigation history, not the final result. The final product log
+has no GTK layout warnings or criticals.
+
+Product UI evidence: `13643393985`; signed distribution: `13643403817`.
+The complete **531-path** closure again passed empty-store signed download
+verification with builders disabled. Final installable:
+`github:mattatgit/Centaur/4b37834878b46348d4d366570e287f215637d45b#gtk4-preview`.
+Store path:
+`/nix/store/2fcyrp0sbvw0yxh1h37zsk8y99shid0n-centaur-gtk4-preview-0.4.0-preview`.
+The UI source is identical to the inspected `c9d1a6b` screenshots; subsequent
+changes are confined to the test driver/checks. Use this immutable build for the
+pending VM visual review, keeping installation guidance in Centaur Install.
