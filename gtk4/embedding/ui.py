@@ -200,9 +200,9 @@ class Composer(Gtk.Widget):
 
 class WidthLimit(Gtk.Widget):
     """A left-aligned maximum width without imposing a minimum on small windows."""
-    def __init__(self, child, maximum=640):
+    def __init__(self, child, maximum=640, centred=False):
         super().__init__(hexpand=True, valign=Gtk.Align.START)
-        self.child, self.maximum = child, maximum
+        self.child, self.maximum, self.centred = child, maximum, centred
         child.set_parent(self)
 
     def do_get_request_mode(self): return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
@@ -212,11 +212,63 @@ class WidthLimit(Gtk.Widget):
         return self.child.measure(orientation, min(self.maximum, for_size if for_size >= 0 else self.maximum))
 
     def do_size_allocate(self, width, height, baseline):
-        allocate(self.child, min(self.maximum, width), height)
+        child_width=min(self.maximum,width)
+        allocate(self.child,child_width,height,(width-child_width)/2 if self.centred else 0)
 
     def do_snapshot(self, snapshot): self.snapshot_child(self.child, snapshot)
 
     def release(self): self.child.unparent()
+
+
+class Modal:
+    """App-owned modal placement, independent of desktop window-placement policy.
+
+    The content is native GTK. The overlay blocks the main UI, confines Tab
+    traversal, and restores the previous keyboard focus on dismissal.
+    """
+    def __init__(self, owner, title, width):
+        self.owner, self.title, self.width = owner, title, width
+        self.previous_focus=owner.window.get_focus(); self.closed=False
+        self.root=Gtk.Overlay(hexpand=True,vexpand=True)
+        self.root.set_child(box(css='modal-shade'))
+        self.root.set_visible(False); owner.root_overlay.add_overlay(self.root)
+        key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        key.connect('key-pressed',self.key); self.root.add_controller(key)
+
+    def set_child(self, child):
+        self.content=child
+        self.limit=WidthLimit(child,self.width,centred=True); self.limit.set_valign(Gtk.Align.CENTER)
+        self.limit.set_margin_start(16); self.limit.set_margin_end(16)
+        self.root.add_overlay(self.limit)
+
+    def key(self, controller, keyval, keycode, state):
+        if keyval not in (Gdk.KEY_Tab,Gdk.KEY_ISO_Left_Tab): return False
+        def walk(widget):
+            if widget.get_mapped() and widget.is_sensitive() and widget.get_focusable(): yield widget
+            child=widget.get_first_child()
+            while child:
+                yield from walk(child); child=child.get_next_sibling()
+        items=list(walk(self.content))
+        if items:
+            current=self.owner.window.get_focus(); backwards=bool(state&Gdk.ModifierType.SHIFT_MASK) or keyval==Gdk.KEY_ISO_Left_Tab
+            index=items.index(current) if current in items else (0 if backwards else -1)
+            items[(index+(-1 if backwards else 1))%len(items)].grab_focus()
+        return True
+
+    def present(self):
+        self.owner.root_overlay.get_child().set_can_target(False)
+        self.root.set_visible(True); self.content.child_focus(Gtk.DirectionType.TAB_FORWARD)
+
+    def destroy(self):
+        if self.closed: return
+        self.closed=True; self.root.set_visible(False); self.limit.release()
+        self.owner.root_overlay.remove_overlay(self.root)
+        self.owner.root_overlay.get_child().set_can_target(True)
+        if self.previous_focus and self.previous_focus.get_mapped(): self.previous_focus.grab_focus()
+
+    def get_visible(self): return self.root.get_visible() and not self.closed
+    def get_title(self): return self.title
+    def add_controller(self, controller): self.root.add_controller(controller)
 
 
 class Stepper(Gtk.Box):

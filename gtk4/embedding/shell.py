@@ -23,7 +23,7 @@ from service import Service
 from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
-                CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit,
+                CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal,
                 label, box, margins, button, button_text, selected)
 
 
@@ -107,8 +107,6 @@ class Centaur(Gtk.Application):
         self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)
         self.stack.set_margin_end(8); self.stack.set_margin_bottom(8); content.append(self.stack)
         root.append(content)
-        self.modal_shade = box(css='modal-shade'); self.modal_shade.set_hexpand(True); self.modal_shade.set_vexpand(True)
-        self.root_overlay.add_overlay(self.modal_shade); self.modal_shade.set_visible(False)
         self.error_label = margins(label('','error toast',True),24); self.error_label.set_halign(Gtk.Align.CENTER); self.error_label.set_valign(Gtk.Align.END)
         self.root_overlay.add_overlay(self.error_label); self.error_label.set_visible(False)
         self.window.set_child(self.root_overlay)
@@ -478,11 +476,10 @@ class Centaur(Gtk.Application):
 
     def dialog(self,title,width=424):
         if self.active_form: self.dismiss_dialog(self.active_form)
-        dialog=Gtk.Window(title=title,transient_for=self.window,modal=True,decorated=False,default_width=width,resizable=False)
-        dialog.add_css_class('dialog'); self.active_form=dialog; self.modal_shade.set_visible(True)
+        dialog=Modal(self,title,width); self.active_form=dialog
         content=box(True,16,'dialog-card'); content.append(label(title,'dialog-title',True)); dialog.set_child(content)
-        dialog.connect('notify::visible',lambda d,p:self.modal_shade.set_visible(False) if not d.get_visible() and self.active_form is d else None)
-        key=Gtk.EventControllerKey()
+        self.targets['dialog-card']=content
+        key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         def escape(c,keyval,keycode,state):
             if keyval==Gdk.KEY_Escape:
                 if dialog is getattr(self,'join_dialog',None): self.service.send('cancelJoin')
@@ -493,7 +490,7 @@ class Centaur(Gtk.Application):
 
     def dismiss_dialog(self,dialog):
         dialog.destroy()
-        if self.active_form is dialog: self.active_form=None; self.modal_shade.set_visible(False)
+        if self.active_form is dialog: self.active_form=None
 
     def form(self,title,fields,submit,action='Save',width=400):
         dialog,content=self.dialog(title,width); entries={}
@@ -799,6 +796,7 @@ class Centaur(Gtk.Application):
     def close(self):
         if self.closing: return False
         self.closing=True; self.stop_preview()
+        if self.active_form: self.dismiss_dialog(self.active_form)
         if hasattr(self,'service'): self.service.close()
         self.composer.release(); self.cards.clear(); self.settings_limit.release(); self.empty_limit.release()
         self.runtime.cleanup()

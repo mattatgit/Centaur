@@ -69,7 +69,10 @@ def main():
         click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
         click(hs,hw,'nav-projects')
         click(hs,hw,'create'); until(lambda:hs().get('form')=='Make something together','New project form did not open')
+        dialog=until(lambda:hs()['targets'].get('dialog-card'),'Modal did not allocate inside Centaur')
+        assert dialog[2]==464 and abs(dialog[0]+dialog[2]/2-720)<=1 and abs(dialog[1]+dialog[3]/2-472)<=1,'Project dialog is not centred in Centaur'
         driver.screenshot(hw,folder/'ui-new-project.png',focus=False)
+        driver.key('shift+Tab','Tab')  # Wrap through the modal, not the page behind it.
         driver.type('Family test'); driver.key('Return')
         until(lambda:(hs().get('child') or {}).get('ready'),'GTK project did not launch')
         project=hs()['project']; project_id=project['id']
