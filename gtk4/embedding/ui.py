@@ -140,7 +140,8 @@ class ProjectGrid(Gtk.Widget):
         return (height, height, -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
-        count = columns(width); card_width = (width - (count - 1) * TILE_GAP) / count
+        count = columns(width)
+        card_width = max(8, math.floor((width - (count - 1) * TILE_GAP) / count / 8) * 8)
         for index, card in enumerate(self.cards):
             allocate(card, card_width, TILE_HEIGHT, (index % count) * (card_width + TILE_GAP), (index // count) * (TILE_HEIGHT + TILE_GAP))
 

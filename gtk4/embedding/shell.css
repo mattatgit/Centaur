@@ -4,36 +4,37 @@ button { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px;
 button:hover { background: #ebebeb; }
 button:disabled { opacity: .45; }
 button:focus-visible, entry:focus-within, dropdown:focus-visible { outline: 2px solid #138ed5; outline-offset: 2px; }
-.flat-button { padding: 0 8px; min-height: 32px; }
+.flat-button { padding: 0 8px; min-height: 32px; transition: transform 100ms ease-out, background-color 100ms ease-out; }
+.flat-button:hover { transform: scale(1.05); }
 .button-label { font-family: Inter; font-size: 12px; font-weight: 600; }
 .flat-button.tone-soft { background: #ebebeb; }
-.flat-button.tone-soft:hover { background: #dedede; }
+.flat-button.tone-soft:hover { background: #ebebeb; }
 .flat-button.tone-plain { background: transparent; }
-.flat-button.tone-plain:hover { background: #ebebeb; }
+.flat-button.tone-plain:hover { background: transparent; }
 .flat-button.tone-dark { background: #171717; color: white; padding: 0 16px; }
-.flat-button.tone-dark:hover { background: #333333; }
+.flat-button.tone-dark:hover { background: #171717; }
 .flat-button.tone-lime { background: #ccff00; padding: 0 16px; }
-.flat-button.tone-lime:hover { background: #bfe900; }
+.flat-button.tone-lime:hover { background: #ccff00; }
 .flat-button.selected { background: #138ed5; color: white; }
 .flat-button.icon-only { padding: 0; min-width: 32px; }
-.flat-button:active { opacity: .8; }
+
 .flat-button.brand { padding: 0; min-width: 32px; color: #171717; }
-.flat-button.brand:hover { background: transparent; }
+.flat-button.brand:hover { background: transparent; transform: scale(1.1); }
 .topbar { min-height: 80px; }
-.sidebar { background: #f8f8f8; }
+.sidebar { background: #f8f8f8; padding: 0; border: 0; box-shadow: none; }
 .flat-button.navigation { padding: 0 8px; min-height: 40px; color: #9ea39e; }
 .navigation .button-label, .nav-label { font-size: 14px; font-weight: 600; }
-.flat-button.navigation:hover { color: #6b6b6b; background: transparent; }
+.flat-button.navigation:hover { transform: none; color: #6b6b6b; background: transparent; }
 .flat-button.navigation.selected { color: #171717; background: #f3f3f3; }
 .flat-button.profile { padding: 0 16px 0 24px; min-height: 88px; }
-.flat-button.profile:hover { background: #f3f3f3; }
+.flat-button.profile:hover { transform: none; background: #f3f3f3; }
 .profile-avatar { background: #669e68; color: #102010; border-radius: 8px; font-family: Inter; font-size: 12px; font-weight: 700; }
 .sidebar.compact .flat-button.profile { padding: 0 16px; }
 .breadcrumb { font-family: Inter; font-size: 12px; font-weight: 600; }
 .section-title { font-family: Inter; font-size: 16px; font-weight: 600; }
 .mode-switch { background: white; border-radius: 16px; padding: 8px; }
 .flat-button.mode-button { color: #9ea39e; }
-.flat-button.mode-button:hover { color: #6b6b6b; background: transparent; }
+.flat-button.mode-button:hover { transform: none; color: #6b6b6b; background: transparent; }
 .flat-button.mode-button.selected { background: #323232; color: white; }
 .panel, .chat, .canvas-panel { background: white; border-radius: 16px; }
 paned > separator { min-width: 8px; min-height: 0; padding: 0; margin: 0; background: transparent; border: 0; box-shadow: none; }
@@ -51,7 +52,7 @@ separator { min-height: 1px; min-width: 1px; background: #e7e9e5; }
 .avatar.agent { background: #ccff00; }
 .empty-heading { font-family: 'Inter Tight'; font-size: 18pt; font-weight: 600; }
 .empty-description { font-family: Inter; font-size: 12pt; }
-.empty-project { background: #f8f8f8; border-radius: 16px; padding: 32px; }
+.empty-project { background: #f8f8f8; box-shadow: inset 0 0 0 1px #e7e9e5; border-radius: 16px; padding: 32px; }
 .project-card { background: #f8f8f8; border-radius: 16px; padding: 24px; box-shadow: inset 0 0 0 1px transparent; }
 .project-card:hover { background: #f8f8f8; box-shadow: inset 0 0 0 1px #d3d7ce; }
 .project-card:focus-visible { outline: 2px solid #138ed5; outline-offset: 2px; }
@@ -98,3 +99,10 @@ dropdown popover row { padding: 8px; border-radius: 8px; }
 dropdown popover row:selected { background: #ebebeb; color: #171717; }
 scrolledwindow > scrollbar { background: transparent; }
 scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8px; background: alpha(#9ea39e,.4); }
+
+.new-project-dialog { padding: 32px; }
+.new-project-field { font-family: Inter; font-size: 12pt; }
+.new-project-description { background: #f8f8f8; border-radius: 8px; padding: 16px; }
+.colour-label { font-family: Inter; font-size: 11px; font-weight: 400; }
+.meatball { color: #9ea39e; }
+popover.project-menu .flat-button:hover { background: #ebebeb; transform: none; }

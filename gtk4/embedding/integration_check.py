@@ -68,8 +68,8 @@ def main():
         click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
         click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
         click(hs,hw,'nav-projects')
-        click(hs,hw,'create'); until(lambda:hs().get('form')=='New project','New project form did not open')
-        driver.screenshot(hw,folder/'ui-new-project.png')
+        click(hs,hw,'create'); until(lambda:hs().get('form')=='Make something together','New project form did not open')
+        driver.screenshot(hw,folder/'ui-new-project.png',focus=False)
         driver.type('Family test'); driver.key('Return')
         until(lambda:(hs().get('child') or {}).get('ready'),'GTK project did not launch')
         project=hs()['project']; project_id=project['id']
@@ -164,17 +164,26 @@ def main():
         assert card[3]==256 and hs()['layout']['tileColumns']==3,'Project grid did not retain reference card geometry'
         click(hs,hw,'menu-'+project_id); driver.screenshot(hw,folder/'ui-project-menu.png')
         click(hs,hw,'menu-rename-'+project_id); until(lambda:hs().get('form')=='Rename project','Rename did not open')
-        driver.screenshot(hw,folder/'ui-rename.png'); driver.key('Escape')
+        driver.screenshot(hw,folder/'ui-rename.png',focus=False); driver.key('Escape')
         click(hs,hw,'menu-'+project_id); click(hs,hw,'menu-delete-'+project_id)
         until(lambda:hs().get('form')=='Delete project?','Delete confirmation did not open')
-        driver.screenshot(hw,folder/'ui-delete-confirmation.png'); driver.key('Escape')
+        driver.screenshot(hw,folder/'ui-delete-confirmation.png',focus=False); driver.key('Escape')
         assert len(hs()['projects'])==1,'Cancelling deletion removed a project'
-        for width,count in [(720,1),(1440,3),(2048,5)]:
+        control=Bridge(roots[0],env)
+        for number in range(2,6):
+            control.send('create',name='Family idea '+str(number),description='An idea to make together.')
+            until(lambda:len(hs()['projects'])==number,'Grid audit project did not appear')
+        control.close(); control=None
+        for width,count in [(560,1),(1080,2),(1440,3),(1744,4),(2048,5)]:
             resize_host(width,944)
             until(lambda:hs()['layout']['tileColumns']==count,'Project grid column breakpoint failed')
             assert hs()['layout']['sidebarWidth']==(72 if width<760 else 216)
-        resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
+            tiles=[value for key,value in hs()['targets'].items() if key.startswith('open-')]
+            assert len({round(tile[0]) for tile in tiles})==count,'Native cards did not use the reported columns'
+            assert all(tile[2]%8==0 and tile[3]==256 for tile in tiles),'Responsive tiles left the 8px component grid'
+            driver.screenshot(hw,folder/('ui-projects-'+str(count)+'-columns.png'))
         click(hs,hw,'open-'+project_id); until(lambda:(hs().get('child') or {}).get('ready'),'UI audit did not reopen app')
+        resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
         summary['checks'].append('responsive-project-grid-original-menu-rename-and-cancelled-delete')
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]

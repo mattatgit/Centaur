@@ -103,9 +103,11 @@ class Driver:
                 command('xdotool','mousemove','--window',window,str(round(x+dx)),str(round(y+dy)))
             command('xdotool','mouseup',str(button))
 
-    def screenshot(self, window, path):
+    def screenshot(self, window, path, focus=True):
         if self.wayland:
-            self.ipc(f'[con_id={window}] focus')
+            # Focusing the parent can hide a separate transient dialog under
+            # Sway. Modal screenshots must preserve the current native focus.
+            if focus: self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
             command('grim', '-g', f"{r['x']},{r['y']} {r['width']}x{r['height']}", str(path))
         else:
