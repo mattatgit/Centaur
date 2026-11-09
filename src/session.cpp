@@ -186,6 +186,7 @@ void Session::acceptConnection() {
         connect(peer, &QLocalSocket::readyRead, this, [this, peer] { read(peer); });
         connect(peer, &QLocalSocket::disconnected, this, [this, peer] {
             m_peers.remove(peer); m_buffers.remove(peer); peer->deleteLater();
+            publish(); // Refresh the updater's other-window gate immediately.
         });
         publish();
     }

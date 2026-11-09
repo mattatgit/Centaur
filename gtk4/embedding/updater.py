@@ -182,8 +182,13 @@ class Transaction:
         if not {'centaur-gtk4','centaur-host'}<=names or names-ALLOWED_BINS:
             raise UpdateError('This is not a dedicated GTK4 profile. Nothing was changed.')
         data=Path(self.request['dataDir']).resolve()
-        qt=Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))/'Centaur/Centaur'
-        if data==qt.resolve() or data==self.profile.resolve(): raise UpdateError('The GTK4 updater cannot use the Qt data directory.')
+        qt_roots={Path.home()/'.local/share/Centaur/Centaur',
+                  Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))/'Centaur/Centaur'}
+        qt_config=Path(os.environ.get('XDG_CONFIG_HOME',Path.home()/'.config'))/'centaur-launcher/data-dir'
+        if qt_config.is_file():
+            configured=Path(qt_config.read_text().strip())
+            if configured.is_absolute(): qt_roots.add(configured)
+        if data in {p.resolve() for p in qt_roots} or data==self.profile.resolve(): raise UpdateError('The GTK4 updater cannot use the Qt data directory.')
         if self.request.get('package')!=str((self.profile/'bin/centaur-gtk4').resolve().parent.parent):
             # Python wrappers remain below bin; package is supplied by Nix.
             package=self.request.get('package','')
@@ -195,6 +200,7 @@ class Transaction:
         data=self.preflight(); runtime=self.runtime; token=uuid.uuid4().hex
         self.status('downloading','Downloading and verifying the update…')
         runtime.root_previous(self.previous); runtime.download(manifest)
+        if str(self.profile.resolve())!=self.previous: raise UpdateError('The installed profile changed during download. Nothing was replaced.')
         write_json(self.work/'resume.json',approval.get('resume',{}))
         self.status('ready','Download verified. Waiting for Centaur to finish its work…')
         if not approval.get('approved'):
@@ -211,6 +217,7 @@ class Transaction:
         committed=False
         try:
             self.status('restarting','Restarting Centaur…')
+            if str(self.profile.resolve())!=self.previous: raise UpdateError('The installed profile changed. Reopen the installed app and try again.')
             runtime.stop_host(self.previous,data); self.host_stopped=True
             write_json(state_path()/'recovery.json',{'previous':self.previous,'candidate':manifest['storePath'],
                        'profile':str(self.profile),'dataDir':str(data),'work':str(self.work),'token':token})
@@ -225,6 +232,10 @@ class Transaction:
         except Exception as error:
             if committed: return  # A receipt-write failure cannot undo a healthy, resumed host.
             runtime.stop_child(self.child)
+            if not self.host_stopped:
+                self.status('failed',str(error))
+                self.child=runtime.launch(self.previous,data,self.work,'',self.request.get('omp',''))
+                raise UpdateError(str(error)) from error
             # A launch failure may have left a detached, held host. Its idle
             # gate prevents new requests until success or rollback.
             try:

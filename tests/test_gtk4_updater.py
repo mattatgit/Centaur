@@ -159,6 +159,28 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(self.profile.resolve(),self.old)
         self.assertNotIn('stop',[c[0] for c in runtime.calls])
 
+    def test_profile_changed_during_download_is_not_overwritten(self):
+        transaction,runtime=self.transaction()
+        original=runtime.download
+        def download(value):
+            original(value)
+            next_profile=self.profile.with_name('external-update'); next_profile.symlink_to(self.new); next_profile.replace(self.profile)
+        runtime.download=download
+        with self.assertRaises(updater.UpdateError): transaction.apply(self.value,{'approved':True})
+        self.assertEqual(self.profile.resolve(),self.new)
+        self.assertNotIn('stop',[c[0] for c in runtime.calls]); self.assert_preserved()
+
+    def test_legacy_and_custom_qt_data_roots_are_protected(self):
+        for qt in (self.home/'.local/share/Centaur/Centaur',self.home/'custom-qt'):
+            qt.mkdir(parents=True,exist_ok=True)
+            if qt.name=='custom-qt':
+                settings=Path(os.environ.get('XDG_CONFIG_HOME',self.home/'.config'))/'centaur-launcher'
+                settings.mkdir(parents=True,exist_ok=True); (settings/'data-dir').write_text(str(qt))
+            updater.write_json(self.work/'request.json',dict(self.request,dataDir=str(qt)))
+            transaction,runtime=self.transaction()
+            with self.assertRaises(updater.UpdateError): transaction.apply(self.value,{'approved':True})
+            self.assertEqual(runtime.calls,[])
+
     def test_real_runtime_invocations_disable_all_builders_and_verify_cache_signatures(self):
         runtime=updater.Runtime(self.work); calls=[]
         def run(args,**kwargs):
