@@ -11,11 +11,13 @@ import os
 from pathlib import Path
 import platform
 import re
+import selectors
 import subprocess
 import time
 import urllib.error
 import urllib.request
 import uuid
+from download_progress import DownloadProgress, download_plan, path_info, progress_message
 
 CACHE = 'https://mattatgit-centaur.cachix.org'
 KEY = 'mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58='
@@ -98,20 +100,62 @@ def process_identity(pid):
 class Runtime:
     def __init__(self,work): self.work=Path(work)
 
-    def run(self,args,timeout=600,env=None):
+    def run(self,args,timeout=600,env=None,input=None,returncodes=(0,)):
         try:
             with (self.work/'helper.log').open('a') as log:
-                result=subprocess.run(args,stdout=subprocess.PIPE,stderr=log,text=True,timeout=timeout,env=env)
+                result=subprocess.run(args,stdout=subprocess.PIPE,stderr=log,text=True,timeout=timeout,env=env,input=input)
         except subprocess.TimeoutExpired: raise UpdateError('The update took too long. Your previous app is preserved; try again later.') from None
         except OSError: raise UpdateError('Could not run the updater. Your previous app is preserved.') from None
-        if result.returncode: raise UpdateError('The update could not complete. Your previous version is preserved.')
+        if result.returncode not in returncodes: raise UpdateError('The update could not complete. Your previous version is preserved.')
         return result.stdout.strip()
 
     def nix(self,*args): return self.run(['nix',*NIX_FLAGS,*args])
 
-    def download(self,manifest):
+    def copy_with_progress(self,args,progress,timeout=600):
+        # Drain stderr while Nix runs: a blocked pipe would stall the download.
+        # stdout goes straight to the existing private diagnostic log.
+        try:
+            with (self.work/'helper.log').open('ab') as log, selectors.DefaultSelector() as selector:
+                with subprocess.Popen(args,stdout=log,stderr=subprocess.PIPE) as process:
+                    try:
+                        selector.register(process.stderr,selectors.EVENT_READ)
+                        deadline=time.monotonic()+timeout; pending=b''
+                        while selector.get_map():
+                            if time.monotonic()>=deadline: raise subprocess.TimeoutExpired(args,timeout)
+                            for key,_ in selector.select(.2):
+                                chunk=os.read(key.fileobj.fileno(),65536)
+                                if not chunk:
+                                    selector.unregister(key.fileobj)
+                                    if pending: progress.feed(pending.decode('utf-8','replace'))
+                                    break
+                                log.write(chunk)
+                                pending+=chunk
+                                while b'\n' in pending:
+                                    line,pending=pending.split(b'\n',1)
+                                    progress.feed(line.decode('utf-8','replace'))
+                                if len(pending)>65536: pending=b''
+                        process.wait(timeout=max(.01,deadline-time.monotonic()))
+                        if process.returncode: raise UpdateError('The download failed. Your installed version is preserved; try again.')
+                    finally:
+                        if process.poll() is None: process.kill(); process.wait()
+                        progress.flush()
+        except subprocess.TimeoutExpired: raise UpdateError('The download took too long. Your installed version is preserved; try again later.') from None
+        except OSError: raise UpdateError('Could not download the update. Your installed version is preserved.') from None
+
+    def download(self,manifest,progress=None,verifying=None):
         path=manifest['storePath']
-        self.nix('copy','--from',CACHE,'--extra-trusted-public-keys',KEY,path)
+        plan=None
+        try:
+            remote=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--store',CACHE,'--recursive','--json',path],timeout=60)))
+            local=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--offline','--option','substituters','','--json','--stdin'],
+                             input='\n'.join(remote)+'\n',returncodes=(0,1),timeout=20)))
+            if set(remote)!=set(local): raise ValueError('Incomplete local metadata')
+            plan=download_plan(CACHE,remote,local)
+        except (UpdateError,ValueError,KeyError,TypeError): pass
+        tracker=DownloadProgress(CACHE,plan,progress or (lambda done,total:None))
+        self.copy_with_progress(['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',CACHE,
+                                 '--extra-trusted-public-keys',KEY,path],tracker)
+        if verifying: verifying()
         self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
         # Existing dependencies may only have nixos.org signatures locally.
         # Import this cache's signatures before requiring them for the closure.
@@ -195,6 +239,9 @@ class Transaction:
     def status(self,phase,message,**extra):
         write_json(self.work/'status.json',{'phase':phase,'message':message,**extra})
 
+    def download_progress(self,done,total):
+        self.status('downloading',progress_message(done,total),downloadBytes=done,totalBytes=total)
+
     def preflight(self):
         if not self.profile.is_symlink(): raise UpdateError('Use the dedicated GTK4 installation before updating in Settings.')
         self.previous=str(self.profile.resolve(strict=True))
@@ -218,8 +265,10 @@ class Transaction:
 
     def apply(self,manifest,approval):
         data=self.preflight(); runtime=self.runtime; token=uuid.uuid4().hex
-        self.status('downloading','Downloading and verifying the update…')
-        runtime.root_previous(self.previous); runtime.download(manifest)
+        self.status('downloading','Preparing the download…')
+        runtime.root_previous(self.previous)
+        runtime.download(manifest,progress=self.download_progress,
+                         verifying=lambda:self.status('verifying','Download complete. Verifying the update…'))
         if str(self.profile.resolve())!=self.previous: raise UpdateError('The installed profile changed during download. Nothing was replaced.')
         write_json(self.work/'resume.json',approval.get('resume',{}))
         self.status('ready','Download verified. Waiting for Centaur to finish its work…')

@@ -5,12 +5,14 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 import urllib.error
 
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'gtk4/embedding'))
 def module(name,path):
     spec=importlib.util.spec_from_file_location(name,path); result=importlib.util.module_from_spec(spec); spec.loader.exec_module(result); return result
 updater=module('gtk4_updater',ROOT/'gtk4/embedding/updater.py')
@@ -32,7 +34,7 @@ class Runtime:
         self.calls.append((name,*map(str,args)))
         if self.fail==name: raise updater.UpdateError('simulated '+name)
     def root_previous(self,path): self.action('root',path)
-    def download(self,value): self.action('download',value['storePath'])
+    def download(self,value,**kwargs): self.action('download',value['storePath'])
     def wait_parent(self,pid,identity): self.action('parent-exit',pid,identity)
     def stop_host(self,package,data,token=''): self.action('stop',package,data,token)
     def activate(self,profile,path):
@@ -162,7 +164,7 @@ class UpdaterTests(unittest.TestCase):
     def test_profile_changed_during_download_is_not_overwritten(self):
         transaction,runtime=self.transaction()
         original=runtime.download
-        def download(value):
+        def download(value,**kwargs):
             original(value)
             next_profile=self.profile.with_name('external-update'); next_profile.symlink_to(self.new); next_profile.replace(self.profile)
         runtime.download=download

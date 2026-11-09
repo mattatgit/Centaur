@@ -6,6 +6,24 @@ availability/progress/error text. Opening Settings checks once; clicking the
 button checks again if necessary and installs an available update. There is no
 unattended installation or separate update-management screen.
 
+While downloading, the existing inline status shows live compressed payload
+bytes, for example **Downloaded 123.4 of 468.5 MB** (decimal MB, one decimal
+place). Nix's remote path metadata supplies compressed sizes; an offline local
+query excludes already installed objects. Only HTTP NAR transfer activities
+count towards the counter, not metadata requests or uncompressed store writes.
+Parallel transfers and retries are combined per NAR URL without double-counting.
+Progress is written at most five times per second and the Settings view reads
+it through the existing transaction status. If size metadata is unavailable,
+the transferred MB still update without an invented total. Once copying ends,
+the status changes to **Download complete. Verifying the update…** before the
+existing signature/content checks and safe restart. Verification never counts
+as additional downloaded bytes.
+
+The helper belongs to the version that starts an update. Consequently the
+download that first installs this counter still uses the previous version's
+status; subsequent downloads use the live counter. This does not change the
+update feed/protocol, profile activation, signature checks or recovery path.
+
 An existing build without this feature needs one normal, precompiled update
 through **Centaur Install** first. Subsequent normal updates use Settings.
 That initial setup should launch through the dedicated GTK profile rather than

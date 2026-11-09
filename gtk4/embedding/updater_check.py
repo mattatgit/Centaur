@@ -14,6 +14,26 @@ import time
 from check import read,until
 from integration_check import Bridge
 from test_driver import Driver
+from updater import Runtime, CACHE, KEY, NIX_FLAGS
+from download_progress import DownloadProgress, download_plan, path_info
+
+
+def download_counter(folder,manifest):
+    # The GUI candidate is already in the CI store. Independently fetch a real,
+    # signed, reference-free cache object into an EMPTY store to exercise HTTP
+    # progress, without deleting anything from the runner's shared store.
+    work=folder/'download-progress'; work.mkdir()
+    runtime=Runtime(work)
+    remote=path_info(json.loads(runtime.nix('path-info','--store',CACHE,'--recursive','--json',manifest['storePath'])))
+    leaves=[(p,v) for p,v in remote.items() if not v['references'] and v.get('downloadSize',0)>=65536]
+    path,info=min(leaves,key=lambda pair:pair[1]['downloadSize'])
+    updates=[]
+    tracker=DownloadProgress(CACHE,download_plan(CACHE,{path:info},{}),lambda done,total:updates.append([done,total]))
+    runtime.copy_with_progress(['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',CACHE,
+                               '--to',str(work/'empty-store'),'--extra-trusted-public-keys',KEY,path],tracker)
+    assert updates[0]==[0,info['downloadSize']] and updates[-1]==[info['downloadSize']]*2,updates
+    assert any(done>0 for done,total in updates),'Real Nix transfer reported no payload bytes'
+    (work/'progress.json').write_text(json.dumps({'storePath':path,'updates':updates},indent=2))
 
 
 def maintenance(folder,env):
@@ -70,6 +90,8 @@ def main():
     state=lambda:read(report/'shell.json'); new_pid=None; control=None
     summary={'checks':[],'real_nix_profile':True,'signed_cache':True,'production_approved':False}
     try:
+        download_counter(folder,manifest)
+        summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
         until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
         window=driver.find_window('org.centaur.Gtk4',process.pid)
         def click(name):
