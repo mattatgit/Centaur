@@ -98,8 +98,11 @@ class Runtime:
     def __init__(self,work): self.work=Path(work)
 
     def run(self,args,timeout=600,env=None):
-        with (self.work/'helper.log').open('a') as log:
-            result=subprocess.run(args,stdout=subprocess.PIPE,stderr=log,text=True,timeout=timeout,env=env)
+        try:
+            with (self.work/'helper.log').open('a') as log:
+                result=subprocess.run(args,stdout=subprocess.PIPE,stderr=log,text=True,timeout=timeout,env=env)
+        except subprocess.TimeoutExpired: raise UpdateError('The update took too long. Your previous app is preserved; try again later.') from None
+        except OSError: raise UpdateError('Could not run the updater. Your previous app is preserved.') from None
         if result.returncode: raise UpdateError('The update could not complete. Your previous version is preserved.')
         return result.stdout.strip()
 
@@ -108,6 +111,7 @@ class Runtime:
     def download(self,manifest):
         path=manifest['storePath']
         self.nix('copy','--from',CACHE,'--extra-trusted-public-keys',KEY,path)
+        self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
         # Existing dependencies may only have nixos.org signatures locally.
         # Import this cache's signatures before requiring them for the closure.
         self.nix('store','copy-sigs','--substituter',CACHE,'--recursive',path)
@@ -115,7 +119,6 @@ class Runtime:
         # was already present locally from another source.
         self.nix('store','verify','--recursive','--sigs-needed','1',
                  '--option','trusted-public-keys',KEY,'--option','substituters','',path)
-        self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
         for name in ('centaur-gtk4','centaur-gtk4-update','centaur-host','centaur-gtk4-preview','centaur-gtk4-bridge','centaur-network'):
             if not os.access(Path(path)/'bin'/name,os.X_OK): raise UpdateError('The published package is incomplete.')
         if self.run([path+'/bin/centaur-gtk4','--version'],timeout=20)!=manifest['version']:

@@ -33,6 +33,7 @@ int main(int argc, char **argv) {
             {"connected", controller.canContribute()}, {"status", controller.connectionStatus()},
             {"busy", controller.agentBusy()}, {"agentAvailable", controller.agentAvailable()},
             {"updateBlocked", controller.updateBlocked()}, {"updateHeld", controller.updateHeld()},
+            {"snapshotReady", controller.snapshotReady()},
             {"agentModel", controller.agentModel()}, {"agentExecutable", controller.agentExecutable()},
             {"invitation", controller.invitationCode()}, {"inviting", controller.inviting()}, {"localAddress", controller.localAddress()},
             {"joinStatus", controller.joinStatus()}, {"joining", controller.joining()},

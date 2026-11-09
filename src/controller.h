@@ -52,6 +52,7 @@ public:
     bool agentBusy() const;
     bool updateBlocked() const;
     bool updateHeld() const { return m_localSnapshot["updateHeld"].toBool(); }
+    bool snapshotReady() const { return !m_localSnapshot.isEmpty(); }
     QString previewStatus() const { return m_previewStatus; }
     bool previewRunning() const { return m_preview.state() == QProcess::Running; }
     bool embeddingSupported() const;

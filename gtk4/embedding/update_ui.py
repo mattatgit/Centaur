@@ -13,7 +13,9 @@ class UpdateControls:
     def __init__(self,owner,section):
         self.owner=owner; self.manifest=None; self.checking=False; self.checked=False
         self.work=None; self.process=None; self.handed_off=False; self.ready_written=False; self.restored=False
+        self.install_after_check=False
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
+        self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
         self.version=label('Centaur v'+owner.version(),'small muted'); section.append(self.version)
         row=box(spacing=16)
         self.button=button('Update app',self.clicked); self.button.set_halign(Gtk.Align.START)
@@ -24,9 +26,10 @@ class UpdateControls:
             self.work=owner.update_session
             self.status.set_text(read_json(self.work/'status.json').get('message','Starting the updated app…'))
 
-    def check(self):
+    def check(self,install=False):
         if self.checking or self.process or self.starting: return
         self.checked=True; self.checking=True; self.status.set_text('Checking for updates…'); self.button.set_sensitive(False)
+        self.install_after_check=install
         def worker():
             try:
                 if os.uname().sysname!='Linux' or os.uname().machine not in ('aarch64','arm64'):
@@ -42,10 +45,12 @@ class UpdateControls:
         self.status.set_text(error or ('Update available · '+manifest['version'].removeprefix('Centaur GTK4 ') if manifest else 'You’re up to date.'))
         self.button.set_tooltip_text('Update available' if manifest else 'Check for updates')
         self.button.set_sensitive(True)
+        install=self.install_after_check; self.install_after_check=False
+        if install and manifest: self.clicked()
         return False
 
     def clicked(self):
-        if not self.manifest: self.check(); return
+        if not self.manifest: self.check(install=True); return
         if self.blocked(): self.status.set_text('Finish the current work before updating.'); return
         owner=self.owner
         try:
@@ -75,16 +80,21 @@ class UpdateControls:
 
     def restore(self):
         owner=self.owner
-        if not owner.update_session or self.restored or not owner.data.get('connected'): return
-        self.restored=True; resume=read_json(owner.update_session/'resume.json')
+        if not owner.update_session or self.restored or not owner.data.get('connected') or not owner.data.get('snapshotReady'): return
+        resume=self.resume
         owner.drafts=resume.get('drafts',{})
         project=resume.get('projectId')
-        if project and any(p['id']==project for p in owner.data.get('projects',[])): owner.open_project(project)
+        if project and not any(p['id']==project for p in owner.data.get('projects',[])): return
+        self.restored=True
+        if project: owner.open_project(project)
         owner.navigate('settings')
 
     def tick(self):
         owner=self.owner
-        if owner.update_session and not self.ready_written and owner.window.get_mapped() and owner.data.get('connected'):
+        expected=self.resume.get('projectId')
+        if (owner.update_session and not self.ready_written and self.restored and owner.window.get_mapped()
+            and owner.data.get('connected') and owner.data.get('snapshotReady')
+            and (not expected or owner.project.get('id')==expected)):
             self.ready_written=True
             write_json(owner.update_session/'ready.json',{'pid':os.getpid(),'buildId':os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'),'connected':True})
         if not self.work: return

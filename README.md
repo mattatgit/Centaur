@@ -2,7 +2,7 @@
 
 A native workshop for families to build native apps together. One project is one Git repository and one app. A shared canvas and conversation are the workspace.
 
-**GTK4 migration:** this branch, `codex/gtk4-migration`, contains the GTK4 development frontend and GTK4 app-generation path, alongside the isolated embedding/scaling probe. See [the GTK4 project contract](docs/GTK4_PROJECT_FORMAT.md). The working Qt implementation is preserved on `codex/native-prototype`. The GTK interface follows [the Qt visual reference and 8px metrics](docs/GTK4_UI_REFERENCE.md). Read [the migration plan and acceptance gates](docs/GTK4_MIGRATION.md); Casilda is not yet approved for production and the normal Centaur package remains Qt.
+**GTK4 migration:** this branch, `codex/gtk4-migration`, contains the GTK4 development frontend and GTK4 app-generation path, alongside the isolated embedding/scaling probe. See [the GTK4 project contract](docs/GTK4_PROJECT_FORMAT.md). The working Qt implementation is preserved on `codex/native-prototype`. GTK4 Settings includes [signed in-app updates with restart and recovery](docs/GTK4_UPDATER.md). The GTK interface follows [the Qt visual reference and 8px metrics](docs/GTK4_UI_REFERENCE.md). Read [the migration plan and acceptance gates](docs/GTK4_MIGRATION.md); Casilda is not yet approved for production and the normal Centaur package remains Qt.
 
 The preserved default prototype uses C++ / Qt Quick. The GTK4 development package uses a native GTK4 interface and Casilda to display a **separate native GTK4 app process** inside the canvas. The run/update sections below describe the default Qt package; GTK development testing uses the explicit `gtk4-preview` package and a separate profile, coordinated in Centaur Install.
 

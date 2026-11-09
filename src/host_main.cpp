@@ -25,7 +25,15 @@ int main(int argc, char **argv) {
     if (parser.isSet("stop") || parser.isSet("stop-if-idle") || parser.isSet("finish-update")) {
         const auto name = "centaur-" + QString::fromLatin1(QCryptographicHash::hash(root.toUtf8(), QCryptographicHash::Sha256).toHex().left(24));
         QLocalSocket socket; socket.connectToServer(name);
-        if (!socket.waitForConnected(1000)) return parser.isSet("finish-update") ? 1 : 0;
+        if (!socket.waitForConnected(1000)) {
+            if (parser.isSet("finish-update")) return 1;
+            if (parser.isSet("stop-if-idle")) {
+                QLockFile lock(root + "/session.lock");
+                if (!lock.tryLock(0)) { qWarning("Could not confirm that the existing host is idle."); return 3; }
+                lock.unlock();
+            }
+            return 0;
+        }
         const bool safe = parser.isSet("stop-if-idle") || parser.isSet("finish-update");
         const auto type = parser.isSet("finish-update") ? "finishUpdate" : safe ? "shutdownIfIdle" : "shutdown";
         const auto token = parser.isSet("finish-update") ? parser.value("finish-update") : parser.value("update-token");

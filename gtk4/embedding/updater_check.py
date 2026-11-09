@@ -121,6 +121,12 @@ def main():
             except ProcessLookupError: pass
             until(lambda:not Path(f'/proc/{new_pid}').exists() or Path(f'/proc/{new_pid}/stat').read_text().split()[2]=='Z','Updated window did not close')
         subprocess.run([str(previous/'bin/centaur-host'),'--stop','--data-dir',str(data)],env=env,timeout=10,check=True)
+        # Upload only diagnostics, never the temporary home's identity keys.
+        import shutil
+        diagnostics=folder/'transaction'; diagnostics.mkdir(exist_ok=True)
+        for work in (home/'.local/state/centaur-gtk4-updater').glob('run-*'):
+            for name in ('status.json','ready.json','request.json','resume.json','helper.log','application.log'):
+                if (work/name).is_file(): shutil.copyfile(work/name,diagnostics/name)
         (folder/'summary.json').write_text(json.dumps(summary,indent=2))
         print(json.dumps(summary,indent=2))
 
