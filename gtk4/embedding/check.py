@@ -27,6 +27,18 @@ def until(predicate, message, timeout=12):
     raise AssertionError(message)
 
 
+def target(state,name):
+    # A page can be mapped before GTK reallocates its sidebar/cards. Do not
+    # click a first-frame rectangle that is still moving into its new layout.
+    previous=None; since=0
+    def settled():
+        nonlocal previous,since
+        bounds=state().get('targets',{}).get(name)
+        if bounds!=previous: previous=bounds; since=time.monotonic()
+        return bounds if bounds and time.monotonic()-since>=.2 else None
+    return until(settled,'Missing or unsettled GTK control '+name)
+
+
 def main():
     if len(sys.argv) != 2:
         raise SystemExit('Usage: centaur-gtk4-check NEW_REPORT_DIRECTORY (disposable CI display only)')

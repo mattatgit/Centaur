@@ -8,7 +8,7 @@ import sys
 import threading
 import time
 from PIL import Image
-from check import until, read
+from check import until, read, target
 from test_driver import Driver
 from ink_check import check_ink, assert_capture
 
@@ -50,7 +50,7 @@ def main():
         driver.ipc(f'[con_id={window}] move position {40 if name=="host" else 1280} px 60 px')
         return process,state,window
     def click(state,window,name):
-        x,y,w,h=until(lambda:state().get('targets',{}).get(name),'Missing GTK control '+name)
+        x,y,w,h=target(state,name)
         driver.click(window,round(x+w/2),round(y+h/2))
         time.sleep(.15)
     def message(state,window,text):

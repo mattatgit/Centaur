@@ -11,7 +11,7 @@ import signal
 import subprocess
 import sys
 import time
-from check import read,until
+from check import read,until,target
 from integration_check import Bridge
 from test_driver import Driver
 from updater import Runtime, CACHE, KEY, NIX_FLAGS
@@ -95,7 +95,7 @@ def main():
         until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
         window=driver.find_window('org.centaur.Gtk4',process.pid)
         def click(name):
-            x,y,w,h=until(lambda:state().get('targets',{}).get(name),'Missing updater UI control '+name)
+            x,y,w,h=target(state,name)
             driver.click(window,round(x+w/2),round(y+h/2)); time.sleep(.15)
         click('create'); until(lambda:state().get('form'),'Project form did not open')
         driver.type('Keep this project'); driver.key('Return')
@@ -123,6 +123,7 @@ def main():
         driver.screenshot(window,folder/'footer-update-available.png')
         rect=driver.rect(window)
         driver.ipc(f"seat seat0 cursor set {round(rect['x']+version[0]+version[2]/2)} {round(rect['y']+version[1]+version[3]/2)}")
+        driver.seat_command('motion 0 0')
         until(lambda:state()['updater']['footerLabel']=='Update app','Version button hover did not show Update app')
         assert state()['targets']['update-version']==version,'Version button shifted or resized on hover'
         driver.screenshot(window,folder/'footer-update-hover.png')
