@@ -301,4 +301,29 @@ the separate unfinished comment-text workflow. Unit checks cover all six zoom
 modes, clipped apps, independent transforms and legacy records. The native
 product suite additionally exercises real gestures and rendered pixels on host
 and guest, shared Undo, project reopening, resizing, panning and agent capture.
-Native ARM64 CI and hands-on VM acceptance for this change are pending.
+
+**Verified ARM64 update:** immutable source
+`55ae2388c63f62c8393162933f68a5b9f75b3e01`, version
+`0.4.0-preview+55ae238`. [Product run
+42560485524](https://github.com/mattatgit/Centaur/actions/runs/42560485524)
+passed all 27 Python checks, core/network/Iroh regressions, native embedding and
+two-profile product checks, including the crossing-mark cases above. Host 150%
+and guest 100% screenshots were inspected and show the same marks extending
+outside the app. [Standalone embedding run
+42560485541](https://github.com/mattatgit/Centaur/actions/runs/42560485541)
+also passed. Native evidence artifact: `13648549061`.
+
+The complete **531-path** closure passed signed download verification into an
+empty store with builders disabled (distribution artifact `13649536229`).
+Store path:
+`/nix/store/f16bkxzn7lr9d2i1f0pn34zz861p7rbs-centaur-gtk4-preview-0.4.0-preview`.
+The real Settings updater acceptance passed profile activation, GTK restart,
+data/identity preservation and the busy-host gate (artifact `13649610938`).
+Its candidate was already realised in the CI store; the independent publisher
+supplied the fresh-download check. The public `gtk4-preview` release feed was
+read back and advertises this exact source/store path.
+
+Users already running the in-app updater can receive this build through
+Settings. The owner confirmed version `6a9300f` launches and checks for updates
+on the UTM VM; the first hands-on update/restart and crossing-mark review on
+that VM remain pending. Guidance continues in Centaur Install.
