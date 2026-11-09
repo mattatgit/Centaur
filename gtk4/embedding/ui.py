@@ -184,7 +184,10 @@ class Composer(Gtk.Widget):
         layout.set_width(max(1, (for_size if for_size >= 0 else 384) - 32) * Pango.SCALE)
         layout.set_wrap(Pango.WrapMode.WORD_CHAR)
         height = min(184, max(104, math.ceil((layout.get_pixel_size()[1] + 64) / 8) * 8))
-        return (height, height, -1, -1)
+        # The editor scrolls, so its minimum remains 104 even when the natural
+        # text height grows. Claiming both as the minimum violates GTK's
+        # height-for-width contract during typing/resizing.
+        return (104, height, -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
         allocate(self.area, width - 32, height - 56, 16, 16)

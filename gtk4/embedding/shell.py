@@ -100,7 +100,7 @@ class Centaur(Gtk.Application):
         self.top_actions = box(spacing=8); self.top_actions.set_margin_end(24); self.top_actions.set_valign(Gtk.Align.CENTER)
         self.join_button = button('Join project',self.join,tone='plain'); self.top_actions.append(self.join_button); self.targets['join'] = self.join_button
         self.create_button = button('+ New project',self.new_project,tone='dark'); self.top_actions.append(self.create_button); self.targets['create'] = self.create_button
-        self.import_button = button('Import',lambda:None); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
+        self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
         self.invite_button = button('Invite',self.invite,tone='plain'); self.top_actions.append(self.invite_button)
         self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg'); self.top_actions.append(self.deploy_button)
         self.top.set_end_widget(self.top_actions); content.append(self.top)
@@ -351,6 +351,7 @@ class Centaur(Gtk.Application):
             footer='Chatting as '+data.get('author','')+' · Shift + Enter for a new line'
             self.footer.set_text(footer); self.footer.set_tooltip_text(footer)
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
+            self.deploy_button.set_sensitive(not remote)
             self.undo_button.set_sensitive(any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[])],sort_keys=True)
             if messages!=self.message_key:
@@ -616,7 +617,7 @@ class Centaur(Gtk.Application):
         def row(caption,widget):
             line=box(spacing=16); text=label(caption); text.set_hexpand(True); line.append(text); line.append(widget); content.append(line)
         controls['enabled']=Switch(False,lambda value:self.send_grid(enabled=value)); row('Show grid',controls['enabled'])
-        colour=button('#BAE6FF',self.grid_colour,width=112); controls['colour']=colour; colour.centaur_label.add_css_class('colour-label')
+        colour=button('#BAE6FF',self.grid_colour,css='colour-button',width=112); controls['colour']=colour; colour.centaur_label.add_css_class('colour-label')
         swatch=Gtk.DrawingArea(content_width=16,content_height=16,valign=Gtk.Align.CENTER)
         def draw(area,cr,width,height):
             color=Gdk.RGBA(); color.parse(self.data.get('grid',{}).get('color','#BAE6FF'))
