@@ -241,3 +241,34 @@ Separately, signed distribution artifact `13650263299` verifies the complete
 Native product evidence: `13650148570`. The public `gtk4-preview` release feed
 was read back and advertises this exact source/path. No protocol or machine
 configuration changes are required. Update guidance remains in Centaur Install.
+
+## Workspace footer updater — verified 9 November 2026
+
+Published source: `8fe72143bb0328f16a1ac2caa28aaeca2a1b03d6`, version
+`Centaur GTK4 0.4.0-preview+8fe7214`.
+Store path:
+`/nix/store/fwf0if0nlfwi346kf7xpivnipnxw30l4-centaur-gtk4-preview-0.4.0-preview`.
+[Product/update CI 42566202750](https://github.com/mattatgit/Centaur/actions/runs/42566202750)
+and [standalone embedding CI 42566202804](https://github.com/mattatgit/Centaur/actions/runs/42566202804)
+passed. The release feed was read back and names this exact source/path.
+
+Updater evidence `13652080009` checks background availability from the workspace,
+the badge's actual 8×8px allocation, left alignment with the composer, unchanged
+button bounds on hover, native keyboard traversal, and real footer-triggered
+profile activation/restart. The workspace and project/conversation return after
+restart, with the availability badge cleared. Both update entry points are
+disabled during the transaction. Availability, hover and running screenshots
+were inspected. Footer status samples match the Settings updater's messages,
+including preparation, verification and waiting for idle; the already-realised
+CI candidate makes the byte-counter phase too brief to require observing it in
+the GUI. The independent signed fresh-store transfer still verifies real byte
+accounting, and the streamed-output Python tests verify intermediate progress.
+
+All 32 Python checks and native product/embedding regressions passed. Native
+product evidence: `13651920612`. Signed distribution evidence: `13651592456`;
+the complete 531-path closure was verified in an empty store with builders
+disabled. The native click helper now waits for allocation to settle after page
+navigation, avoiding the stale project-card rectangle seen in the initial run.
+Hands-on VM review of this footer remains pending; use Centaur Install for the
+one normal Settings update that introduces it. Later updates can start from the
+version button in the workspace.

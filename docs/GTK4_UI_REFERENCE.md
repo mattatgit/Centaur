@@ -33,6 +33,7 @@ canvas extents can follow the desktop's allocation.
 | Chat inset/spacing | 24px inset; 16px sections; 24px between messages |
 | Chat avatars | 24px square, 8px radius; human and agent reference colours |
 | Composer | 104–184px high; 16px radius; mention control and 32px icon send button |
+| Chat footer | Left-aligned 24px-high version/update button, 8px availability badge; status/progress right aligned, 8px gap |
 
 Chat remains available in both modes. The sidebar, project actions and settings
 retain the Qt structure. Deployment and design-system import remain placeholders.
@@ -52,8 +53,14 @@ bundled originals, independent of the desktop's installed fonts.
 | User/agent names | Inter | 10.5pt | 600 |
 | Status/model line | Inter | 10.5pt | 400 |
 | Avatar letters | Inter | 9pt | 600 |
-| Timestamps and footer hint | Inter | 9pt | 400 |
-| Version | Inter | 8.5pt | 400 |
+| Timestamps | Inter | 9pt | 400 |
+| Version/update button and footer progress | Inter | 8.5pt | 400 |
+
+The former author/keyboard-hint footer is removed. The version button changes
+to **Update app** on hover or keyboard focus, retaining its width. Its 8px
+circular availability badge matches the `#ccff00` agent avatar. The footer and
+Settings share the same updater; details and acceptance are recorded in
+[GTK4_UPDATER.md](GTK4_UPDATER.md).
 
 Other reference sizes include 14pt/600 project titles, 11pt descriptions, 10pt
 card metadata, 14px navigation text, 16px/600 section titles and 12px/600 button
