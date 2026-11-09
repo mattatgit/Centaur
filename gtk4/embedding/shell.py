@@ -22,6 +22,7 @@ from bundle import load_bundle
 from service import Service
 from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
+from annotations import AnnotationSpace, position as annotation_position
 from update_ui import UpdateControls
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal,
@@ -210,6 +211,7 @@ class Centaur(Gtk.Application):
         for tool,title,icon,width in [('draw','✎  Draw',None,80),('comment','Comment','arrow.svg',104)]:
             item=button(title,lambda t=tool:self.set_tool(t),icon,width=width)
             self.tool_buttons[tool]=item; self.build_tools.append(item)
+            self.targets['tool-'+tool]=item
         self.undo_button=button('↶  Undo',lambda:self.service.send('undo'),width=80); self.build_tools.append(self.undo_button); self.targets['undo']=self.undo_button
         self.overlay.add_overlay(self.build_tools); self.panes.set_start_child(self.overlay); self.panes.set_resize_start_child(True); self.panes.set_shrink_start_child(False)
         self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
@@ -700,25 +702,25 @@ class Centaur(Gtk.Application):
         self.backend=self.viewport=None; self.preview_key=None
 
     def ink_begin(self,gesture,x,y):
-        if self.mode!='Build' or not self.data.get('connected'): gesture.set_state(Gtk.EventSequenceState.DENIED); return
-        self.ink_origin=(x,y); self.points=[self.app_point(x,y)]; self.ink.queue_draw()
+        if self.mode!='Build' or not self.data.get('connected') or not self.viewport:
+            gesture.set_state(Gtk.EventSequenceState.DENIED); return
+        self.stroke_space=AnnotationSpace.capture(self.viewport.describe(),self.ink.get_width(),self.ink.get_height())
+        self.ink_origin=(x,y); self.points=[self.stroke_space.point(x,y)]; self.ink.queue_draw()
+
+    def ink_point(self,x,y):
+        point=self.stroke_space.point(x,y)
+        if self.tool=='comment' and len(self.points)>1: self.points[-1]=point
+        elif len(self.points)<4096 and (not self.points or point!=self.points[-1]): self.points.append(point)
 
     def ink_update(self,gesture,dx,dy):
-        if self.points and len(self.points)<4096:
-            self.points.append(self.app_point(self.ink_origin[0]+dx,self.ink_origin[1]+dy)); self.ink.queue_draw()
+        if self.points:
+            self.ink_point(self.ink_origin[0]+dx,self.ink_origin[1]+dy); self.ink.queue_draw()
 
     def ink_end(self,gesture,dx,dy):
         if self.points:
-            # Normalised app coordinates, explicitly recorded with a full-app
-            # frame; they stay aligned as the canvas is zoomed and panned.
-            self.service.send('annotation',annotation={'tool':self.tool,'points':self.points,'frame':{'x':0,'y':0,'width':1,'height':1}})
+            self.ink_point(self.ink_origin[0]+dx,self.ink_origin[1]+dy)
+            self.service.send('annotation',annotation={'tool':self.tool,'points':self.points,'frame':self.stroke_space.frame})
             self.points=[]; self.ink.queue_draw()
-
-    def app_point(self,x,y):
-        if not self.viewport: return {'x':0,'y':0}
-        g=self.viewport.describe()
-        return {'x':max(0,min(1,(x-g['app_x'])/g['scale']/g['app_width'])),
-                'y':max(0,min(1,(y-g['app_y'])/g['scale']/g['app_height']))}
 
     def draw_ink(self,area,cr,width,height):
         if not self.viewport: return
@@ -733,21 +735,21 @@ class Centaur(Gtk.Application):
             while y<height: cr.move_to(0,y); cr.line_to(width,y); y+=step
             cr.stroke()
         marks=[a for a in self.project.get('annotations',[]) if a.get('revision')==self.project.get('revision')]
-        if self.points: marks.append({'points':self.points,'tool':self.tool})
+        if self.points: marks.append({'points':self.points,'tool':self.tool,'frame':self.stroke_space.frame})
         cr.set_source_rgb(.2,.4,.9); cr.set_line_width(2); cr.set_line_cap(1)
         for mark in marks:
             points=mark.get('points',[])
             if not points: continue
             if mark.get('tool')=='comment': points=[points[0],points[-1]]
-            for i,p in enumerate(points):
-                x=g['app_x']+p['x']*g['app_width']*scale; y=g['app_y']+p['y']*g['app_height']*scale
+            try: positions=[annotation_position(p,mark.get('frame'),g) for p in points]
+            except (ValueError,KeyError,TypeError): continue
+            for i,(x,y) in enumerate(positions):
                 (cr.move_to if i==0 else cr.line_to)(x,y)
             cr.stroke()
             if mark.get('tool')=='comment' and len(points)>1:
                 import math
-                a,b=points[0],points[-1]
-                angle=math.atan2((b['y']-a['y'])*g['app_height'],(b['x']-a['x'])*g['app_width'])
-                x=g['app_x']+b['x']*g['app_width']*scale; y=g['app_y']+b['y']*g['app_height']*scale
+                a,b=positions[0],positions[-1]
+                angle=math.atan2(b[1]-a[1],b[0]-a[0]); x,y=b
                 for offset in (-.5,.5):
                     cr.move_to(x,y); cr.line_to(x-10*math.cos(angle+offset),y-10*math.sin(angle+offset))
                 cr.stroke()

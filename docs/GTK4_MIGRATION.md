@@ -280,3 +280,25 @@ helper uses signed cached packages, an authoritative idle/startup gate, atomic
 profile activation and previous-version recovery. See [the updater architecture
 and verified ARM64 acceptance](GTK4_UPDATER.md). Normal updates do not evaluate the
 moving branch or compile locally; the Qt installation remains separate.
+
+### Drawing and comment arrows across the app boundary
+
+GTK4 marks now use the whole canvas, rather than clamping pointer positions to
+the embedded app's edges. A stroke can start outside the app, cross its UI and
+end outside it. Comment arrows use the same coordinates. The canvas panel still
+clips marks at its outer edge; floating controls keep their existing interaction.
+
+Each mark stores points and the app rectangle in one normalized reference canvas
+using the existing `frame` field. Rendering converts through that frame into the
+current app transform. This keeps shared marks aligned across different window
+sizes, zoom levels and panning, while retaining the existing network validation
+and old full-app-frame records. Update all GTK4 collaborators for correct display
+of new marks: older GTK4 clients ignored the saved frame. Qt is unchanged.
+
+The agent's GTK4 instructions explain this reference frame, and its canvas image
+includes outside-app marks. This fixes drawing/arrow geometry; it does not add
+the separate unfinished comment-text workflow. Unit checks cover all six zoom
+modes, clipped apps, independent transforms and legacy records. The native
+product suite additionally exercises real gestures and rendered pixels on host
+and guest, shared Undo, project reopening, resizing, panning and agent capture.
+Native ARM64 CI and hands-on VM acceptance for this change are pending.

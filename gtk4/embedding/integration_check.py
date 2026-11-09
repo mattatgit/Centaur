@@ -10,6 +10,7 @@ import time
 from PIL import Image
 from check import until, read
 from test_driver import Driver
+from ink_check import check_ink, assert_capture
 
 
 class Bridge:
@@ -128,6 +129,9 @@ def main():
         message(hs,hw,'We can still chat in Build')
         click(hs,hw,'mode-Interact')
         summary['checks'].append('build-mode-keeps-chat-visible-and-drawing-undo-synchronise')
+        check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id)
+        summary['checks'].append('cross-app-draw-and-arrow-at-six-zooms-host-guest-render-sync-undo-reopen-resize-and-pan')
+        capture_geometry=gs()['viewport']
         proposal(changed)
         message(gs,gw,'@centaur Change the application title to Family Planner.')
         until(lambda:(hs().get('child') or {}).get('title')=='Family Planner' and (gs().get('child') or {}).get('title')=='Family Planner','Agent change did not reach both native apps',timeout=20)
@@ -136,11 +140,12 @@ def main():
         summary['checks'].append('guest-agent-request-native-validation-and-live-update-without-approval-or-duplicates')
         assert list((source.parent/'.centaur').glob('remote-*.png')), 'Guest canvas image did not reach the host'
         with Image.open(next((source.parent/'.centaur').glob('remote-*.png'))) as context:
+            assert_capture(context,capture_geometry)
             # The centred sample leaves this corner clear. Zoom/restart controls
             # float here in Centaur but must not be sent as part of the app.
             corner=context.convert('RGB').crop((context.width-40,8,context.width-8,40))
             assert all(low==high==255 for low,high in corner.getextrema()),'Centaur canvas controls leaked into agent context'
-        summary['checks'].append('canvas-image-attached-from-guest-without-chat')
+        summary['checks'].append('canvas-image-attached-from-guest-includes-outside-ink-without-chat-or-controls')
         revision=hs()['project']['revision']
         invalid=json.loads(json.dumps(changed)); invalid['files']['style.css']='window { made-up-property: broken; }'
         proposal(invalid)

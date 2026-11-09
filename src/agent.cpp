@@ -263,7 +263,11 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
             "Use explicit gi.require_version('Gtk','4.0') before Gtk imports. No external modules or file assets. "
             "The app runs in a separate process with the user's permissions, not a sandbox. "
             "You have no file/shell tools. Never access Centaur's credentials or other projects. ");
-        prompt.replace("Annotations use normalized canvas coordinates", "Annotations use normalized app coordinates");
+        prompt.replace("Annotations use normalized canvas coordinates, include the app frame bounds, and refer",
+            "Annotations use normalized coordinates in each mark's reference canvas. Its frame is the app rectangle in that same reference. "
+            "Convert a point to app coordinates by subtracting frame.x/y and dividing by frame.width/height. "
+            "Points outside the frame describe the surrounding canvas; do not clamp them to the app edge. "
+            "Marks stay anchored to the app through zoom, pan and viewport resizing. They refer");
         prompt.replace("CURRENT App.qml", "CURRENT GTK4 BUNDLE");
         prompt.replace("old QML", "old source");
     }
