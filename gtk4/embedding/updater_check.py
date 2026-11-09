@@ -113,13 +113,45 @@ def main():
         time.sleep(.2); control.close(); control=None
         auth=home/'.config/omp/auth.json'; auth.parent.mkdir(parents=True,exist_ok=True); auth.write_text('opaque-test-credentials')
         before={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file() and p.suffix in ('.json','.ini','.jsonl','.key','.pem')}
+        # Availability must reach the workspace without visiting Settings.
+        until(lambda:state().get('updater',{}).get('available'),'Background update check did not detect the published version')
+        assert state()['updater']['badgeVisible']
+        badge=state()['targets']['update-badge']; assert badge[2:]==[8,8],'Update badge is not 8px'
+        version=state()['targets']['update-version']; composer=state()['targets']['composer']
+        assert version[0]==composer[0],'Version button is not left aligned with the composer'
+        assert state()['updater']['footerLabel'].startswith('v0.4.0-preview+')
+        driver.screenshot(window,folder/'footer-update-available.png')
+        rect=driver.rect(window)
+        driver.ipc(f"seat seat0 cursor set {round(rect['x']+version[0]+version[2]/2)} {round(rect['y']+version[1]+version[3]/2)}")
+        until(lambda:state()['updater']['footerLabel']=='Update app','Version button hover did not show Update app')
+        assert state()['targets']['update-version']==version,'Version button shifted or resized on hover'
+        driver.screenshot(window,folder/'footer-update-hover.png')
+        # Move away and reach the action using native keyboard traversal.
+        click('editor')
+        for _ in range(6):
+            driver.key('Tab'); time.sleep(.25)
+            if state()['updater']['footerFocused']: break
+        assert state()['updater']['footerFocused'] and state()['updater']['footerLabel']=='Update app','Footer action is not keyboard accessible'
         click('nav-projects'); click('nav-settings')
-        until(lambda:state().get('updater',{}).get('available'),'Published update was not detected')
         assert state()['updater']['version'].endswith('+0000000'),'Settings reported the wrong installed version'
         driver.screenshot(window,folder/'update-available.png')
-        click('update-app')
+        click('nav-projects'); click('open-'+project_id)
+        until(lambda:(state().get('child') or {}).get('ready'),'Workspace did not reopen for footer update')
+        click('update-version')
         work=Path(until(lambda:state().get('updater',{}).get('work'),'Detached updater did not start'))
-        until(lambda:process.poll() is not None,'Old Centaur did not exit for its update',timeout=180)
+        until(lambda:not state()['updater']['footerSensitive'],'Footer allowed a second update while one was active')
+        driver.screenshot(window,folder/'footer-update-running.png')
+        samples=[]
+        def exited():
+            data=state()
+            if data.get('updater',{}).get('running'):
+                assert data['page']=='workspace','Footer update navigated away from chat'
+                assert data['updater']['footerStatus']==data['updater']['status'],'Footer did not mirror live update status'
+                text=data['updater']['footerStatus']
+                if not samples or text!=samples[-1]: samples.append(text)
+            return process.poll() is not None
+        until(exited,'Old Centaur did not exit for its update',timeout=180)
+        (folder/'footer-status-samples.json').write_text(json.dumps(samples,indent=2))
         until(lambda:read(work/'status.json').get('phase') in ('complete','recovered','failed','recovery-required'),
               'Update did not finish',timeout=90)
         receipt=read(work/'status.json')
@@ -128,12 +160,15 @@ def main():
         until(lambda:state().get('pid')==new_pid and state().get('project',{}).get('id')==project_id,'New GTK window did not restore the project')
         assert profile.resolve()==Path(manifest['storePath'])
         assert state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 ')
+        assert state()['page']=='workspace','Footer update did not restore the workspace'
+        until(lambda:not state()['updater']['badgeVisible'],'Updated version retained its availability badge')
         assert any(m.get('text')=='Keep this conversation' for m in state()['project']['messages'])
         for name,content in before.items(): assert (data/name).read_bytes()==content,'Updater modified project/configuration '+name
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
         assert auth.read_text()=='opaque-test-credentials','Updater changed existing OMP credentials'
         new_window=driver.find_window('org.centaur.Gtk4',new_pid); driver.screenshot(new_window,folder/'updated-app.png')
-        summary['checks']+=['settings-version-and-published-update','settings-click-detached-download-signature-verification',
+        summary['checks']+=['settings-version-and-published-update','footer-background-availability-8px-badge-alignment-hover-and-keyboard',
+                            'footer-click-live-status-detached-download-signature-verification',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
                             'qt-profile-and-data-preserved']
         maintenance(folder,env); summary['checks'].append('real-host-maintenance-gate-and-busy-agent-refusal')

@@ -6,6 +6,23 @@ availability/progress/error text. Opening Settings checks once; clicking the
 button checks again if necessary and installs an available update. There is no
 unattended installation or separate update-management screen.
 
+The workspace also exposes the same updater in the chat footer. Its left-aligned
+version button replaces the former author/keyboard-hint text. Hovering or
+keyboard-focusing it shows **Update app** without changing its width. An 8px
+round badge uses the agent avatar's `#ccff00` when a verified newer publication
+is available. Clicking runs the same check/download/idle-gated restart as Settings;
+both actions are disabled during a check or update. Status and download MB appear
+to the right, right-aligned and wrapping when necessary. Errors remain visible
+there instead of requiring a switch to Settings. Routine availability/up-to-date
+text stays out of the footer unless the user asks to check.
+
+Availability is checked in the background shortly after launch and then every
+15 minutes, as well as through the existing Settings action. These checks never
+install automatically. A footer-initiated update restores the workspace and chat
+drafts; an update from Settings restores Settings. Older resume records retain
+their existing Settings fallback. The button is 24px high with the existing
+small Inter version style; its circular badge is 8×8px.
+
 While downloading, the existing inline status shows live compressed payload
 bytes, for example **Downloaded 123.4 of 468.5 MB** (decimal MB, one decimal
 place). Nix's remote path metadata supplies compressed sizes; an offline local

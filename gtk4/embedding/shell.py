@@ -239,9 +239,7 @@ class Centaur(Gtk.Application):
         self.composer=Composer(self.editor,row); chat.append(self.composer)
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
-        footer=box(spacing=8); self.footer=label('','chat-time muted'); self.footer.set_hexpand(True); self.footer.set_ellipsize(Pango.EllipsizeMode.END)
-        footer.append(self.footer); self.version_label=label('v'+self.version(),'version muted'); footer.append(self.version_label); chat.append(footer)
-        footer_click=Gtk.GestureClick(); footer_click.connect('released',lambda g,n,x,y:self.navigate('settings')); self.footer.add_controller(footer_click); self.footer.set_cursor_from_name('pointer')
+        self.update_footer=box(spacing=8); chat.append(self.update_footer)
         self.panes.set_end_child(self.chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
         self.stack.add_named(wrapper,'workspace'); self.set_tool('draw'); self.initial_pane=True
 
@@ -355,8 +353,6 @@ class Centaur(Gtk.Application):
             self.busy.set_visible(data.get('busy',False)); self.update_send()
             queued=self.project.get('queueCount',0)
             self.busy_text.set_text(self.project.get('agentName','centaur').capitalize()+' is working…'+(' · '+str(queued)+' queued' if queued else ''))
-            footer='Chatting as '+data.get('author','')+' · Shift + Enter for a new line'
-            self.footer.set_text(footer); self.footer.set_tooltip_text(footer)
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
             self.deploy_button.set_sensitive(not remote)
             self.undo_button.set_sensitive(any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
@@ -796,6 +792,11 @@ class Centaur(Gtk.Application):
                             'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
                             'headerText':self.chat_status.get_text()}
             data['updater']={'version':self.version(),'status':self.updates.status.get_text(),
+                             'footerLabel':self.updates.footer_labels.get_visible_child().get_text(),
+                             'footerStatus':self.updates.footer_status.get_text(),
+                             'badgeVisible':self.updates.badge.get_visible(),
+                             'footerSensitive':self.updates.footer_button.get_sensitive(),
+                             'footerFocused':self.updates.footer_focused,
                              'available':bool(self.updates.manifest),'running':bool(self.updates.process),
                              'work':str(self.updates.work) if self.updates.work else None,
                              'package':os.environ.get('CENTAUR_GTK_PACKAGE')}
