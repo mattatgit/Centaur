@@ -203,3 +203,50 @@ Matt's owner-reported hands-on results from **Centaur Install**, on **ARM64 NixO
 **Acceptance boundary and limitations:** this records the verified behaviour of this exact preview on the tested VM/Cairo path, with the issues above still open. **No hands-on multiuser remote-client test was performed, and no comprehensive GTK production acceptance was performed.** The two-profile CI result remains automated evidence only. Other checks and limitations retain the scope of their earlier records; this run does not establish hands-on confirmation of the slider endpoint/return or modal-shadow fixes, default/GPU rendering, other desktop scales/layouts/IME, native macOS embedding or arbitrary generated apps. It does not approve a production Qt replacement or Casilda for production.
 
 **Scope preserved:** this acceptance record requires no changes to the production Qt profile, VM installation, OMP path or credentials, application code or release configuration. The earlier `a02d0b8` and `90dad3a` records remain unchanged.
+
+### GTK4 interface restoration — 9 November 2026
+
+The GTK frontend now follows the preserved Qt interface, with the owner's
+approved 8px rounding for fixed components and padding. See
+[the UI reference](GTK4_UI_REFERENCE.md) for dimensions, typography, assets and
+scope. This restores the sidebar/page structure, workspace proportions,
+Interact/Build switch, project cards/menus, chat avatars/composer, settings and
+centred in-window forms. The existing viewport and generated-app source are
+preserved.
+
+**Verified UI build:** immutable source
+`c9d1a6bd198c8ac93756df838ba1b429c6d9dd59`, version
+`0.4.0-preview+c9d1a6b`, [ARM64 product run
+42542651229](https://github.com/mattatgit/Centaur/actions/runs/42542651229),
+UI evidence artifact `13642121355`, distribution artifact `13641986820`.
+Native screenshots were inspected. Actual allocations include a 432px chat
+panel, 240×48px centred mode switch, 24px avatars, 104px empty composer,
+256px-high cards and one to five columns. The rendered message font is
+Inter Tight 16.667px (12.5pt); status text is Inter 14px (10.5pt).
+
+The native product suite passed project creation, modal centring and keyboard
+traversal, two-profile joining/chat, drawing/Undo, fixture-agent changes,
+conflict approval, invalid-change rejection, historical restore, project reopen
+and clean shutdown. Canvas captures exclude Centaur's floating controls. The
+same job passed the isolated embedding/scaling suite. Its final log contains
+no GTK layout warnings or criticals.
+
+The complete **531-path** runtime closure was downloaded into an empty store
+and signature-verified with builders disabled. Installable:
+`github:mattatgit/Centaur/c9d1a6bd198c8ac93756df838ba1b429c6d9dd59#gtk4-preview`.
+Store path:
+`/nix/store/4aap91dqpwlnsp2r8xw90yfznh2ja38g-centaur-gtk4-preview-0.4.0-preview`.
+Use this verified immutable build rather than assuming a later branch tip is
+published.
+
+**Separate test issue:** the independent embedding workflow for this same source
+failed intermittently while clicking popup/dialog controls (run `42542651274`),
+despite the full product job passing that suite. A test-only dismissal wait did
+not resolve it consistently. Subsequent test-driver work uses the persistent
+Wayland pointer for clicks, matching drags and wheel events; its outcome must be
+recorded separately and must not be treated as hands-on Casilda acceptance.
+No embedding-backend changes were made in this UI pass.
+
+Hands-on review of this restored interface on the ARM64 UTM VM remains pending.
+The earlier VM limitations above remain open. Installation guidance belongs in
+Centaur Install; retain the isolated GTK profile/data and existing OMP setup.
