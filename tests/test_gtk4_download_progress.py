@@ -81,5 +81,14 @@ class DownloadProgressTests(unittest.TestCase):
             with self.assertRaisesRegex(updater.UpdateError,'took too long'):
                 runtime.copy_with_progress([sys.executable,'-c','import time; time.sleep(5)'],tracker,timeout=.1)
 
+    def test_pending_byte_burst_is_published_while_nix_is_quiet_but_still_running(self):
+        with tempfile.TemporaryDirectory() as root:
+            root=Path(root); finished=root/'finished'; updates=[]
+            tracker=DownloadProgress(CACHE,{URL:3000000},lambda *v:updates.append((*v,finished.exists())))
+            lines=event('start',type=101,fields=[URL])+event('result',type=105,fields=[3000000,3000000])
+            script='import sys,time,pathlib; sys.stderr.write('+repr(lines)+'); sys.stderr.flush(); time.sleep(.8); pathlib.Path('+repr(str(finished))+').touch()'
+            updater.Runtime(root).copy_with_progress([sys.executable,'-c',script],tracker,timeout=5)
+            self.assertIn((3000000,3000000,False),updates,'Pending bytes were hidden until Nix exited')
+
 
 if __name__=='__main__': unittest.main()

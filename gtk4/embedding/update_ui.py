@@ -8,6 +8,7 @@ import uuid
 from gi.repository import GLib, Gtk
 from ui import box,button,button_text,label
 from updater import (check_update,process_identity,profile_path,read_json,state_path,write_json)
+from download_progress import progress_message
 
 
 class UpdateControls:
@@ -164,7 +165,11 @@ class UpdateControls:
             if self.ready_written and not owner.data.get('updateHeld'):
                 self.starting=False; owner.root_overlay.get_child().set_sensitive(True)
                 if phase=='restarting': self.status.set_text('Centaur updated.')
-        if value.get('message'): self.status.set_text(value['message'])
+        if value.get('message'):
+            message=value['message']
+            if phase=='verifying' and value.get('downloadBytes',0)>0:
+                message=progress_message(value['downloadBytes'],value.get('totalBytes'))+' · Verifying…'
+            self.status.set_text(message)
         if self.process and phase=='ready' and not self.handed_off:
             if self.blocked(): self.status.set_text('Update downloaded. Waiting for the current work to finish…'); return
             self.handed_off=True

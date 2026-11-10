@@ -134,6 +134,11 @@ class Runtime:
                                     line,pending=pending.split(b'\n',1)
                                     progress.feed(line.decode('utf-8','replace'))
                                 if len(pending)>65536: pending=b''
+                            # A throttled byte burst may be followed only by
+                            # unpacking/import activity, or complete silence.
+                            # Publish its last value without waiting for another
+                            # HTTP event or for the Nix process to exit.
+                            progress.tick()
                         process.wait(timeout=max(.01,deadline-time.monotonic()))
                         if process.returncode: raise UpdateError('The download failed. Your installed version is preserved; try again.')
                     finally:
@@ -235,11 +240,15 @@ class Transaction:
         self.work=Path(work); self.runtime=runtime or Runtime(work)
         self.request=read_json(self.work/'request.json'); self.profile=profile_path()
         self.previous=None; self.child=None; self.host_stopped=False; self.switched=False
+        self.downloaded=None
 
     def status(self,phase,message,**extra):
+        if phase in ('verifying','ready','restarting','complete') and self.downloaded:
+            extra.update(downloadBytes=self.downloaded[0],totalBytes=self.downloaded[1])
         write_json(self.work/'status.json',{'phase':phase,'message':message,**extra})
 
     def download_progress(self,done,total):
+        self.downloaded=(done,total)
         self.status('downloading',progress_message(done,total),downloadBytes=done,totalBytes=total)
 
     def preflight(self):

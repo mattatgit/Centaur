@@ -94,6 +94,13 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(updater.read_json(updater.state_path()/'recovery.json')['previous'],str(self.old))
         self.assert_preserved()
 
+    def test_verified_byte_count_survives_download_to_verification_transition(self):
+        transaction,runtime=self.transaction()
+        transaction.download_progress(123400000,123400000)
+        transaction.status('verifying','Download complete. Verifying the update…')
+        status=updater.read_json(self.work/'status.json')
+        self.assertEqual((status['downloadBytes'],status['totalBytes']),(123400000,123400000))
+
     def test_failed_download_or_signature_verification_never_stops_host(self):
         transaction,runtime=self.transaction('download')
         with self.assertRaises(updater.UpdateError): transaction.apply(self.value,{'approved':True})

@@ -272,3 +272,28 @@ navigation, avoiding the stale project-card rectangle seen in the initial run.
 Hands-on VM review of this footer remains pending; use Centaur Install for the
 one normal Settings update that introduces it. Later updates can start from the
 version button in the workspace.
+
+## Download counter timing correction — 10 November 2026
+
+The owner reported a counter remaining at `0.0 of 10.3 MB` through the update.
+Investigation reproduced a timing hole: a burst received inside the 200ms write
+throttle stayed pending until another HTTP progress event or subprocess exit.
+Nix can remain busy importing/unpacking after its last transfer event, so the
+pending value could be hidden throughout that work. The subprocess reader now
+ticks the progress publisher even when stderr is quiet or contains only non-HTTP
+activity. Verification retains the final actual byte count rather than replacing
+it before GTK has time to display it.
+
+The regression emits bytes immediately, then keeps the child alive and silent;
+it failed before the fix and passes after it. Transaction coverage also checks
+that byte fields survive entry into verification. The native updater suite adds
+a controlled HTTP cache serving a real Cachix NAR and unchanged signatures, with
+only its download-location field redirected to loopback for throttling. Nix
+checks signatures normally into an empty store. The actual Settings/footer
+controls must display multiple distinct intermediate counts while copying is
+still active, then retain the count during verification. Production discovery
+and cache URLs remain pinned; no test cache override is shipped.
+
+37 local GTK/Python checks pass. Native ARM64 acceptance/publication are pending.
+VM log collection is requested through Centaur Install to confirm its exact
+transfer trace independently of the reproduced timer regression.

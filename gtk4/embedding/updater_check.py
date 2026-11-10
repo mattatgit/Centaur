@@ -17,6 +17,7 @@ from test_driver import Driver
 from updater import Runtime, CACHE, KEY, NIX_FLAGS
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
+from progress_check import check_progress
 
 
 def download_counter(folder,manifest):
@@ -26,7 +27,7 @@ def download_counter(folder,manifest):
     work=folder/'download-progress'; work.mkdir()
     runtime=Runtime(work)
     remote=path_info(json.loads(runtime.nix('path-info','--store',CACHE,'--recursive','--json',manifest['storePath'])))
-    leaves=[(p,v) for p,v in remote.items() if not v['references'] and v.get('downloadSize',0)>=65536]
+    leaves=[(p,v) for p,v in remote.items() if not v['references'] and 524288<=v.get('downloadSize',0)<=8000000]
     path,info=min(leaves,key=lambda pair:pair[1]['downloadSize'])
     updates=[]
     tracker=DownloadProgress(CACHE,download_plan(CACHE,{path:info},{}),lambda done,total:updates.append([done,total]))
@@ -35,6 +36,7 @@ def download_counter(folder,manifest):
     assert updates[0]==[0,info['downloadSize']] and updates[-1]==[info['downloadSize']]*2,updates
     assert any(done>0 for done,total in updates),'Real Nix transfer reported no payload bytes'
     (work/'progress.json').write_text(json.dumps({'storePath':path,'updates':updates},indent=2))
+    check_progress(driver=Driver(),folder=folder/'visible-download',path=path,info=info)
 
 
 def maintenance(folder,env):
@@ -93,6 +95,7 @@ def main():
     try:
         download_counter(folder,manifest)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
+        summary['checks'].append('throttled-signed-nar-settings-and-footer-advance-before-copy-exit')
         until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
         assert state()['branding']=={'appIcon':'org.centaur.Gtk4','fullIcon':True,'symbolicIcon':True},state()['branding']
         desktop=home/'.local/share/applications/org.centaur.Gtk4.desktop'

@@ -60,10 +60,13 @@ class DownloadProgress:
                 if self.plan is not None: done=min(done,self.plan[url])
                 # Repeated events/retries for a NAR must not inflate the count.
                 self.received[url]=max(done,self.received.get(url,0))
-                if time.monotonic()-self.last_time>=.2: self.flush()
+                self.tick()
             elif event.get('action')=='stop': self.activities.pop(activity,None)
         except (ValueError,KeyError,TypeError,IndexError):
             pass  # Unknown diagnostics must never prevent an otherwise valid update.
+
+    def tick(self):
+        if time.monotonic()-self.last_time>=.2: self.flush()
 
     def flush(self):
         value=(sum(self.received.values()),None if self.plan is None else sum(self.plan.values()))
