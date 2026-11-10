@@ -110,8 +110,8 @@ class Centaur(Gtk.Application):
         self.join_button = button('Join project',self.join,tone='plain'); self.top_actions.append(self.join_button); self.targets['join'] = self.join_button
         self.create_button = button('+ New project',self.new_project,tone='dark'); self.top_actions.append(self.create_button); self.targets['create'] = self.create_button
         self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
-        self.invite_button = button('Invite',self.invite,tone='outline',width=80); self.top_actions.append(self.invite_button)
-        self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg',width=80); self.top_actions.append(self.deploy_button)
+        self.invite_button = button('Invite',self.invite,tone='outline',width=88); self.top_actions.append(self.invite_button)
+        self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg',width=88); self.top_actions.append(self.deploy_button)
         self.targets.update({'invite':self.invite_button,'deploy':self.deploy_button})
         self.top.set_end_widget(self.top_actions); content.append(self.top)
         self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)

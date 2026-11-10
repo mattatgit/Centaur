@@ -84,13 +84,18 @@ def main():
         original=json.loads(source.read_text()); changed=json.loads(source.read_text())
         changed['files']['app.ui']=changed['files']['app.ui'].replace('Family board','Family Planner')
         checkpoint=subprocess.check_output(['git','-C',str(source.parent),'rev-parse','HEAD'],text=True).strip()
+        rect=driver.rect(hw)
+        driver.ipc(f"seat seat0 cursor set {rect['x']+64} {rect['y']+200}")
+        driver.seat_command('motion 0 0')
+        until(lambda:hs()['targets'].get('invite',[0]*4)[2:]==hs()['targets'].get('deploy',[0]*4)[2:]==[88,32],
+              'Invite and Deploy must share their size outside hover')
         driver.screenshot(hw,folder/'gtk4-workspace.png')
         until(lambda:hs().get('targets',{}).get('chat-panel',[0,0,0])[2]==432,'Reference chat width was not preserved')
         workspace=hs(); mode=workspace['targets']['mode-switch']
         assert mode[2:]==[240,48] and abs(mode[0]+mode[2]/2-720)<=1,'Mode switch is not centred at its reference size'
         assert not workspace['layout']['sidebarVisible'],'Workspace retained a sidebar absent from the Qt reference'
         assert workspace['targets']['composer'][3]==104,'Composer is not on the agreed grid'
-        assert workspace['targets']['invite'][2:]==workspace['targets']['deploy'][2:]==[80,32],'Invite and Deploy must share their size'
+        assert workspace['targets']['invite'][2:]==workspace['targets']['deploy'][2:]==[88,32],'Invite and Deploy must share their size'
         driver.screenshot(hw,folder/'ui-interact.png')
         click(hs,hw,'mode-Build'); driver.screenshot(hw,folder/'ui-build.png'); click(hs,hw,'mode-Interact')
         (folder/'ui-workspace-metrics.json').write_text(json.dumps(workspace,indent=2))
