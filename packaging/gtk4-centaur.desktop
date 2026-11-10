@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Centaur GTK4
+Comment=Make native apps together
+Exec=@out@/bin/centaur-gtk4 --desktop-launch
+Icon=org.centaur.Gtk4
+StartupWMClass=org.centaur.Gtk4
+Terminal=false
+Categories=Development;Graphics;
+StartupNotify=true

@@ -24,6 +24,7 @@ from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
 from annotations import AnnotationSpace, position as annotation_position
 from update_ui import UpdateControls
+from desktop import APP_ID, launch_settings, register as register_desktop
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal,
                 label, box, margins, button, button_text, selected)
@@ -31,7 +32,7 @@ from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
 
 class Centaur(Gtk.Application):
     def __init__(self, root, report_dir=None, update_session=None):
-        super().__init__(application_id='org.centaur.Gtk4', flags=Gio.ApplicationFlags.NON_UNIQUE)
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.NON_UNIQUE)
         self.root = root
         self.reports = report_dir
         self.update_session = update_session
@@ -55,11 +56,15 @@ class Centaur(Gtk.Application):
         self.targets = {}
 
     def do_activate(self):
+        icons=Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+        icons.add_search_path(str(Path(os.environ['CENTAUR_GTK_PACKAGE'])/'share/icons'))
+        Gtk.Window.set_default_icon_name(APP_ID)
         provider = Gtk.CssProvider()
         provider.load_from_path(str(Path(__file__).with_name('shell.css')))
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.window = Gtk.ApplicationWindow(application=self, title='Centaur', default_width=1440, default_height=944,
                                             decorated=not bool(os.environ.get('CENTAUR_GTK4_TEST_UNDECORATED')))
+        self.window.set_icon_name(APP_ID)
         self.window.set_size_request(360, 680)
         self.root_overlay = Gtk.Overlay()
         root = box(spacing=0); self.root_overlay.set_child(root)
@@ -800,6 +805,9 @@ class Centaur(Gtk.Application):
                              'available':bool(self.updates.manifest),'running':bool(self.updates.process),
                              'work':str(self.updates.work) if self.updates.work else None,
                              'package':os.environ.get('CENTAUR_GTK_PACKAGE')}
+            theme=Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+            data['branding']={'appIcon':self.window.get_icon_name(),'fullIcon':theme.has_icon(APP_ID),
+                              'symbolicIcon':theme.has_icon(APP_ID+'-symbolic')}
             try: data['child']=json.loads(self.child_report.read_text()) if self.backend else None
             except (AttributeError,FileNotFoundError,ValueError): data['child']=None
             for name,widget in self.targets.items():
@@ -825,15 +833,19 @@ class Centaur(Gtk.Application):
 
 def main():
     parser=argparse.ArgumentParser(description='Centaur GTK4 development preview')
-    parser.add_argument('--data-dir',type=Path,default=Path.home()/'.local/share/Centaur/GTK4')
+    parser.add_argument('--data-dir',type=Path)
+    parser.add_argument('--desktop-launch',action='store_true')
     parser.add_argument('--report-dir',type=Path)
     parser.add_argument('--update-session',type=Path)
     parser.add_argument('--stop-host',action='store_true')
     parser.add_argument('--version',action='version',version='Centaur GTK4 0.4.0-preview+'+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'))
     args=parser.parse_args()
+    desktop_root=launch_settings() if args.desktop_launch else None
     os.environ['PATH']=str(Path.home()/'.local/bin')+os.pathsep+os.environ.get('PATH','')
-    root=args.data_dir.expanduser().resolve(); root.mkdir(parents=True,exist_ok=True)
+    root=(args.data_dir or desktop_root or Path.home()/'.local/share/Centaur/GTK4').expanduser().resolve(); root.mkdir(parents=True,exist_ok=True)
     if args.stop_host: return subprocess.call([os.environ['CENTAUR_GTK_HOST'],'--stop','--data-dir',str(root)])
+    try: register_desktop(os.environ['CENTAUR_GTK_PACKAGE'],root)
+    except OSError as error: print('Could not register the GTK4 desktop icon: '+str(error),file=sys.stderr)
     app=Centaur(root,args.report_dir,args.update_session)
     for signum in (signal.SIGINT,signal.SIGTERM): GLib.unix_signal_add(GLib.PRIORITY_DEFAULT,signum,lambda:(app.quit(),GLib.SOURCE_REMOVE)[1])
     return app.run([])

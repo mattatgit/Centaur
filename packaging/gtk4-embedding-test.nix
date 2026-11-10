@@ -25,7 +25,7 @@ in pkgs.stdenvNoCC.mkDerivation {
   pname = if services == null then "centaur-gtk4-embedding-test" else "centaur-gtk4-preview";
   version = if services == null then "0.1.0" else "0.4.0-preview";
   src = ../gtk4/embedding;
-  nativeBuildInputs = [ pkgs.wrapGAppsHook4 pkgs.gobject-introspection ];
+  nativeBuildInputs = [ pkgs.wrapGAppsHook4 pkgs.gobject-introspection pkgs.librsvg pkgs.desktop-file-utils ];
   buildInputs = [ pkgs.gtk4 pkgs.librsvg casilda ];
   dontBuild = true;
   installPhase = ''
@@ -35,7 +35,7 @@ in pkgs.stdenvNoCC.mkDerivation {
     mkdir -p "$out/share/centaur-gtk4-test/assets"
     cp ${../assets/dialogue}/*.svg ${../assets/dialogue}/*.png "$out/share/centaur-gtk4-test/assets/"
     cp ${../assets/dialogue/LICENSE} "$out/share/centaur-gtk4-test/Dialogue-LICENSE"
-    cp ${../packaging/centaur.svg} "$out/share/centaur-gtk4-test/assets/centaur.svg"
+    cp ${../assets/branding/Centaur_mono.svg} "$out/share/centaur-gtk4-test/assets/centaur.svg"
     cp ${casilda.src}/COPYING "$out/share/centaur-gtk4-test/Casilda-COPYING"
     for entry in test check; do
       module=host
@@ -50,6 +50,17 @@ in pkgs.stdenvNoCC.mkDerivation {
       chmod +x "$out/bin/centaur-gtk4-$entry"
     done
     ${pkgs.lib.optionalString (services != null) ''
+      mkdir -p "$out/share/applications" "$out/share/icons/hicolor/scalable/apps"
+      cp ${pkgs.hicolor-icon-theme}/share/icons/hicolor/index.theme "$out/share/icons/hicolor/"
+      cp ${../packaging/centaur-app.svg} "$out/share/icons/hicolor/scalable/apps/org.centaur.Gtk4.svg"
+      cp ${../assets/branding/Centaur_mono.svg} "$out/share/icons/hicolor/scalable/apps/org.centaur.Gtk4-symbolic.svg"
+      for size in 16 24 32 48 64 128 256 512; do
+        mkdir -p "$out/share/icons/hicolor/''${size}x''${size}/apps"
+        rsvg-convert --width "$size" --height "$size" ${../packaging/centaur-app.svg} \
+          --output "$out/share/icons/hicolor/''${size}x''${size}/apps/org.centaur.Gtk4.png"
+      done
+      substitute ${./gtk4-centaur.desktop} "$out/share/applications/org.centaur.Gtk4.desktop" --subst-var out
+      desktop-file-validate "$out/share/applications/org.centaur.Gtk4.desktop"
       for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check centaur-gtk4-update centaur-gtk4-updater-check; do
         case "$entry" in
           centaur-gtk4) module=shell ;;

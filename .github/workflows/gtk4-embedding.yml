@@ -5,6 +5,7 @@ on:
     branches: [codex/gtk4-migration]
     paths:
       - 'gtk4/**'
+      - 'assets/branding/**'
       - 'packaging/gtk4-embedding-test.nix'
       - 'packaging/gtk4-test-seat.nix'
       - 'packaging/patches/casilda-*.patch'

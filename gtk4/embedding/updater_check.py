@@ -16,6 +16,7 @@ from integration_check import Bridge
 from test_driver import Driver
 from updater import Runtime, CACHE, KEY, NIX_FLAGS
 from download_progress import DownloadProgress, download_plan, path_info
+from PIL import Image
 
 
 def download_counter(folder,manifest):
@@ -93,6 +94,19 @@ def main():
         download_counter(folder,manifest)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
         until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
+        assert state()['branding']=={'appIcon':'org.centaur.Gtk4','fullIcon':True,'symbolicIcon':True},state()['branding']
+        desktop=home/'.local/share/applications/org.centaur.Gtk4.desktop'
+        assert desktop.is_symlink() and desktop.resolve()==previous/'share/applications/org.centaur.Gtk4.desktop'
+        preferences=read(home/'.config/centaur-gtk4/desktop.json')
+        assert preferences['dataDir']==str(data) and preferences['environment']['GSK_RENDERER']=='cairo'
+        import configparser
+        entry=configparser.ConfigParser(interpolation=None); entry.read(desktop)
+        assert entry['Desktop Entry']['Icon']=='org.centaur.Gtk4'
+        assert entry['Desktop Entry']['StartupWMClass']=='org.centaur.Gtk4'
+        for size in (16,24,32,48,64,128,256,512):
+            with Image.open(previous/f'share/icons/hicolor/{size}x{size}/apps/org.centaur.Gtk4.png') as image:
+                assert image.size==(size,size) and image.mode=='RGBA'
+        summary['checks'].append('desktop-id-and-color-symbolic-icons-user-registration-renderer-preservation')
         window=driver.find_window('org.centaur.Gtk4',process.pid)
         def click(name):
             x,y,w,h=target(state,name)
@@ -160,6 +174,7 @@ def main():
         ready=read(work/'ready.json'); new_pid=ready['pid']
         until(lambda:state().get('pid')==new_pid and state().get('project',{}).get('id')==project_id,'New GTK window did not restore the project')
         assert profile.resolve()==Path(manifest['storePath'])
+        assert desktop.resolve()==profile.resolve()/'share/applications/org.centaur.Gtk4.desktop','Desktop entry pinned the old package'
         assert state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 ')
         assert state()['page']=='workspace','Footer update did not restore the workspace'
         until(lambda:not state()['updater']['badgeVisible'],'Updated version retained its availability badge')
