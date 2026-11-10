@@ -11,6 +11,7 @@ from PIL import Image
 from check import until, read, target
 from test_driver import Driver
 from ink_check import check_ink, assert_capture
+from window_controls_check import check_window_controls
 
 
 class Bridge:
@@ -59,6 +60,8 @@ def main():
     def proposal(bundle,conflict=None):
         reply_file.write_text(json.dumps({'kind':'proposal','message':'Update the native app','conflict':conflict,'gtk':bundle}))
     try:
+        check_window_controls(driver,folder/'window-controls')
+        summary['checks'].append('native-decorated-close-button-geometry-pointer-states-and-window-management')
         host,hs,hw=launch('host')
         def resize_host(width,height):
             driver.resize(hw,width,height)

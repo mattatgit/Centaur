@@ -6,6 +6,40 @@ window.centaur-window:backdrop > headerbar.titlebar {
     background-color: #f8f8f8;
     background-image: none;
 }
+/* The native control remains a GtkButton with window.close and its original
+ * symbolic image. GTK's theme paints the circle on that image, not the button. */
+window.centaur-window > headerbar.titlebar windowcontrols.end {
+    margin-right: 0;
+}
+window.centaur-window > headerbar.titlebar windowcontrols button.close {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 4px;
+    margin: -1px 0;
+    background: transparent;
+    background-image: none;
+    border: 0;
+    box-shadow: none;
+    transform: translate(0, 1px);
+}
+window.centaur-window > headerbar.titlebar windowcontrols button.close > image {
+    min-width: 24px;
+    min-height: 24px;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    background-image: none;
+    box-shadow: none;
+}
+window.centaur-window > headerbar.titlebar windowcontrols button.close:hover:not(:disabled) > image,
+window.centaur-window > headerbar.titlebar windowcontrols button.close:focus-visible:not(:disabled) > image {
+    background: #ebebeb;
+}
+window.centaur-window > headerbar.titlebar windowcontrols button.close:active:not(:disabled) > image {
+    background: #dedede;
+}
 button { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; background-image: none; box-shadow: none; color: inherit; }
 button:hover { background: #ebebeb; }
 button:disabled { opacity: .45; }
