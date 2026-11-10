@@ -11,8 +11,10 @@ colours. The SVG is the scalable app icon; Nix renders transparent PNGs at
 16, 24, 32, 48, 64, 128, 256 and 512 pixels using librsvg.
 
 The GTK UI loads the supplied monochrome SVG as its existing `centaur.svg`
-asset. Its aspect ratio is preserved in the existing 32px UI icon slot and the
-existing alpha-mask tinting retains hover states. The Qt branch/assets are
+asset. Both the sidebar and workspace header render it in a centred 24×24px
+viewport inside the existing 32×32px button/alignment box. The 30:32 aspect ratio
+gives a 22.5×24px silhouette, with no stretching. The existing alpha-mask tinting
+and hover states are retained. The Qt branch/assets are
 preserved. A copy of the mono SVG is also installed as the symbolic desktop icon.
 
 Desktop filename, GTK application ID, window icon, icon name and

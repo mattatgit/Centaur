@@ -17,6 +17,7 @@ canvas extents can follow the desktop's allocation.
 | Element | GTK4 reference metric |
 | --- | --- |
 | Header | 80px high |
+| Centaur UI mark | 24×24px viewport, centred in a 32×32px button; preserves the supplied 30:32 aspect ratio |
 | Sidebar | 216px; 72px compact below a 760px window width; hidden in a project |
 | Sidebar navigation | 40px high; original 32px SVGs; 8px inset/radius |
 | Profile avatar | 40px square, 8px radius |

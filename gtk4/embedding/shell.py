@@ -70,7 +70,7 @@ class Centaur(Gtk.Application):
         root = box(spacing=0); self.root_overlay.set_child(root)
         self.sidebar = box(True, 0, 'sidebar'); self.sidebar.set_size_request(SIDEBAR, -1)
         brand_row = box(spacing=0); brand_row.set_size_request(-1, HEADER)
-        brand = button('', lambda:self.navigate('projects'), 'centaur.svg', 'brand', tone='plain', width=32, icon_size=32)
+        brand = button('', lambda:self.navigate('projects'), 'centaur.svg', 'brand', tone='plain', width=32, icon_size=24)
         brand.set_margin_start(24); brand.set_valign(Gtk.Align.CENTER); brand.set_tooltip_text('Projects')
         brand_row.append(brand); self.sidebar.append(brand_row); self.sidebar_brand = brand
         self.nav = {}; self.nav_labels = []
@@ -92,7 +92,7 @@ class Centaur(Gtk.Application):
         content = box(True,0); content.set_hexpand(True)
         self.top = Gtk.CenterBox(); self.top.add_css_class('topbar'); self.top.set_size_request(-1,HEADER)
         self.top_start = box(spacing=8); self.top_start.set_margin_start(24); self.top_start.set_valign(Gtk.Align.CENTER)
-        self.workspace_brand = button('',lambda:self.navigate('projects'),'centaur.svg','brand',tone='plain',width=32,icon_size=32)
+        self.workspace_brand = button('',lambda:self.navigate('projects'),'centaur.svg','brand',tone='plain',width=32,icon_size=24)
         self.workspace_brand.set_tooltip_text('Projects'); self.top_start.append(self.workspace_brand)
         self.projects_crumb = button('Projects',lambda:self.navigate('projects'),tone='plain'); self.top_start.append(self.projects_crumb)
         self.breadcrumb_arrow = Svg('breadcrumb-arrow.svg',16); self.top_start.append(self.breadcrumb_arrow)
