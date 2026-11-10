@@ -10,6 +10,7 @@ import time
 import gi
 
 gi.require_version('Gtk', '4.0')
+gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, Gio, GLib, Gtk
 from PIL import Image
 from check import until
@@ -17,7 +18,9 @@ from check import until
 
 def check_window_controls(driver, folder):
     folder.mkdir()
-    os.environ['GTK_CSD'] = '1'
+    # GNOME leaves decorations to GTK. Hide Sway's optional server-decoration
+    # protocols in this probe process so GTK creates that same native titlebar.
+    os.environ['GDK_WAYLAND_DISABLE'] = 'org_kde_kwin_server_decoration_manager,zxdg_decoration_manager_v1'
     Gtk.init()
     settings = Gtk.Settings.get_default()
     original_layout = settings.get_property('gtk-decoration-layout')
@@ -155,8 +158,11 @@ def check_window_controls(driver, folder):
         report['checks'].append('disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible')
 
         before = driver.rect(handle)
-        driver.drag(handle, round(hx+100+offset[0]), round(hy+16+offset[1]), 40, 32, button=1)
-        settle()
+        move(hx+100, hy+16)
+        driver.seat_command('left press'); settle(.05)
+        for _ in range(5):
+            driver.seat_command('motion 8 6.4'); settle(.03)
+        driver.seat_command('left release'); settle()
         after = driver.rect(handle)
         assert (before['x'], before['y']) != (after['x'], after['y']), 'Native titlebar drag failed'
         driver.resize(handle, 800, 480); settle()
