@@ -291,9 +291,34 @@ a controlled HTTP cache serving a real Cachix NAR and unchanged signatures, with
 only its download-location field redirected to loopback for throttling. Nix
 checks signatures normally into an empty store. The actual Settings/footer
 controls must display multiple distinct intermediate counts while copying is
-still active, then retain the count during verification. Production discovery
-and cache URLs remain pinned; no test cache override is shipped.
+still active, then retain the count during verification. The fixture exports
+the canonical NAR with Nix and serves it uncompressed, preserving its signed
+NarHash/NarSize/references and original signatures; only transport metadata
+changes. Its counter therefore measures actual uncompressed HTTP payload bytes.
+Production discovery/cache URLs and compressed-byte accounting remain unchanged.
 
-37 local GTK/Python checks pass. Native ARM64 acceptance/publication are pending.
-VM log collection is requested through Centaur Install to confirm its exact
-transfer trace independently of the reproduced timer regression.
+Verified source `7cb1b540cb7a1b7c5ac42117d93e6f668c1d65a5`, version
+`Centaur GTK4 0.4.0-preview+7cb1b54`.
+Store path:
+`/nix/store/zzfx03jix9r7xnj15pm2gpip0yip17b1-centaur-gtk4-preview-0.4.0-preview`.
+[Product/update run 42749826131](https://github.com/mattatgit/Centaur/actions/runs/42749826131)
+and [standalone embedding run 42749826101](https://github.com/mattatgit/Centaur/actions/runs/42749826101)
+passed. All 37 GTK/Python checks passed, including the pre-fix failing quiet-child
+regression. Updater artifact `13733370482` records both visible controls advancing
+through **2.1, 4.1, 6.2, 8.2, 10.3, 12.4 and 14.4 of 16.5 MB** while Nix was still
+copying, then **16.5 of 16.5 MB**. Its actual screenshot shows 2.1 of 16.5 MB in
+Settings and the footer; verification retains the completed counter.
+
+The normal real-profile update/restart, desktop registration, data preservation,
+busy-host guards and native product regressions also passed. Native product
+artifact: `13732723801`; signed distribution: `13733390428`. The full 531-path
+closure passed signed empty-store download verification with builders disabled.
+The public release feed was read back and names this exact build. The original
+failed test preparation used a duplicate Python HTTP request rejected by the
+cache; the final fixture uses Nix's already-verified local object instead.
+
+VM log collection was requested through Centaur Install, but its exact trace
+was not received at publication. The timer failure is reproduced independently;
+do not claim this CI result is hands-on confirmation of the VM's trace. The old
+installed helper still owns the operation that installs this fix. Hands-on
+counter validation applies to a later download started from the corrected build.

@@ -61,8 +61,9 @@ evidence: `13731412230`. Signed distribution artifact `13731462091` confirms
 the complete 531-path runtime closure downloaded into an empty store with
 builders disabled. Qt profile/data sentinels remained intact.
 
-GNOME app-grid/dock appearance and launching via the menu on the actual UTM VM
-remain hands-on acceptance. CI verifies the desktop descriptor/links and config
+The owner subsequently confirmed the colour icon in GNOME and launching from
+the dock on the actual UTM VM through Centaur Install (10 November). This is
+owner-reported hands-on acceptance. CI verifies the desktop descriptor/links and config
 restoration, rather than operating GNOME Shell itself. The GUI update candidate
 is already realised in CI; the publisher separately supplies the fresh-download
 verification. Continue machine-specific guidance in Centaur Install.
