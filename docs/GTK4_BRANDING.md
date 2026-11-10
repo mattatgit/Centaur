@@ -69,3 +69,21 @@ owner-reported hands-on acceptance. CI verifies the desktop descriptor/links and
 restoration, rather than operating GNOME Shell itself. The GUI update candidate
 is already realised in CI; the publisher separately supplies the fresh-download
 verification. Continue machine-specific guidance in Centaur Install.
+
+## UI mark sizing — 10 November 2026
+
+Source `d4783c3e0cb9ee7821d7ac69e8c7e7e13f22b7b3` reduces both mono UI
+viewports from 32px to 24px while retaining the 32×32px button/alignment box.
+The original 30:32 silhouette therefore renders at 22.5×24px in its normal
+state, centred without stretching. Existing hover scaling remains unchanged.
+The colour desktop icon and original SVG paths are unchanged.
+
+All 37 local checks and [native ARM64 product/update run
+42752398312](https://github.com/mattatgit/Centaur/actions/runs/42752398312) passed,
+as did [standalone embedding run
+42752398321](https://github.com/mattatgit/Centaur/actions/runs/42752398321).
+The normal Projects screenshot was inspected. Native evidence `13733139958`,
+updater evidence `13733554069`, signed distribution `13733643780`.
+The full 531-path closure passed signed empty-store verification. The release
+feed was read back and advertises `0.4.0-preview+d4783c3` at
+`/nix/store/mscli2r3g5q3pk17gbg4m3k3lr4v1zmh-centaur-gtk4-preview-0.4.0-preview`.
