@@ -64,6 +64,7 @@ class Centaur(Gtk.Application):
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
         self.window = Gtk.ApplicationWindow(application=self, title='Centaur', default_width=1440, default_height=944,
                                             decorated=not bool(os.environ.get('CENTAUR_GTK4_TEST_UNDECORATED')))
+        self.window.add_css_class('centaur-window')
         self.window.set_icon_name(APP_ID)
         self.window.set_size_request(360, 680)
         self.root_overlay = Gtk.Overlay()

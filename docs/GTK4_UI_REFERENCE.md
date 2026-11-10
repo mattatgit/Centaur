@@ -17,6 +17,7 @@ canvas extents can follow the desktop's allocation.
 | Element | GTK4 reference metric |
 | --- | --- |
 | Header | 80px high |
+| Native GTK titlebar | Centaur-only #F8F8F8 fill in active/backdrop states; default controls, text, borders, shadows and window-state handling retained |
 | Centaur UI mark | 24×24px viewport, centred in a 32×32px button; preserves the supplied 30:32 aspect ratio |
 | Sidebar | 216px; 72px compact below a 760px window width; hidden in a project |
 | Sidebar navigation | 40px high; original 32px SVGs; 8px inset/radius |
@@ -62,6 +63,14 @@ to **Update app** on hover or keyboard focus, retaining its width. Its 8px
 circular availability badge matches the `#ccff00` agent avatar. The footer and
 Settings share the same updater; details and acceptance are recorded in
 [GTK4_UPDATER.md](GTK4_UPDATER.md).
+
+The main window's `centaur-window` CSS class scopes the native default titlebar
+fill override. It sets only background colour/image, keeping the native titlebar,
+controls, active/backdrop foreground treatment, border/shadow and maximized,
+tiled and fullscreen behaviour. This does not install a custom titlebar or
+change GNOME's global theme. Other applications and generated-app processes
+retain their own styling. GNOME's actual decorated appearance requires VM review;
+the regular headless integration suite deliberately disables decorations.
 
 Other reference sizes include 14pt/600 project titles, 11pt descriptions, 10pt
 card metadata, 14px navigation text, 16px/600 section titles and 12px/600 button

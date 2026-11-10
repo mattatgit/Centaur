@@ -1,5 +1,11 @@
 /* Qt Theme/FlatButton/ChatPanel metrics; component geometry rounded to 8px. */
 window { background: #f8f8f8; color: #171717; font-family: Inter; font-size: 14px; }
+/* Keep GTK's default decorations/states; match only Centaur's titlebar fill. */
+window.centaur-window > headerbar.titlebar,
+window.centaur-window:backdrop > headerbar.titlebar {
+    background-color: #f8f8f8;
+    background-image: none;
+}
 button { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; background-image: none; box-shadow: none; color: inherit; }
 button:hover { background: #ebebeb; }
 button:disabled { opacity: .45; }
