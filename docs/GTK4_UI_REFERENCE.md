@@ -117,3 +117,36 @@ checks allocated geometry as well as two-profile collaboration, fixture-agent
 changes, genuine-conflict agreement, invalid-change rejection, history restore,
 preview reopen and clean shutdown. These are automated checks, distinct from
 hands-on UTM testing and real OMP/provider requests.
+
+## Navigation and control tidy-up — 11 November 2026
+
+Projects, Design Systems and Settings use their selected sidebar entries as
+their page labels; the duplicate titles in the top bar are removed. The top
+bar keeps its existing height, actions and workspace breadcrumb.
+
+Invite is an 88×32px secondary button matching Deploy, with the existing 8px
+corner radius and hover scaling. A 1px inset `#d3d7ce` stroke leaves its normal
+background clear without changing its layout dimensions. Its hover fill is
+`#f3f3f3`. Deploy retains the existing filled style and SVG.
+
+The footer version button keeps its label-to-Update-app interaction, fixed
+hover width and availability badge. Its 8px horizontal padding and 8px radius
+frame a `#ebebeb` hover/focus background. Progress remains on its right.
+
+The product canvas no longer has a Centre button; zoom, Fit, automatic centring
+on resize, panning and Restart remain. The separate embedding experiment's
+test controls are unchanged.
+
+Published ARM64 build: **0.4.0-preview+4451f19**, source
+`4451f19701cf586e0427ce462bc742626075a45a`, store
+`/nix/store/q2yc9qwci2bkwcqywivnzmx5dchcfm37-centaur-gtk4-preview-0.4.0-preview`.
+[Product/service/updater CI 42927073797](https://github.com/mattatgit/Centaur/actions/runs/42927073797)
+and [standalone embedding CI 42927073579](https://github.com/mattatgit/Centaur/actions/runs/42927073579)
+passed, including all 37 Python tests, equal allocated button dimensions, and
+rendered-pixel checks for the footer hover fill and rounded corners. Project,
+Design Systems, Settings, workspace and footer-hover screenshots were inspected.
+Native screenshots: artifact `13814801601`; updater screenshots/recovery reports:
+`13814577593`; signed distribution: `13814363163`. The complete 531-path signed
+closure passed empty-store verification with builders disabled, and the update
+feed was read back to confirm this source/path. Hands-on VM review belongs in
+Centaur Install.
