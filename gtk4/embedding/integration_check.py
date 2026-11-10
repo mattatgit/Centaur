@@ -90,6 +90,7 @@ def main():
         assert mode[2:]==[240,48] and abs(mode[0]+mode[2]/2-720)<=1,'Mode switch is not centred at its reference size'
         assert not workspace['layout']['sidebarVisible'],'Workspace retained a sidebar absent from the Qt reference'
         assert workspace['targets']['composer'][3]==104,'Composer is not on the agreed grid'
+        assert workspace['targets']['invite'][2:]==workspace['targets']['deploy'][2:]==[80,32],'Invite and Deploy must share their size'
         driver.screenshot(hw,folder/'ui-interact.png')
         click(hs,hw,'mode-Build'); driver.screenshot(hw,folder/'ui-build.png'); click(hs,hw,'mode-Interact')
         (folder/'ui-workspace-metrics.json').write_text(json.dumps(workspace,indent=2))

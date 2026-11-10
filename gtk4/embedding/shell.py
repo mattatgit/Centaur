@@ -98,7 +98,7 @@ class Centaur(Gtk.Application):
         self.projects_crumb = button('Projects',lambda:self.navigate('projects'),tone='plain'); self.top_start.append(self.projects_crumb)
         self.breadcrumb_arrow = Svg('breadcrumb-arrow.svg',16); self.top_start.append(self.breadcrumb_arrow)
         self.breadcrumb = label('', 'breadcrumb'); self.breadcrumb.set_ellipsize(Pango.EllipsizeMode.END); self.top_start.append(self.breadcrumb)
-        self.page_title = label('Projects','section-title'); self.top_start.append(self.page_title); self.top.set_start_widget(self.top_start)
+        self.top.set_start_widget(self.top_start)
         self.modes = margins(box(spacing=0,css='mode-switch'),0); self.modes.set_valign(Gtk.Align.CENTER)
         self.mode_buttons = {}
         for title,icon in [('Interact','interact-grey.svg'),('Build','comment-grey.svg')]:
@@ -110,8 +110,9 @@ class Centaur(Gtk.Application):
         self.join_button = button('Join project',self.join,tone='plain'); self.top_actions.append(self.join_button); self.targets['join'] = self.join_button
         self.create_button = button('+ New project',self.new_project,tone='dark'); self.top_actions.append(self.create_button); self.targets['create'] = self.create_button
         self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
-        self.invite_button = button('Invite',self.invite,tone='plain'); self.top_actions.append(self.invite_button)
-        self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg'); self.top_actions.append(self.deploy_button)
+        self.invite_button = button('Invite',self.invite,tone='outline',width=80); self.top_actions.append(self.invite_button)
+        self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg',width=80); self.top_actions.append(self.deploy_button)
+        self.targets.update({'invite':self.invite_button,'deploy':self.deploy_button})
         self.top.set_end_widget(self.top_actions); content.append(self.top)
         self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)
         self.stack.set_margin_end(8); self.stack.set_margin_bottom(8); content.append(self.stack)
@@ -207,7 +208,6 @@ class Centaur(Gtk.Application):
         tools=box(spacing=8); tools.set_halign(Gtk.Align.END); tools.set_valign(Gtk.Align.START); tools.set_margin_top(8); tools.set_margin_end(8)
         self.zoom=Gtk.DropDown.new_from_strings(ZOOM_MODES); self.zoom.add_css_class('zoom'); self.zoom.set_selected(2); self.zoom.set_size_request(80,32)
         self.zoom.connect('notify::selected',lambda c,p:self.zoom_changed()); tools.append(self.zoom); self.targets['zoom']=self.zoom
-        tools.append(button('Centre',lambda:self.viewport.centre() if self.viewport else None))
         restart=button('',lambda:self.start_preview(force=True),'reload.svg',width=32); restart.set_tooltip_text('Restart app'); tools.append(restart)
         self.overlay.add_overlay(tools)
         self.preview_label=label('','small muted',True); self.preview_label.set_halign(Gtk.Align.CENTER); self.preview_label.set_valign(Gtk.Align.CENTER); self.preview_label.set_can_target(False)
@@ -289,7 +289,6 @@ class Centaur(Gtk.Application):
         self.top_start.set_margin_start(24 if workspace else 0)
         self.sidebar.set_visible(not workspace); self.modes.set_visible(workspace)
         for item in (self.workspace_brand,self.projects_crumb,self.breadcrumb_arrow,self.breadcrumb,self.invite_button,self.deploy_button): item.set_visible(workspace)
-        self.page_title.set_visible(not workspace); self.page_title.set_text({'projects':'Projects','systems':'Design Systems','settings':'Settings'}.get(page,''))
         self.join_button.set_visible(page=='projects'); self.create_button.set_visible(page=='projects'); self.import_button.set_visible(page=='systems')
         self.targets['nav-projects']=self.projects_crumb if workspace else self.nav['projects']
         self.window.set_size_request(1000 if workspace else 360,680)

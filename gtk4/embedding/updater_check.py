@@ -144,6 +144,10 @@ def main():
         until(lambda:state()['updater']['footerLabel']=='Update app','Version button hover did not show Update app')
         assert state()['targets']['update-version']==version,'Version button shifted or resized on hover'
         driver.screenshot(window,folder/'footer-update-hover.png')
+        with Image.open(folder/'footer-update-hover.png') as source:
+            pixels=source.convert('RGB'); x,y,w,h=map(round,version)
+            assert pixels.getpixel((x+4,y+h//2))==(235,235,235),'Version hover has no grey background'
+            assert pixels.getpixel((x,y))==(255,255,255),'Version hover corners are not rounded'
         # Move away and reach the action using native keyboard traversal.
         click('editor')
         for _ in range(6):
