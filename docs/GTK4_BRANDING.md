@@ -37,5 +37,32 @@ manual shortcut may need to be replaced in favourites with the registered
 Centaur GTK4 entry; installation guidance belongs in Centaur Install.
 
 Local checks: original SVGs compared against the supplied files, 512px colour
-and mono previews visually inspected, 35 GTK/Python tests passed. Native ARM64
-icon lookup, desktop/profile update checks and publication are pending.
+and mono previews visually inspected, 35 GTK/Python tests passed.
+
+## Verified ARM64 build — 10 November 2026
+
+Published source `a842d71ca0c2faffca0cffdf7e1dd90d3a3b174f`, version
+`Centaur GTK4 0.4.0-preview+a842d71`.
+Store path:
+`/nix/store/27nfwpfyh1wp3vkmcgfg986ipg6w5d9c-centaur-gtk4-preview-0.4.0-preview`.
+[Product/update CI 42745110211](https://github.com/mattatgit/Centaur/actions/runs/42745110211)
+and [standalone embedding CI 42745110058](https://github.com/mattatgit/Centaur/actions/runs/42745110058)
+passed. The public `gtk4-preview` feed was read back and advertises this exact
+source/path after acceptance.
+
+The native GTK report confirms the window icon ID and resolves both full-colour
+and symbolic icons. The real updater test validates the registered per-user
+desktop symlink, icon/StartupWMClass keys, saved data folder and Cairo setting,
+all eight RGBA PNG sizes, and the symlink following the profile into the new
+package after update. The updated UI mark was inspected in the restart image.
+All 35 Python checks and existing native embedding, canvas, collaboration and
+footer-update tests passed. Updater evidence: `13731232825`; native product
+evidence: `13731412230`. Signed distribution artifact `13731462091` confirms
+the complete 531-path runtime closure downloaded into an empty store with
+builders disabled. Qt profile/data sentinels remained intact.
+
+GNOME app-grid/dock appearance and launching via the menu on the actual UTM VM
+remain hands-on acceptance. CI verifies the desktop descriptor/links and config
+restoration, rather than operating GNOME Shell itself. The GUI update candidate
+is already realised in CI; the publisher separately supplies the fresh-download
+verification. Continue machine-specific guidance in Centaur Install.
