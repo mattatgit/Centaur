@@ -72,6 +72,18 @@ change GNOME's global theme. Other applications and generated-app processes
 retain their own styling. GNOME's actual decorated appearance requires VM review;
 the regular headless integration suite deliberately disables decorations.
 
+Published fill adjustment: `4ad8404619110fe170c0ddf9eaafa0e95ee21670`
+(`0.4.0-preview+4ad8404`). All 37 checks and [ARM64 product/update run
+42753563095](https://github.com/mattatgit/Centaur/actions/runs/42753563095) passed,
+along with [standalone embedding run
+42753563071](https://github.com/mattatgit/Centaur/actions/runs/42753563071).
+Native evidence `13734249042`, updater `13734651883`, signed distribution
+`13734836194`. The complete 531-path closure passed signed empty-store download
+verification; the release feed advertises this exact source at
+`/nix/store/na7m83da1gc9sw7k8rbflp9b16gzfsc1-centaur-gtk4-preview-0.4.0-preview`.
+These checks validate the stylesheet and existing app flows; they do not establish
+the decorated GNOME titlebar's active/backdrop appearance. That remains a VM check.
+
 Other reference sizes include 14pt/600 project titles, 11pt descriptions, 10pt
 card metadata, 14px navigation text, 16px/600 section titles and 12px/600 button
 labels. Text sizes do not round to 8px steps.
