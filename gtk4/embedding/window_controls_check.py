@@ -7,6 +7,9 @@ import json
 import os
 from pathlib import Path
 import time
+# PyGObject can initialise GTK while importing its overrides.
+# GNOME leaves decorations to GTK; emulate that in this CI process only.
+os.environ['GDK_WAYLAND_DISABLE'] = 'org_kde_kwin_server_decoration_manager,zxdg_decoration_manager_v1'
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -18,9 +21,6 @@ from check import until
 
 def check_window_controls(driver, folder):
     folder.mkdir()
-    # GNOME leaves decorations to GTK. Hide Sway's optional server-decoration
-    # protocols in this probe process so GTK creates that same native titlebar.
-    os.environ['GDK_WAYLAND_DISABLE'] = 'org_kde_kwin_server_decoration_manager,zxdg_decoration_manager_v1'
     Gtk.init()
     settings = Gtk.Settings.get_default()
     original_layout = settings.get_property('gtk-decoration-layout')
