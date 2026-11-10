@@ -19,6 +19,7 @@ window.centaur-window > headerbar.titlebar windowcontrols button.close {
     background: transparent;
     background-image: none;
     border: 0;
+    border-radius: 0;
     box-shadow: none;
     transform: translate(0, 1px);
 }
