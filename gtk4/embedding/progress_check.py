@@ -3,11 +3,10 @@ import http.server
 import json
 import os
 from pathlib import Path
+import subprocess
 import threading
 import time
 from types import SimpleNamespace
-import urllib.request
-from urllib.parse import urljoin
 import gi
 
 gi.require_version('Gtk','4.0')
@@ -22,13 +21,19 @@ from updater import Runtime,Transaction,CACHE,KEY,NIX_FLAGS
 
 def check_progress(driver,folder,path,info):
     folder.mkdir()
-    def fetch(url):
-        with urllib.request.urlopen(urllib.request.Request(url,headers={'Accept-Encoding':'identity'}),timeout=30) as response:
-            return response.read()
-    payload=fetch(urljoin(CACHE+'/',info['url']))
-    assert len(payload)==info['downloadSize']
-    narinfo=fetch(CACHE+'/'+Path(path).name.split('-',1)[0]+'.narinfo').decode()
-    narinfo='\n'.join('URL: nar/progress.nar' if line.startswith('URL: ') else line for line in narinfo.splitlines())+'\n'
+    # Nix has already fetched and signature-verified this real cache object.
+    # Export its canonical NAR instead of making a second Python HTTP request
+    # that may be rejected by a cache's user-agent/CDN policy.
+    with (folder/'payload.nar').open('wb') as output:
+        subprocess.run(['nix',*NIX_FLAGS,'nar','dump-path',path],stdout=output,check=True,timeout=20)
+    payload=(folder/'payload.nar').read_bytes()
+    assert len(payload)==info['narSize'] and info['signatures']
+    narinfo='\n'.join(['StorePath: '+path,'URL: nar/progress.nar','Compression: none',
+                       'FileHash: '+info['narHash'],'FileSize: '+str(len(payload)),
+                       'NarHash: '+info['narHash'],'NarSize: '+str(len(payload)),
+                       'References: '+ ' '.join(Path(p).name for p in info['references']),
+                       *['Sig: '+signature for signature in info['signatures']],
+                       *(['CA: '+info['ca']] if info.get('ca') else [])])+'\n'
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self,*args): pass
         def do_HEAD(self): self.serve(False)
@@ -51,7 +56,7 @@ def check_progress(driver,folder,path,info):
     cache='http://127.0.0.1:'+str(server.server_port)
     # This loopback cache serves unchanged signed bytes and original signatures.
     # Only the unsigned download-location field is redirected for throttling.
-    plan=download_plan(cache,{path:dict(info,url='nar/progress.nar')},{})
+    plan=download_plan(cache,{path:dict(info,url='nar/progress.nar',downloadSize=len(payload))},{})
     runtime=Runtime(folder); transaction=Transaction(folder,runtime)
     tracker=DownloadProgress(cache,plan,transaction.download_progress)
     args=['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',cache,'--to',str(folder/'empty-store'),
