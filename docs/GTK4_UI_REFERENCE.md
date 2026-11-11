@@ -32,9 +32,9 @@ canvas extents can follow the desktop's allocation.
 | Interact/Build switch | 240 × 48px, centred in the window; two 112 × 32px buttons |
 | Standard buttons | 32px high; 8px radius; reference plain/soft/dark/lime/selected tones |
 | Build toolbar | 296 × 48px, 16px above the canvas bottom; Draw/Comment/Undo |
-| Project action | One 104×32px Create dropdown with Create/Join; original Dialogue chevron |
+| Project action | One 80×32px Create dropdown; 120×64px menu with 24px rows and the original Figma arrow |
 | Chat inset/spacing | 24px top/left message inset; 36px from the last body baseline to the next name baseline |
-| Chat avatars | 32px square, 8px radius; red human initials, black Centaur tile with the original white mono mark |
+| Chat avatars | 32px square, 8px radius; red human initials, black Centaur tile with the original white mono mark at 15×16px |
 | Chat scrollbar | 8px thumb with 8px padding on each side in a separate 24px gutter; text ends 8px before the gutter |
 | Composer | 104–184px high; 16px radius; mention control and 32px icon send button |
 | Chat footer | Left-aligned 24px-high version/update button, 8px availability badge; status/progress right aligned, 8px gap |
@@ -220,3 +220,57 @@ Selected native screenshots were inspected and retained for review:
 ![Chat layout and Centaur avatar](evidence/gtk4-chat-b31da05/chat.png)
 
 ![Native top and bottom window corners](evidence/gtk4-chat-b31da05/window.png)
+
+## Figma component refinement — 11 November 2026
+
+Reference: [Create + Join, frame 20:802](https://www.figma.com/design/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=20-802).
+The native Create button is 80×32px with an 8px radius, `#171717` background,
+12px semibold Inter Tight caption and the original 24×24px Figma arrow asset.
+The frame's actual child positions are preserved: a 39×16px caption at (12,8)
+and a 24×24px arrow viewport at (51,4). Those positions leave 5px at the right
+of the 80px frame, despite the generated reference's 8px padding property.
+The rendered geometry is the reference here. The button stays dark while open.
+
+The right-aligned popup begins at the button's bottom edge. Its white 120×64px
+surface has an 8px radius, 8px padding and the reference's subtle neutral
+shadow. The two 104×24px rows have no vertical gap, 8px horizontal text padding,
+12px regular Inter Tight captions **Create a project** and **Join a project**,
+and an 8px-radius `#f8f8f8` hover/focus fill. The existing native popover,
+keyboard dismissal and create/join callbacks remain.
+
+The supplied 30:32 Centaur mono artwork now renders in a centred 16×16px
+viewport, producing the requested 15×16px silhouette inside the unchanged
+32×32px black chat avatar with 8px corners. The SVG paths and aspect ratio are
+unchanged. The sidebar and workspace brand marks keep their existing sizes.
+
+The Figma arrow is bundled under `assets/figma` and packaged at its original
+24×24px dimensions. No temporary Figma asset URL is used at runtime. Its local
+SVG was rendered and checked for visible, non-empty geometry. Native tests
+measure the button, caption, arrow, popup rows, text inset and avatar centring,
+and sample the real hover fill/corners. Other project-card menus keep their
+existing metrics.
+
+Published ARM64 build: **0.4.0-preview+3065ef3**, source
+`3065ef3a45a9e92d1edde1078d8ef9022afdb95f`, store
+`/nix/store/xgia8d4s33hraj56q6pjfz5gf3ryzxfi-centaur-gtk4-preview-0.4.0-preview`.
+[Product/update CI 42955017529](https://github.com/mattatgit/Centaur/actions/runs/42955017529)
+and [standalone embedding CI 42955017502](https://github.com/mattatgit/Centaur/actions/runs/42955017502)
+both passed, including all 39 Python checks, native measured Figma geometry,
+hover pixel/corner checks, centred avatar geometry, existing application
+regressions and real signed update/restart/recovery. The complete 531-path
+signed closure passed empty-store verification with builders disabled. The
+feed was read back and matches the [retained manifest](evidence/gtk4-figma-3065ef3/manifest.json).
+Artifacts: native `13826458394`, updater `13825929454`, signed distribution
+`13827120850`.
+
+The [menu measurements](evidence/gtk4-figma-3065ef3/create-metrics.json) match
+Figma's actual frame/child positions and its 8px menu/text insets.
+The [avatar measurements](evidence/gtk4-figma-3065ef3/avatar-metrics.json)
+confirm the 16×16px viewport is inset 8px on all sides of the 32px box. The
+unchanged 30×32px source yields the requested 15×16px silhouette. The supplied
+SVGs are non-empty, locally packaged, in their correct slots and visibly
+rendered in the inspected screenshots. Hands-on VM review is in Centaur Install.
+
+![Native Figma-matched Create menu hover](evidence/gtk4-figma-3065ef3/create-menu-hover.png)
+
+![Native reduced Centaur chat mark](evidence/gtk4-figma-3065ef3/chat-avatar.png)
