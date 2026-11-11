@@ -58,8 +58,10 @@ class UpdateControls:
         motion.connect('enter',lambda c,x,y:self.footer_state(hovered=True))
         motion.connect('leave',lambda c:self.footer_state(hovered=False)); self.footer_button.add_controller(motion)
         focus=Gtk.EventControllerFocus()
-        focus.connect('enter',lambda c:self.footer_state(focused=True))
-        focus.connect('leave',lambda c:self.footer_state(focused=False)); self.footer_button.add_controller(focus)
+        # Stack changes during GTK's focus transition can cause nested focus
+        # signals. Resolve the final focused widget after the transition.
+        focus.connect('enter',lambda c:GLib.idle_add(self.sync_footer_focus))
+        focus.connect('leave',lambda c:GLib.idle_add(self.sync_footer_focus)); self.footer_button.add_controller(focus)
         self.footer_status=label('','version muted',True); self.footer_status.set_hexpand(True); self.footer_status.set_xalign(1)
         owner.update_footer.append(self.footer_button); owner.update_footer.append(self.footer_status)
         owner.targets.update({'update-footer':owner.update_footer,'update-version':self.footer_button,
@@ -73,6 +75,11 @@ class UpdateControls:
             self.footer_focused=focused
             if not focused: self.footer_focus_suppressed=False
         self.refresh_footer()
+
+    def sync_footer_focus(self):
+        focus=self.owner.window.get_focus()
+        self.footer_state(focused=bool(focus and (focus==self.footer_button or focus.is_ancestor(self.footer_button))))
+        return False
 
     def set_sensitive(self,value):
         self.button.set_sensitive(value); self.footer_button.set_sensitive(value)
