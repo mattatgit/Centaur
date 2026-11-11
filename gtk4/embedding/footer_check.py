@@ -52,6 +52,7 @@ def check_footer(driver,folder):
     def input_state():
         focus=window.get_focus()
         return {'focus':focus.__gtype__.name if focus else None,'footerFocused':controls.footer_focused,
+                'footerIsFocus':focus==controls.footer_button,
                 'hovered':controls.footer_hovered,'focusSuppressed':controls.footer_focus_suppressed,
                 'hoverSuppressed':controls.footer_hover_suppressed,'caption':text()}
     try:
@@ -110,8 +111,10 @@ def check_footer(driver,folder):
             driver.key('Return')
             wait(lambda:controls.footer_status.get_text()=='Up to date','Keyboard activation did not check')
         assert controls.footer_focused and text()=='v'+owner.version(),'Retained focus hid checked version'
-        driver.key('Tab'); settle(); driver.key('ISO_Left_Tab'); settle()
-        assert controls.footer_focused and text()=='Update app','Focus re-entry did not rearm action'
+        driver.key('Tab'); settle(); evidence['focusLeft']=input_state()
+        assert not controls.footer_focused,('Tab did not leave footer focus',input_state())
+        driver.key('ISO_Left_Tab'); settle()
+        assert controls.footer_focused and text()=='Update app',('Focus re-entry did not rearm action',input_state())
         hover(entry); click(entry)
         controls.checked_result({'version':'Centaur GTK4 0.4.0-preview+abcdef0'},None); settle()
         assert text()=='Update available' and controls.badge.get_visible(),'Background discovery did not show availability'

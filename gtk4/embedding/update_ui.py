@@ -57,11 +57,9 @@ class UpdateControls:
         motion=Gtk.EventControllerMotion()
         motion.connect('enter',lambda c,x,y:self.footer_state(hovered=True))
         motion.connect('leave',lambda c:self.footer_state(hovered=False)); self.footer_button.add_controller(motion)
-        focus=Gtk.EventControllerFocus()
-        # Stack changes during GTK's focus transition can cause nested focus
-        # signals. Resolve the final focused widget after the transition.
-        focus.connect('enter',lambda c:GLib.idle_add(self.sync_footer_focus))
-        focus.connect('leave',lambda c:GLib.idle_add(self.sync_footer_focus)); self.footer_button.add_controller(focus)
+        # Observe the window's final focus location. Controller crossing signals
+        # can arrive before GtkWindow has finished transferring focus.
+        owner.window.connect('notify::focus-widget',lambda w,p:GLib.idle_add(self.sync_footer_focus))
         self.footer_status=label('','version muted',True); self.footer_status.set_hexpand(True); self.footer_status.set_xalign(1)
         owner.update_footer.append(self.footer_button); owner.update_footer.append(self.footer_status)
         owner.targets.update({'update-footer':owner.update_footer,'update-version':self.footer_button,

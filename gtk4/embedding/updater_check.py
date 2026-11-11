@@ -90,12 +90,13 @@ def main():
     qt=home/'.local/state/nix/profiles/centaur'; qt.symlink_to(previous)  # sentinel only; never launched
     qt_data=home/'.local/share/Centaur/Centaur'; qt_data.mkdir(parents=True); (qt_data/'keep').write_text('preserved Qt data')
     data=home/'.local/share/Centaur/GTK4'; report=folder/'report'
-    process=subprocess.Popen([str(profile/'bin/centaur-gtk4'),'--data-dir',str(data),'--report-dir',str(report)],env=env)
+    process=None
     state=lambda:read(report/'shell.json'); new_pid=None; control=None
     summary={'checks':[],'real_nix_profile':True,'signed_cache':True,'production_approved':False}
     try:
         check_footer(driver,folder/'footer-states')
         download_counter(folder,manifest)
+        process=subprocess.Popen([str(profile/'bin/centaur-gtk4'),'--data-dir',str(data),'--report-dir',str(report)],env=env)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
         summary['checks'].append('throttled-signed-nar-settings-and-footer-advance-before-copy-exit')
         until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
@@ -211,8 +212,9 @@ def main():
         summary['passed']=True
     finally:
         if control: control.close()
-        if process.poll() is None: process.terminate()
-        process.wait(timeout=10)
+        if process:
+            if process.poll() is None: process.terminate()
+            process.wait(timeout=10)
         if new_pid:
             try: os.kill(new_pid,signal.SIGTERM)
             except ProcessLookupError: pass
