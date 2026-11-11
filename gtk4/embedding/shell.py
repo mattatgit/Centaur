@@ -465,6 +465,13 @@ class Centaur(Gtk.Application):
             text=message.get('text','')
             if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
             body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
+            attributes=Pango.AttrList()
+            for mention in re.finditer(r'(?<!\w)@[\w-]+',text):
+                weight=Pango.attr_weight_new(Pango.Weight.SEMIBOLD)
+                weight.start_index=len(text[:mention.start()].encode('utf-8'))
+                weight.end_index=len(text[:mention.end()].encode('utf-8'))
+                attributes.insert(weight)
+            body.set_attributes(attributes)
             self.chat_body=body
             column.append(body); item.append(column); self.messages.append(item)
             baseline=body.get_layout().get_baseline()/Pango.SCALE
