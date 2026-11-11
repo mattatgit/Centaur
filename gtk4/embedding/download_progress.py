@@ -7,7 +7,7 @@ See Nix 2.28.4 libutil/logging.hh and libstore/filetransfer.cc.
 import json
 import re
 import time
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, urlunparse
 
 
 def path_info(value):
@@ -34,8 +34,17 @@ def progress_message(done,total):
 
 
 class DownloadProgress:
+    @staticmethod
+    def url_key(url):
+        # Signed/temporary query parameters do not identify a different NAR.
+        # This is display accounting only; Nix still verifies the archive.
+        parts=urlparse(url)
+        return urlunparse((parts.scheme.lower(),parts.netloc.lower(),parts.path,'','',''))
+
     def __init__(self,cache,plan,callback):
-        self.cache=cache; self.plan=plan; self.callback=callback
+        self.cache=self.url_key(cache).rstrip('/')
+        self.plan=None if plan is None else {self.url_key(url):size for url,size in plan.items()}
+        self.callback=callback; self.unplanned=False
         self.activities={}; self.received={}; self.last_time=0; self.last_value=None
         self.flush()
 
@@ -49,15 +58,21 @@ class DownloadProgress:
             if event.get('action')=='start' and event.get('type')==101:
                 url=event['fields'][0]
                 if not isinstance(url,str): return
-                if self.plan is not None:
-                    if url not in self.plan: return
-                elif not (url.startswith(self.cache+'/') and '/nar/' in urlparse(url).path): return
+                url=self.url_key(url)
+                known=self.plan is not None and url in self.plan
+                if not known:
+                    if not (url.startswith(self.cache+'/nar/')): return
+                    # A republished archive or stale metadata can disagree with
+                    # the plan. Never silently discard its real byte events.
+                    # Its relationship to the old total is unknown, so stop
+                    # displaying that total rather than inventing a percentage.
+                    self.unplanned=True
                 self.activities[activity]=url
             elif event.get('action')=='result' and event.get('type')==105 and activity in self.activities:
                 done=event['fields'][0]
                 if type(done) is not int or done<0: return
                 url=self.activities[activity]
-                if self.plan is not None: done=min(done,self.plan[url])
+                if self.plan is not None and url in self.plan: done=min(done,self.plan[url])
                 # Repeated events/retries for a NAR must not inflate the count.
                 self.received[url]=max(done,self.received.get(url,0))
                 self.tick()
@@ -69,6 +84,6 @@ class DownloadProgress:
         if time.monotonic()-self.last_time>=.2: self.flush()
 
     def flush(self):
-        value=(sum(self.received.values()),None if self.plan is None else sum(self.plan.values()))
+        value=(sum(self.received.values()),None if self.plan is None or self.unplanned else sum(self.plan.values()))
         if value!=self.last_value:
             self.callback(*value); self.last_value=value; self.last_time=time.monotonic()

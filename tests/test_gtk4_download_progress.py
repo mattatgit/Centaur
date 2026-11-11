@@ -58,6 +58,26 @@ class DownloadProgressTests(unittest.TestCase):
         tracker=DownloadProgress(CACHE,{},lambda *v:updates.append(v))
         self.assertEqual(updates[-1],(0,0))
 
+    def test_query_changes_keep_total_and_retries_do_not_double_count(self):
+        updates=[]; tracker=DownloadProgress(CACHE,{URL+'?signature=old':100},lambda *v:updates.append(v))
+        for activity,suffix,done in ((1,'?signature=new',40),(2,'?signature=retry',20),(3,'',80)):
+            tracker.feed(event('start',id=activity,type=101,fields=[URL+suffix]))
+            tracker.feed(event('result',id=activity,type=105,fields=[done,100])); tracker.flush()
+        self.assertEqual(updates,[(0,100),(40,100),(80,100)])
+
+    def test_changed_archive_url_advances_without_claiming_the_old_total(self):
+        updates=[]; tracker=DownloadProgress(CACHE,{URL:100},lambda *v:updates.append(v))
+        changed=CACHE+'/nar/republished.nar.zst'
+        tracker.feed(event('start',type=101,fields=[changed]))
+        tracker.feed(event('result',type=105,fields=[40,120])); tracker.flush()
+        self.assertEqual(updates[-1],(40,None))
+        tracker.feed(event('result',type=105,fields=[80,120])); tracker.flush()
+        self.assertEqual(updates[-1],(80,None))
+        for activity,url in ((2,CACHE+'/metadata.narinfo'),(3,'https://unrelated.example/nar/a')):
+            tracker.feed(event('start',id=activity,type=101,fields=[url]))
+            tracker.feed(event('result',id=activity,type=105,fields=[999,999]))
+        tracker.flush(); self.assertEqual(updates[-1],(80,None))
+
     def test_stream_is_consumed_before_exit_without_blocking_on_stdout(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root); finished=root/'finished'; updates=[]
