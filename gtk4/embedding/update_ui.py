@@ -77,6 +77,10 @@ class UpdateControls:
     def set_sensitive(self,value):
         self.button.set_sensitive(value); self.footer_button.set_sensitive(value)
 
+    def reset_footer_action(self):
+        self.footer_hover_suppressed=self.footer_hovered
+        self.footer_focus_suppressed=self.footer_focused
+
     def refresh_footer(self):
         busy=bool(self.work or self.process or self.starting)
         action=not (busy or self.checking) and (
@@ -120,8 +124,7 @@ class UpdateControls:
         if install and not manifest and not error:
             # Keep the result visible under a stationary pointer/retained focus.
             # Each input source rearms independently after leaving the control.
-            self.footer_hover_suppressed=self.footer_hovered
-            self.footer_focus_suppressed=self.footer_focused
+            self.reset_footer_action()
             self.footer_notice_until=time.monotonic()+3
         self.refresh_footer()
         if install and manifest: self.clicked()
@@ -211,5 +214,5 @@ class UpdateControls:
             if phase not in ('failed','recovered','complete'): self.status.set_text('The update stopped. Your installed version is preserved.')
             self.process=None; self.set_sensitive(True); self.work=None
         elif not self.process and phase in ('complete','recovered','failed','recovery-required'):
-            self.set_sensitive(True); self.work=None
+            self.set_sensitive(True); self.work=None; self.reset_footer_action()
 
