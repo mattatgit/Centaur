@@ -32,8 +32,10 @@ canvas extents can follow the desktop's allocation.
 | Interact/Build switch | 240 × 48px, centred in the window; two 112 × 32px buttons |
 | Standard buttons | 32px high; 8px radius; reference plain/soft/dark/lime/selected tones |
 | Build toolbar | 296 × 48px, 16px above the canvas bottom; Draw/Comment/Undo |
-| Chat inset/spacing | 24px inset; 16px sections; 24px between messages |
-| Chat avatars | 24px square, 8px radius; human and agent reference colours |
+| Project action | One 104×32px Create dropdown with Create/Join; original Dialogue chevron |
+| Chat inset/spacing | 24px top/left message inset; 36px from the last body baseline to the next name baseline |
+| Chat avatars | 32px square, 8px radius; red human initials, black Centaur tile with the original white mono mark |
+| Chat scrollbar | 8px thumb with 8px padding on each side in a separate 24px gutter; text ends 8px before the gutter |
 | Composer | 104–184px high; 16px radius; mention control and 32px icon send button |
 | Chat footer | Left-aligned 24px-high version/update button, 8px availability badge; status/progress right aligned, 8px gap |
 
@@ -51,11 +53,12 @@ bundled originals, independent of the desktop's installed fonts.
 | Chat element | Family | Size | Weight |
 | --- | --- | --- | --- |
 | Chat heading | Inter Tight | 14pt | 600 |
-| Body and composer | Inter Tight | 12.5pt | 400 |
-| User/agent names | Inter | 10.5pt | 600 |
+| Message body | Inter | 14px / 18px | 400 |
+| Composer | Inter Tight | 12.5pt | 400 |
+| User/agent names | Inter | 14px | 600 |
 | Status/model line | Inter | 10.5pt | 400 |
 | Avatar letters | Inter | 9pt | 600 |
-| Timestamps | Inter | 9pt | 400 |
+| Timestamps | Inter | 11px | 600 |
 | Version/update button and footer progress | Inter | 8.5pt | 400 |
 
 The former author/keyboard-hint footer is removed. The version button changes
@@ -150,3 +153,70 @@ Native screenshots: artifact `13814801601`; updater screenshots/recovery reports
 closure passed empty-store verification with builders disabled, and the update
 feed was read back to confirm this source/path. Hands-on VM review belongs in
 Centaur Install.
+
+## Create menu, window corners and chat redline — 11 November 2026
+
+The project header now has one Create menu. Clicking anywhere on it opens
+Create and Join; selecting an entry opens the existing corresponding flow.
+The chevron is Dialogue's original `assets/profile-arrow.svg`, unmodified and
+rotated in GTK CSS. Native popover dismissal and keyboard navigation remain.
+
+Centaur's native CSD window and content clip now have matching 8px bottom
+corners. The native headerbar, resize border and window controls remain.
+Scoped CSS explicitly returns the window and content to square corners when
+maximised, tiled (including directional tiled classes) or fullscreen. No GNOME
+theme/configuration is changed. The native decorated-window fixture checks the
+actual bottom-corner pixels with an otherwise opaque content child.
+
+The chat redline's explicit metrics supersede the older Qt reference for
+message rows: 32px avatar, 8px avatar-to-text gap, names and body in 14px Inter,
+18px body line spacing, and adjacent 11px semibold timestamps. Mentions use the
+specified 14px semibold emphasis; other body text stays regular. The first body
+baseline aligns with the avatar's bottom edge. Inter's name/body baseline
+metrics require a 17px box gap to obtain the requested 36px between a comment's
+last baseline and the following name baseline. This metric-derived gap is
+intentional. The native report records the actual baselines, rather than
+assuming a widget gap equals a text-baseline gap.
+
+The scrollbar uses GTK's native scrollbar and scroll adjustment in a separate
+24px gutter at the panel edge. Its thumb is 8px wide, with 8px on each side;
+message text ends another 8px before that gutter. Message scrolling waits for
+the layout frame before following the latest message, avoiding a stale scroll
+range that can hide the last line. Composer/footer geometry remains separate.
+
+Published ARM64 build: **0.4.0-preview+b31da05**, source
+`b31da05dcdef5686323ad61bf7ed0f8f234b9c81`, store
+`/nix/store/8w3w48ac94k32f929d69y1klrp7w95hc-centaur-gtk4-preview-0.4.0-preview`.
+[Main ARM64 product/update CI 42951176684](https://github.com/mattatgit/Centaur/actions/runs/42951176684)
+passed all 39 Python checks, native embedding, core/network services,
+two-profile collaboration, canvas regressions, exact chat geometry, native
+corner pixels, live signed-transfer progress, updater activation/recovery and
+data-preservation checks. Signed publication verified all 531 runtime paths in
+an empty store with builders disabled. The public feed was read back and
+matches the [retained manifest](evidence/gtk4-chat-b31da05/manifest.json).
+Native artifact: `13824499836`; updater: `13825167716`; signed distribution:
+`13825620502`.
+
+The [measured chat baselines](evidence/gtk4-chat-b31da05/chat-metrics.json) are
+exactly 36px apart, with the first body baseline 0.093px below the avatar's
+32px bottom (font rasterisation precision). The scrollbar gutter is exactly
+24px. A short chat retains the gutter without painting a full-height thumb.
+The original native close action, glyph and titlebar allocation were unchanged;
+[window measurements](evidence/gtk4-chat-b31da05/window-metrics.json) include the
+bottom-corner pixel checks and the existing native window-management coverage.
+
+The separate [standalone workflow 42951176668](https://github.com/mattatgit/Centaur/actions/runs/42951176668)
+failed before launching the app: the disposable Sway compositor did not answer
+an initial IPC readiness query. Its same embedding checks passed inside the
+main product run. A standalone rerun could not be requested because the GitHub
+connector lacks Actions write permission; the browser session was signed out.
+Do not describe both workflows as passing. Hands-on GNOME VM review and the
+actual VM download-counter diagnosis remain in Centaur Install.
+
+Selected native screenshots were inspected and retained for review:
+
+![Create and Join dropdown](evidence/gtk4-chat-b31da05/create-menu.png)
+
+![Chat layout and Centaur avatar](evidence/gtk4-chat-b31da05/chat.png)
+
+![Native top and bottom window corners](evidence/gtk4-chat-b31da05/window.png)

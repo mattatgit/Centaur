@@ -418,3 +418,34 @@ one action at a time. Automatic availability and Updating behavior from the new
 client require a future genuine newer release for hands-on acceptance; do not
 publish dummy updates to manufacture that test. Their native CI coverage passed.
 The VM download counter issue remains open and is not claimed fixed here.
+
+## Download accounting robustness — 11 November 2026
+
+The transfer tracker previously discarded NAR byte events when the archive URL
+did not exactly match the earlier metadata plan. URL accounting now ignores
+query/fragment changes, preserving the known total and deduplicating retries.
+If Nix reports a different NAR URL under the configured cache's `/nar/` path,
+the tracker counts its actual byte events and drops the now-unreliable total.
+The UI then shows `Downloaded X MB`; it retains `Downloaded X of Y MB` while
+the plan matches. Metadata and unrelated-origin transfers remain excluded.
+Nix's download, signature verification, activation and recovery are unchanged.
+
+Regression tests cover changed URLs, query changes, partial updates, retries,
+metadata exclusion and unknown totals. A separate real signed-cache download
+using Nix 2.28.5 in a disposable store produced multiple partial byte updates.
+This rules out an unconditional Nix 2.28 incompatibility, but does not establish
+the cause of the owner's VM-only zero counter. A read-only summary of the VM's
+actual helper log was requested through Centaur Install. Hands-on confirmation
+remains necessary, and the old installed helper still owns the first update
+into the build containing this change.
+
+Published with **0.4.0-preview+b31da05**
+(`b31da05dcdef5686323ad61bf7ed0f8f234b9c81`).
+[ARM64 product/updater CI 42951176684](https://github.com/mattatgit/Centaur/actions/runs/42951176684)
+passed all 39 Python tests, signed real-cache and controlled live-transfer
+checks, footer state/geometry regressions, real profile activation/restart and
+preserved-data checks. Updater artifact `13825167716` retains the reports and
+screenshots. See [GTK4_UI_REFERENCE.md](GTK4_UI_REFERENCE.md) for the immutable
+package path, signed-publication evidence and the separate compositor-startup
+test limitation. The VM log request is still pending; do not claim that the
+specific VM-only zero-counter cause has been established.

@@ -1,0 +1,76 @@
+{
+  "compositor": "disposable Sway; GNOME visual acceptance pending",
+  "checks": [
+    "24px-image-32px-target-8px-insets-unchanged-titlebar-content-native-icon-and-action",
+    "matching-native-8px-bottom-corners-and-clipped-content",
+    "native-pointer-hover-pressed-and-no-underlying-circular-fill",
+    "eight-outer-target-points-activate-native-close",
+    "disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible",
+    "native-titlebar-drag-compositor-resize-tile-fullscreen-and-restore",
+    "inactive-and-unscoped-native-window-unchanged",
+    "native-close-destroys-window"
+  ],
+  "baseline": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      39.0
+    ],
+    "content": [
+      0.0,
+      39.0,
+      704.0,
+      361.0
+    ],
+    "button": [
+      676.0,
+      4.0,
+      30.0,
+      30.0
+    ],
+    "image": [
+      676.0,
+      4.0,
+      30.0,
+      30.0
+    ],
+    "icon": "window-close-symbolic",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "styled": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      39.0
+    ],
+    "content": [
+      0.0,
+      39.0,
+      704.0,
+      361.0
+    ],
+    "button": [
+      668.0,
+      4.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      672.0,
+      8.0,
+      24.0,
+      24.0
+    ],
+    "icon": "window-close-symbolic",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "pointerOffset": [
+    0.0,
+    0.0
+  ],
+  "tiledState": 21952
+}
