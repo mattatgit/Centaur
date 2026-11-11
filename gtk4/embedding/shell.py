@@ -116,6 +116,7 @@ class Centaur(Gtk.Application):
         chevron=Svg('profile-arrow.svg',16); chevron.add_css_class('create-chevron'); create_label.append(chevron)
         self.create_menu.set_child(create_label)
         create_pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); create_pop.add_css_class('project-menu')
+        create_pop.set_halign(Gtk.Align.END)
         create_actions=box(True,0)
         def project_action(callback): create_pop.popdown(); callback()
         for key,title,callback in [('create','Create',self.new_project),('join','Join',self.join)]:
@@ -243,7 +244,9 @@ class Centaur(Gtk.Application):
         divider=Gtk.Separator(); divider.set_margin_top(16); chat.append(divider)
         self.chat_scroll=Gtk.ScrolledWindow(vexpand=True,hexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,
                                           vscrollbar_policy=Gtk.PolicyType.EXTERNAL)
-        self.messages=box(True,18); self.messages.set_margin_top(24); self.messages.set_margin_bottom(24)
+        # Inter's name/body baseline metrics need a 17px box gap for the
+        # specified 36px last-comment-to-next-name baseline distance.
+        self.messages=box(True,17); self.messages.set_margin_top(24); self.messages.set_margin_bottom(24)
         self.messages.set_margin_start(24); self.messages.set_margin_end(8); self.chat_scroll.set_child(self.messages)
         scroll_row=box(spacing=0); scroll_row.append(self.chat_scroll)
         self.chat_scrollbar=Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,adjustment=self.chat_scroll.get_vadjustment())
@@ -466,9 +469,17 @@ class Centaur(Gtk.Application):
             body.set_margin_top(max(0,round(32-head.measure(Gtk.Orientation.VERTICAL,-1)[0]-baseline)))
             self.message_rows.append((avatar,name,stamp,body))
             self.targets.update({'chat-name':name,'chat-body':body,'chat-time':stamp})
+        message_key=self.message_key
         def bottom():
-            adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size())); return False
-        GLib.idle_add(bottom)
+            if message_key==self.message_key:
+                adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size()))
+            return False
+        def after_layout(widget,clock):
+            # Tick runs before GTK's layout phase; its queued idle runs after
+            # that frame has updated the scroll adjustment's actual range.
+            GLib.idle_add(bottom)
+            return False
+        self.messages.add_tick_callback(after_layout)
 
     def refresh_proposal(self):
         self.clear(self.proposal)

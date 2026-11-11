@@ -129,6 +129,13 @@ def main():
         assert gs()['status']=='Guest connected'
         message(gs,gw,'Hello from Guest')
         until(lambda:any(m.get('text')=='Hello from Guest' and m.get('author')=='Guest' for m in hs()['project']['messages']),'Host did not receive attributed guest chat')
+        rows=until(lambda:hs().get('chatRows') if len(hs().get('chatRows',[]))==2 else None,'Chat rows did not allocate')
+        assert abs(rows[1]['name']['baselines'][0]-rows[0]['body']['baselines'][-1]-36)<.1,rows
+        assert abs(rows[0]['body']['baselines'][0]-(rows[0]['avatar']['bounds'][1]+32))<.2,rows
+        chat=hs()['targets']['chat-panel']; bar=hs()['targets']['chat-scrollbar']
+        assert bar[2]==24 and bar[0]+24==chat[0]+chat[2],'Scrollbar gutter is not 24px at the chat edge'
+        driver.screenshot(hw,folder/'ui-chat-redline.png')
+        (folder/'ui-chat-redline.json').write_text(json.dumps({'rows':rows,'chat':chat,'scrollbar':bar},indent=2))
         summary['checks'].append('two-independent-profiles-invite-join-and-attributed-chat')
         click(hs,hw,'mode-Build')
         until(lambda:hs().get('mode')=='Build','Build mode did not switch')
