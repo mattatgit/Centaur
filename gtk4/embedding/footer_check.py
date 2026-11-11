@@ -102,7 +102,7 @@ def check_footer(driver,folder):
             driver.key('Return')
             wait(lambda:controls.footer_status.get_text()=='Up to date','Keyboard activation did not check')
         assert controls.footer_focused and text()=='v'+owner.version(),'Retained focus hid checked version'
-        driver.key('Tab'); settle(); driver.key('Shift+Tab'); settle()
+        driver.key('Tab'); settle(); driver.key('ISO_Left_Tab'); settle()
         assert controls.footer_focused and text()=='Update app','Focus re-entry did not rearm action'
         hover(entry); click(entry)
         controls.checked_result({'version':'Centaur GTK4 0.4.0-preview+abcdef0'},None); settle()
