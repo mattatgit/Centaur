@@ -341,6 +341,16 @@ leave/re-entry and keyboard focus leave/re-entry independently rearm the action;
 a pointer left over the control cannot suppress a later keyboard visit. Focus
 remains visible and activation remains available while the version is displayed.
 
+Focus tracking follows GTK's actual [window focus widget](https://docs.gtk.org/gtk4/property.Window.focus-widget.html),
+after the focus transition, rather than retaining a controller crossing event.
+Temporarily disabling an update button clears GTK focus. A completed check
+restores focus to its initiating update button only when the window still has no
+focused widget; choosing another control during discovery is respected. Native
+coverage verifies both focus retention and absence of focus stealing. The small
+footer fixture runs before other native windows open. An existing isolated-child
+unit fixture also publishes its JSON report atomically, fixing a race where CI
+could observe the file before its contents were written.
+
 During an update the left caption is `Updating…`, the badge is hidden and both
 entry points are disabled. The right status continues mirroring the existing
 download/verifying/restarting messages. A restarted process derives its version
@@ -361,6 +371,50 @@ This is a UI refinement. Signed feed validation, download accounting, host gates
 profile activation, rollback, project/data/OMP handling, Qt and GNOME titlebar/
 launcher code are unchanged. The owner's real-VM download counter still stuck at
 zero remains a separate unresolved issue; CI progress is not VM acceptance.
-Exact verified build and evidence are recorded below after publication. Hands-on
-acceptance belongs in Centaur Install, ARM64 GNOME VM only, one in-app step at a
-time without terminal or Air testing.
+Hands-on acceptance belongs in Centaur Install, ARM64 GNOME VM only, one in-app
+step at a time without terminal or Air testing.
+
+### Verified release and acceptance handoff
+
+Immutable source: `52d6af8963bf07ba35107552bbe076880b6aae45`.
+Installable version: **Centaur GTK4 `0.4.0-preview+52d6af8`**.
+Exact installable: `github:mattatgit/Centaur/52d6af8963bf07ba35107552bbe076880b6aae45#gtk4-preview`.
+Store path:
+`/nix/store/6561m9ryl7708wgdzmzly9vnrw7vwcm9-centaur-gtk4-preview-0.4.0-preview`.
+The unauthenticated public [gtk4-preview feed](https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview)
+was read back and its body exactly matches the signed distribution manifest.
+Later documentation commits do not change this binary identifier.
+
+[ARM64 product/update CI 42932881070](https://github.com/mattatgit/Centaur/actions/runs/42932881070)
+and [standalone CI 42932881159](https://github.com/mattatgit/Centaur/actions/runs/42932881159)
+passed. All 37 Python checks, native embedding/scaling, product/collaboration/
+canvas regressions, the new footer state/geometry/input fixture, controlled signed
+transfer, real profile update/restart, no-update result/expiry, preserved data and
+busy-host maintenance guards passed. The complete **531-path** signed closure was
+downloaded into an empty store with builders disabled. Artifacts: native product
+`13818060424`, updater `13817348034`, signed product distribution `13817637539`,
+standalone native/footer fixture `13817137086`.
+
+Native [geometry evidence](evidence/gtk4-footer-52d6af8/geometry.json) records a
+stable 163×24px hit target and a 79×24px action caption, versus the installed
+version's 147×24px caption. The right status stays at the same allocation. The
+fixture deliberately uses the owner's `4451f19` string to regress the reported
+width; the real restarted workspace screenshot shows `52d6af8`. Hover, focus,
+availability, checked result, real workspace and progress screenshots were
+visually inspected. Selected unchanged native captures:
+
+- [Keyboard focus](evidence/gtk4-footer-52d6af8/keyboard-focus.png)
+- [Available badge and label](evidence/gtk4-footer-52d6af8/available.png)
+- [Real workspace hover](evidence/gtk4-footer-52d6af8/workspace-hover.png)
+- [New version and transient Up to date](evidence/gtk4-footer-52d6af8/workspace-up-to-date.png)
+- [Updating and live byte progress](evidence/gtk4-footer-52d6af8/live-progress.png)
+- [Signed manifest](evidence/gtk4-footer-52d6af8/manifest.json) and [updater summary](evidence/gtk4-footer-52d6af8/updater-summary.json)
+
+For VM acceptance, first use the normal in-app update from `4451f19` and confirm
+`52d6af8` after restart. The old client owns that initial operation; the new footer
+behavior applies after restart. Then review compact hover, a no-update click with
+the pointer left in place, notice expiry, pointer re-entry and keyboard focus,
+one action at a time. Automatic availability and Updating behavior from the new
+client require a future genuine newer release for hands-on acceptance; do not
+publish dummy updates to manufacture that test. Their native CI coverage passed.
+The VM download counter issue remains open and is not claimed fixed here.

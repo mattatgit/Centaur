@@ -1,0 +1,84 @@
+{
+  "idle": {
+    "button": [
+      24,
+      175,
+      163,
+      24
+    ],
+    "progress": [
+      195,
+      175,
+      341,
+      24
+    ],
+    "caption": [
+      24,
+      175,
+      147,
+      24
+    ]
+  },
+  "hover": {
+    "caption": [
+      24,
+      175,
+      79,
+      24
+    ],
+    "button": [
+      24,
+      175,
+      163,
+      24
+    ]
+  },
+  "traversal": [
+    {
+      "focus": "GtkText",
+      "footerFocused": false,
+      "footerIsFocus": false,
+      "hovered": false,
+      "focusSuppressed": false,
+      "hoverSuppressed": false,
+      "caption": "v0.4.0-preview+4451f19"
+    },
+    {
+      "focus": "GtkButton",
+      "footerFocused": false,
+      "footerIsFocus": false,
+      "hovered": false,
+      "focusSuppressed": false,
+      "hoverSuppressed": false,
+      "caption": "v0.4.0-preview+4451f19"
+    },
+    {
+      "focus": "GtkButton",
+      "footerFocused": true,
+      "footerIsFocus": true,
+      "hovered": false,
+      "focusSuppressed": false,
+      "hoverSuppressed": false,
+      "caption": "Update app"
+    }
+  ],
+  "focusLeft": {
+    "focus": "GtkText",
+    "footerFocused": false,
+    "footerIsFocus": false,
+    "hovered": false,
+    "focusSuppressed": false,
+    "hoverSuppressed": false,
+    "caption": "v0.4.0-preview+4451f19"
+  },
+  "passed": true,
+  "lastInput": {
+    "focus": "GtkText",
+    "footerFocused": false,
+    "footerIsFocus": false,
+    "hovered": false,
+    "focusSuppressed": false,
+    "hoverSuppressed": false,
+    "caption": "v0.4.0-preview+4451f19"
+  }
+}
