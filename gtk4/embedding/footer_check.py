@@ -49,6 +49,11 @@ def check_footer(driver,folder):
     caption=lambda:controls.footer_labels.get_visible_child()
     text=lambda:caption().get_text()
     gate=threading.Event(); evidence={}
+    def input_state():
+        focus=window.get_focus()
+        return {'focus':focus.__gtype__.name if focus else None,'footerFocused':controls.footer_focused,
+                'hovered':controls.footer_hovered,'focusSuppressed':controls.footer_focus_suppressed,
+                'hoverSuppressed':controls.footer_hover_suppressed,'caption':text()}
     try:
         wait(window.get_mapped,'Footer fixture did not map')
         handle=next(n['id'] for n in driver.nodes() if n.get('app_id')=='org.centaur.Gtk4' and n.get('pid')==os.getpid())
@@ -93,10 +98,13 @@ def check_footer(driver,folder):
         wait(lambda:text()=='Update app','Pointer re-entry did not rearm action')
         # Independent keyboard traversal, activation, retained focus and re-entry.
         hover(entry); click(entry)
-        for _ in range(4):
+        traversal=[input_state()]
+        for _ in range(6):
             driver.key('Tab'); settle()
+            traversal.append(input_state())
             if controls.footer_focused: break
-        assert controls.footer_focused and text()=='Update app','Keyboard cannot reach footer action'
+        evidence['traversal']=traversal
+        assert controls.footer_focused and text()=='Update app',('Keyboard cannot reach footer action',traversal)
         driver.screenshot(handle,folder/'keyboard-focus.png')
         with patch('update_ui.check_update',return_value=None):
             driver.key('Return')
@@ -119,4 +127,7 @@ def check_footer(driver,folder):
         evidence['passed']=True
         (folder/'geometry.json').write_text(json.dumps(evidence,indent=2))
     finally:
+        evidence['lastInput']=input_state()
+        (folder/'geometry.json').write_text(json.dumps(evidence,indent=2))
+        driver.screenshot(handle,folder/'last-state.png')
         gate.set(); window.destroy(); pump()
