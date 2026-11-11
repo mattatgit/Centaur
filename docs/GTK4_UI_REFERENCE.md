@@ -31,7 +31,7 @@ canvas extents can follow the desktop's allocation.
 | Canvas/chat splitter | 8px; chat preferred 432px, minimum 368px, maximum 624px |
 | Interact/Build switch | 240 × 48px, centred in the window; two 112 × 32px buttons |
 | Standard buttons | 32px high; 8px radius; reference plain/soft/dark/lime/selected tones |
-| Build toolbar | 296 × 48px, 16px above the canvas bottom; Draw/Comment/Undo |
+| Build toolbar | 128×48px, 12px radius, 8px padding/gaps; 32px Draw/Comment/Undo controls with original Figma SVGs; 16px above the canvas bottom |
 | Project action | One 80×32px Create dropdown; 120×64px menu with 24px rows and the original Figma arrow |
 | Chat inset/spacing | 24px top/left message inset; 36px from the last body baseline to the next name baseline |
 | Chat avatars | 32px square, 8px radius; red human initials, black Centaur tile with the original white mono mark at 15×16px |
@@ -94,8 +94,10 @@ labels. Text sizes do not round to 8px steps.
 SVG geometry comes directly from `assets/dialogue`, with the same alpha-mask
 colour treatment used by the Qt SVG renderer. The Centaur mark comes from
 `packaging/centaur.svg`; the Design Systems suitcase is the approved original
-`design-system-empty-suitcase.png` at 176px. Build continues to reuse the approved
-Comment SVG; Draw and Undo retain the previously approved temporary glyphs.
+`design-system-empty-suitcase.png` at 176px. The current toolbar uses the owner's
+original Figma Draw, Comment and Undo exports. See
+[GTK4_COMMENT_POINTERS.md](GTK4_COMMENT_POINTERS.md) for its dimensions, pointer
+behaviour and immutable ARM64 acceptance evidence.
 
 ## Preserved preview boundary
 
