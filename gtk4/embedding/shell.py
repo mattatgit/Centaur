@@ -251,6 +251,8 @@ class Centaur(Gtk.Application):
         scroll_row=box(spacing=0); scroll_row.append(self.chat_scroll)
         self.chat_scrollbar=Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,adjustment=self.chat_scroll.get_vadjustment())
         self.chat_scrollbar.add_css_class('chat-scrollbar'); self.chat_scrollbar.set_margin_top(16); self.chat_scrollbar.set_margin_bottom(16)
+        self.chat_scrollbar.set_sensitive(False)
+        self.chat_scroll.get_vadjustment().connect('changed',lambda a:self.chat_scrollbar.set_sensitive(a.get_upper()>a.get_page_size()))
         scroll_row.append(self.chat_scrollbar)
         message_overlay=Gtk.Overlay(vexpand=True); message_overlay.set_child(scroll_row)
         self.empty_chat=box(True,16); self.empty_chat.set_halign(Gtk.Align.FILL); self.empty_chat.set_valign(Gtk.Align.CENTER)
@@ -842,6 +844,9 @@ class Centaur(Gtk.Application):
                             'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
                             'headerText':self.chat_status.get_text()}
             data['chatRows']=[]
+            adjustment=self.chat_scroll.get_vadjustment()
+            data['chatScroll']={'upper':adjustment.get_upper(),'pageSize':adjustment.get_page_size(),
+                                'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive()}
             for widgets in getattr(self,'message_rows',[])[:4]:
                 row={}
                 for key,widget in zip(('avatar','name','time','body'),widgets):

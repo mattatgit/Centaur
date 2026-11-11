@@ -134,6 +134,7 @@ def main():
         assert abs(rows[0]['body']['baselines'][0]-(rows[0]['avatar']['bounds'][1]+32))<.2,rows
         chat=hs()['targets']['chat-panel']; bar=hs()['targets']['chat-scrollbar']
         assert bar[2]==24 and bar[0]+24==chat[0]+chat[2],'Scrollbar gutter is not 24px at the chat edge'
+        assert not hs()['chatScroll']['scrollable'],'Short chat should not show a full-height thumb'
         driver.screenshot(hw,folder/'ui-chat-redline.png')
         (folder/'ui-chat-redline.json').write_text(json.dumps({'rows':rows,'chat':chat,'scrollbar':bar},indent=2))
         summary['checks'].append('two-independent-profiles-invite-join-and-attributed-chat')
@@ -166,6 +167,11 @@ def main():
             assert all(low==high==255 for low,high in corner.getextrema()),'Centaur canvas controls leaked into agent context'
         summary['checks'].append('canvas-image-attached-from-guest-includes-outside-ink-without-chat-or-controls')
         revision=hs()['project']['revision']
+        def at_bottom():
+            scroll=hs()['chatScroll']
+            return abs(scroll['upper']-scroll['pageSize']-scroll['value'])<1
+        until(at_bottom,'Chat did not follow the latest message after layout')
+        driver.screenshot(hw,folder/'ui-chat-agent.png')
         invalid=json.loads(json.dumps(changed)); invalid['files']['style.css']='window { made-up-property: broken; }'
         proposal(invalid)
         message(hs,hw,'@centaur Test a malformed change')
