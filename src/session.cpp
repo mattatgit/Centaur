@@ -236,10 +236,11 @@ void Session::publish(const QString &id) {
     if (m_network) m_network->publish(data);
 }
 
-void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind) {
+void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind, const QJsonObject &comment) {
     auto messages = state["messages"].toArray();
-    const QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
+    QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
+    if (!comment.isEmpty()) message["comment"] = comment;
     messages.append(message);
     QFile history(m_workspace.projectPath(state["id"].toString()) + "/.centaur/conversation.jsonl");
     if (history.open(QIODevice::WriteOnly | QIODevice::Append))
@@ -337,7 +338,21 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     } else if (type == "message") {
         const auto text = command["text"].toString().trimmed().left(12000);
         if (text.isEmpty()) return;
-        addMessage(state, author, text);
+        auto comment = command["comment"].toObject();
+        if (!comment.isEmpty()) {
+            if (comment["revision"] != state["revision"]) { fail("The app changed before that comment arrived. Place its pointer again on the current app."); return; }
+            const auto point = comment["point"].toObject(); const auto frame = comment["frame"].toObject();
+            QJsonObject cleanPoint, cleanFrame;
+            for (const auto &key : {"x", "y"})
+                if (point[key].isDouble() && point[key].toDouble() >= 0 && point[key].toDouble() <= 1) cleanPoint[key] = point[key];
+            for (const auto &key : {"x", "y", "width", "height"})
+                if (frame[key].isDouble() && frame[key].toDouble() >= 0 && frame[key].toDouble() <= 1) cleanFrame[key] = frame[key];
+            if (cleanPoint.size() != 2 || cleanFrame.size() != 4 || cleanFrame["width"].toDouble() <= 0 || cleanFrame["height"].toDouble() <= 0) {
+                fail("That comment's canvas location is invalid. Place its pointer again."); return;
+            }
+            comment = {{"point", cleanPoint}, {"frame", cleanFrame}, {"revision", state["revision"]}};
+        }
+        addMessage(state, author, text, "human", comment);
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
@@ -355,7 +370,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             const auto expected = m_workspace.projectPath(id) + "/.centaur/";
             const auto canonical = QFileInfo(filename).canonicalFilePath();
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
-            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}});
+            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}});
             state["agentQueue"] = queue;
         }
         if (!persist(id, state)) return;
@@ -568,6 +583,7 @@ void Session::nextRequest() {
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
+        request["requestComment"] = m_activeRequest["comment"];
         request["appHistory"] = m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
         m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);

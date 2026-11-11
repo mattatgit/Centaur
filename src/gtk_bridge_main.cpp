@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
             else if (type == "open") controller.openProject(id);
             else if (type == "close") controller.closeProject();
             else if (type == "author") controller.setAuthor(command["name"].toString());
-            else if (type == "message") { if (controller.sendMessage(command["text"].toString(), command["image"].toString(), command["imageRevision"].toInt())) output({{"type", "sent"}, {"text", command["text"]}}); }
+            else if (type == "message") { if (controller.sendMessage(command["text"].toString(), command["image"].toString(), command["imageRevision"].toInt(), command["comment"].toObject())) output({{"type", "sent"}, {"text", command["text"]}}); }
             else if (type == "rename") controller.renameProject(id, command["name"].toString());
             else if (type == "delete") controller.deleteProject(id);
             else if (type == "archive") controller.archiveProject(id);

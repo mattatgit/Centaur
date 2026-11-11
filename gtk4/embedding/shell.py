@@ -23,6 +23,7 @@ from service import Service
 from viewport import PreviewViewport
 from viewport_model import ZOOM_MODES
 from annotations import AnnotationSpace, position as annotation_position
+from comment_pointer import CommentPointer,paint_arrow
 from update_ui import UpdateControls
 from desktop import APP_ID, launch_settings, register as register_desktop
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
@@ -54,6 +55,7 @@ class Centaur(Gtk.Application):
         self.active_form = None
         self.open_id = None
         self.targets = {}
+        self.comment=CommentPointer(); self.pointer_position=None; self.comment_geometry=None
 
     def do_activate(self):
         icons=Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
@@ -70,6 +72,12 @@ class Centaur(Gtk.Application):
         self.root_overlay = Gtk.Overlay()
         self.root_overlay.add_css_class('centaur-content')
         self.root_overlay.set_overflow(Gtk.Overflow.HIDDEN)
+        motion=Gtk.EventControllerMotion(); motion.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        motion.connect('motion',self.pointer_motion); self.root_overlay.add_controller(motion)
+        place=Gtk.GestureClick(button=1); place.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        place.connect('pressed',self.place_comment); self.root_overlay.add_controller(place)
+        escape=Gtk.EventControllerKey(); escape.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        escape.connect('key-pressed',self.comment_key); self.root_overlay.add_controller(escape)
         root = box(spacing=0); self.root_overlay.set_child(root)
         self.sidebar = box(True, 0, 'sidebar'); self.sidebar.set_size_request(SIDEBAR, -1)
         brand_row = box(spacing=0); brand_row.set_size_request(-1, HEADER)
@@ -233,11 +241,17 @@ class Centaur(Gtk.Application):
         self.overlay.add_overlay(self.preview_label)
         self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER); self.build_tools.set_valign(Gtk.Align.END); self.build_tools.set_margin_bottom(16)
         self.tool_buttons={}
-        for tool,title,icon,width in [('draw','✎  Draw',None,80),('comment','Comment','arrow.svg',104)]:
-            item=button(title,lambda t=tool:self.set_tool(t),icon,width=width)
+        for tool,title,icon in [('draw','Draw','toolbar-draw-active.svg'),('comment','Comment','toolbar-comment.svg')]:
+            item=button('',lambda t=tool:self.set_tool(t),icon,'canvas-tool',width=32)
+            item.set_tooltip_text(title); item.update_property([Gtk.AccessibleProperty.LABEL],[title])
+            if tool=='comment': item.centaur_image.art_height=15.2939
             self.tool_buttons[tool]=item; self.build_tools.append(item)
             self.targets['tool-'+tool]=item
-        self.undo_button=button('↶  Undo',lambda:self.service.send('undo'),width=80); self.build_tools.append(self.undo_button); self.targets['undo']=self.undo_button
+            self.targets['tool-'+tool+'-icon']=item.centaur_image
+        self.undo_button=button('',self.undo,'toolbar-undo.svg','canvas-tool',width=32)
+        self.undo_button.set_tooltip_text('Undo'); self.undo_button.update_property([Gtk.AccessibleProperty.LABEL],['Undo'])
+        self.build_tools.append(self.undo_button); self.targets['undo']=self.undo_button; self.targets['build-tools']=self.build_tools
+        self.targets['undo-icon']=self.undo_button.centaur_image
         self.overlay.add_overlay(self.build_tools); self.panes.set_start_child(self.overlay); self.panes.set_resize_start_child(True); self.panes.set_shrink_start_child(False)
         self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
         self.targets['chat-panel']=self.chat
@@ -281,6 +295,9 @@ class Centaur(Gtk.Application):
             item.set_margin_start(24); item.set_margin_end(24)
         for item in (self.busy,self.proposal,self.composer,self.update_footer): item.set_margin_top(16)
         self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider})
+        self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
+        self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
+        self.root_overlay.add_overlay(self.comment_overlay)
         self.panes.set_end_child(self.chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
         self.stack.add_named(wrapper,'workspace'); self.set_tool('draw'); self.initial_pane=True
 
@@ -315,6 +332,7 @@ class Centaur(Gtk.Application):
             widget.remove(widget.get_first_child())
 
     def navigate(self,page):
+        if page!='workspace': self.cancel_comment()
         self.page=page
         if page=='settings' and hasattr(self,'updates') and not self.updates.checked: self.updates.check()
         self.stack.set_visible_child_name(page)
@@ -333,6 +351,7 @@ class Centaur(Gtk.Application):
             self.stop_preview()
 
     def set_mode(self,mode):
+        if mode!='Build': self.cancel_comment()
         self.mode=mode
         for key,item in self.mode_buttons.items():
             selected(item,key==mode)
@@ -341,8 +360,51 @@ class Centaur(Gtk.Application):
 
     def set_tool(self,tool):
         self.tool=tool
+        if tool=='comment' and self.viewport and self.data.get('connected'):
+            bounds=self.tool_buttons['comment'].compute_bounds(self.root_overlay)[1]
+            self.comment.start(self.project.get('id'),self.project.get('revision'),
+                               self.pointer_position or (bounds.get_x()+16,bounds.get_y()+16))
+            self.comment_overlay.queue_draw()
+            self.ink.set_cursor_from_name('crosshair')
+        elif tool=='draw': self.cancel_comment()
         for key,item in self.tool_buttons.items():
             selected(item,key==tool)
+        self.tool_buttons['draw'].centaur_image.set_from_file(str(ASSETS/('toolbar-draw-active.svg' if tool=='draw' else 'toolbar-draw.svg')))
+
+    def cancel_comment(self):
+        self.comment.clear()
+        if hasattr(self,'comment_overlay'): self.comment_overlay.queue_draw()
+        if hasattr(self,'ink'): self.ink.set_cursor_from_name(None)
+
+    def comment_key(self,controller,keyval,keycode,state):
+        if keyval==Gdk.KEY_Escape and self.comment.phase!='idle': self.cancel_comment(); return True
+        return False
+
+    def pointer_motion(self,controller,x,y):
+        self.pointer_position=(x,y)
+        if self.comment.phase=='following':
+            self.comment.move((x,y)); self.comment_overlay.queue_draw()
+
+    def place_comment(self,gesture,count,x,y):
+        if self.comment.phase!='following' or self.mode!='Build' or not self.viewport: return
+        if self.root_overlay.pick(x,y,Gtk.PickFlags.DEFAULT) is not self.ink: return
+        ok,canvas=self.ink.compute_bounds(self.root_overlay)
+        if not ok: return
+        space=AnnotationSpace.capture(self.viewport.describe(),canvas.get_width(),canvas.get_height())
+        if self.comment.place(space,x-canvas.get_x(),y-canvas.get_y()):
+            gesture.set_state(Gtk.EventSequenceState.CLAIMED)
+            self.ink.set_cursor_from_name(None); self.editor.grab_focus(); self.comment_overlay.queue_draw()
+
+    def comment_points(self):
+        if self.comment.phase=='idle' or self.page!='workspace' or not self.viewport: return None,None
+        ok,canvas=self.ink.compute_bounds(self.root_overlay); good,composer=self.composer.compute_bounds(self.root_overlay)
+        if not ok or not good: return None,None
+        head=self.comment.head(self.viewport.describe(),(canvas.get_x(),canvas.get_y()))
+        return (composer.get_x()+12,composer.get_y()+12),head
+
+    def undo(self):
+        if self.comment.phase!='idle': self.cancel_comment()
+        else: self.service.send('undo')
 
     def receive(self,data):
         if data.get('type')=='error':
@@ -355,12 +417,17 @@ class Centaur(Gtk.Application):
         new_id=self.project.get('id')
         buffer=self.editor.get_buffer()
         if old_id!=new_id:
+            self.cancel_comment()
             if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
             buffer.set_text(self.drafts.get(new_id,'')); self.pending_message=None
         pending=self.pending_message
-        if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'] and m.get('author')==data.get('author') for m in self.project.get('messages',[])):
+        if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'].strip()[:12000] and m.get('author')==data.get('author')
+                           and (pending.get('comment') is None or m.get('comment')==pending['comment']) for m in self.project.get('messages',[])):
             if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==pending['text']: buffer.set_text('')
             self.pending_message=None
+            if self.comment.clear(pending.get('commentToken')):
+                self.comment_overlay.queue_draw(); self.ink.set_cursor_from_name(None)
+        if self.comment.phase!='idle' and self.comment.revision!=self.project.get('revision'): self.cancel_comment()
         self.join_progress.set_text(data.get('joinStatus','') if data.get('joining') else '')
         self.join_progress.set_visible(data.get('joining',False))
         if hasattr(self,'join_submit'): self.update_join()
@@ -395,7 +462,7 @@ class Centaur(Gtk.Application):
             self.busy_text.set_text(self.project.get('agentName','centaur').capitalize()+' is working…'+(' · '+str(queued)+' queued' if queued else ''))
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
             self.deploy_button.set_sensitive(not remote)
-            self.undo_button.set_sensitive(any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
+            self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[])],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
@@ -514,6 +581,7 @@ class Centaur(Gtk.Application):
         buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
         if text.strip() and self.data.get('connected') and self.pending_message is None:
             fields={'text':text}
+            if self.comment.phase=='placed': fields['comment']=self.comment.target
             agent='@'+self.project.get('agentName','centaur').lower()
             if agent in text.lower() and self.viewport:
                 try:
@@ -526,6 +594,11 @@ class Centaur(Gtk.Application):
                     # of agent context, just as when they lived outside it.
                     for layer in (self.preview_holder,self.ink):
                         Gtk.WidgetPaintable.new(layer).snapshot(snapshot,width,height)
+                    if self.comment.phase=='placed':
+                        cr=snapshot.append_cairo(Graphene.Rect().init(0,0,width,height))
+                        cr.rectangle(0,0,width,height); cr.clip()
+                        bounds=self.ink.compute_bounds(self.root_overlay)[1]
+                        cr.translate(-bounds.get_x(),-bounds.get_y()); paint_arrow(cr,*self.comment_points()); del cr
                     node=snapshot.to_node()
                     texture=self.window.get_renderer().render_texture(node,None)
                     target=Path(self.data['sourcePath']).parent/'.centaur'/('context-'+uuid.uuid4().hex+'.png')
@@ -535,7 +608,7 @@ class Centaur(Gtk.Application):
                 except Exception as error:
                     self.error_label.set_text('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
                     self.error_label.set_visible(True)
-            self.pending_message={'text':text,'seen':{m['id'] for m in self.project.get('messages',[])}}
+            self.pending_message={'text':text,'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
             self.send_button.set_sensitive(False)
             if not self.service.send('message',**fields): self.pending_message=None
 
@@ -763,7 +836,7 @@ class Centaur(Gtk.Application):
         self.backend=self.viewport=None; self.preview_key=None
 
     def ink_begin(self,gesture,x,y):
-        if self.mode!='Build' or not self.data.get('connected') or not self.viewport:
+        if self.tool!='draw' or self.mode!='Build' or not self.data.get('connected') or not self.viewport:
             gesture.set_state(Gtk.EventSequenceState.DENIED); return
         self.stroke_space=AnnotationSpace.capture(self.viewport.describe(),self.ink.get_width(),self.ink.get_height())
         self.ink_origin=(x,y); self.points=[self.stroke_space.point(x,y)]; self.ink.queue_draw()
@@ -818,6 +891,10 @@ class Centaur(Gtk.Application):
     def poll(self):
         if self.closing: return False
         self.updates.tick()
+        comment_geometry=self.comment_points()
+        if comment_geometry!=self.comment_geometry:
+            self.comment_geometry=comment_geometry; self.comment_overlay.queue_draw()
+        self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==self.data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
         # Preserve the reference breakpoints and the chat width on window resize.
         compact=self.window.get_width()<760
         self.sidebar.set_size_request(COMPACT_SIDEBAR if compact else SIDEBAR,-1)
@@ -856,6 +933,8 @@ class Centaur(Gtk.Application):
                             'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
                             'headerText':self.chat_status.get_text()}
             data['chatRows']=[]
+            data['commentPointer']={'phase':self.comment.phase,'tail':comment_geometry[0],'head':comment_geometry[1],
+                                    'reference':self.comment.target,'token':self.comment.token}
             adjustment=self.chat_scroll.get_vadjustment()
             data['chatScroll']={'upper':adjustment.get_upper(),'pageSize':adjustment.get_page_size(),
                                 'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive()}

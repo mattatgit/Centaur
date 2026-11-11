@@ -230,8 +230,8 @@ void Controller::renameProject(const QString &id, const QString &name) {
 void Controller::deleteProject(const QString &id) {
     route(id, {{"type", "delete"}});
 }
-bool Controller::sendMessage(const QString &text, const QString &image, int imageRevision) {
-    return route(m_projectId, {{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}});
+bool Controller::sendMessage(const QString &text, const QString &image, int imageRevision, const QJsonObject &comment) {
+    return route(m_projectId, {{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}, {"comment", comment}});
 }
 void Controller::addAnnotation(const QVariantMap &annotation) { command({{"type", "annotation"}, {"annotation", QJsonObject::fromVariantMap(annotation)}}); }
 void Controller::undoAnnotation() { command({{"type", "undo"}}); }

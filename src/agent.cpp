@@ -242,6 +242,10 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
         "The app will run in a separate native process. You have no file or shell tools. "
         "Annotations use normalized canvas coordinates, include the app frame bounds, and refer "
         "to the revision they were drawn over. Only current-revision marks describe the current app. "
+        "A message's comment and requestComment identify a placed arrowhead associated with that text. "
+        "Its point is normalized in the supplied frame: app-relative coordinates are "
+        "(point.x-frame.x)/frame.width and (point.y-frame.y)/frame.height. Values outside the app are valid. "
+        "Use the comment's revision when interpreting it; the temporary on-screen arrow is removed after sending. "
         "If an image is attached, inspect its sketch and native app together.\n\n"
         "PROJECT AND CONVERSATION:\n%1\n\nCURRENT App.qml:\n%2\n")
         ;

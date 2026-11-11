@@ -10,7 +10,7 @@ import time
 from PIL import Image
 from check import until, read, target
 from test_driver import Driver
-from ink_check import check_ink, assert_capture
+from ink_check import check_ink, assert_capture,place_agent_pointer
 from window_controls_check import check_window_controls
 
 
@@ -37,7 +37,8 @@ def main():
     summary={'checks':[],'production_approved':False}
     reply_file=folder/'reply.json'
     agent=folder/'agent'
-    agent.write_text('#!'+sys.executable+'\nimport pathlib\nprint(pathlib.Path('+repr(str(reply_file))+').read_text())\n')
+    request_record=folder/'agent-request.txt'
+    agent.write_text('#!'+sys.executable+'\nimport pathlib,sys\nfor arg in sys.argv[1:]:\n if arg.startswith("@") and arg.endswith(".txt"): pathlib.Path('+repr(str(request_record))+').write_text(pathlib.Path(arg[1:]).read_text())\nprint(pathlib.Path('+repr(str(reply_file))+').read_text())\n')
     agent.chmod(0o700)
     env=dict(os.environ,CENTAUR_AGENT=str(agent),CENTAUR_AUTHOR='Matt')
     def launch(name):
@@ -156,6 +157,29 @@ def main():
         summary['checks'].append('two-independent-profiles-invite-join-and-attributed-chat')
         click(hs,hw,'mode-Build')
         until(lambda:hs().get('mode')=='Build','Build mode did not switch')
+        toolbar=target(hs,'build-tools'); assert toolbar[2:]==[128,48],toolbar
+        toolbar_metrics={'frame':toolbar,'buttons':{},'icons':{}}
+        for index,key in enumerate(('tool-draw','tool-comment','undo')):
+            bounds=target(hs,key); icon=target(hs,key+'-icon')
+            assert bounds[2:]==[32,32] and icon[2:]==[16,16],(key,bounds,icon)
+            assert bounds[0]-toolbar[0]==8+index*40 and bounds[1]-toolbar[1]==8,(key,bounds,toolbar)
+            assert icon[0]-bounds[0]==8 and icon[1]-bounds[1]==8,(key,icon,bounds)
+            toolbar_metrics['buttons'][key]=bounds; toolbar_metrics['icons'][key]=icon
+        driver.screenshot(hw,folder/'ui-toolbar-active.png')
+        hover=toolbar_metrics['buttons']['tool-comment']; rect=driver.rect(hw)
+        driver.ipc(f"seat seat0 cursor set {round(rect['x']+hover[0]+16)} {round(rect['y']+hover[1]+16)}")
+        driver.seat_command('motion 0 0'); time.sleep(.2)
+        driver.screenshot(hw,folder/'ui-toolbar-hover.png')
+        with Image.open(folder/'ui-toolbar-hover.png') as source:
+            image=source.convert('RGB'); draw=toolbar_metrics['buttons']['tool-draw']
+            assert image.getpixel((round(hover[0]+4),round(hover[1]+16)))==(243,243,243),'Toolbar hover must use F3F3F3'
+            assert image.getpixel((round(draw[0]+4),round(draw[1]+16)))==(19,142,213),'Selected tool must use blue'
+        (folder/'figma-toolbar-metrics.json').write_text(json.dumps(toolbar_metrics,indent=2))
+        click(hs,hw,'tool-comment'); until(lambda:hs()['commentPointer']['phase']=='following','Comment did not activate')
+        driver.key('Escape'); until(lambda:hs()['commentPointer']['phase']=='idle','Escape did not cancel the pointer')
+        click(hs,hw,'tool-comment'); click(hs,hw,'undo')
+        until(lambda:hs()['commentPointer']['phase']=='idle','Undo did not cancel the draft pointer')
+        click(hs,hw,'tool-draw')
         assert 'editor' in hs()['targets'],'Build mode hid chat'
         cx,cy,cw,ch=hs()['targets']['canvas']; view=hs()['viewport']
         driver.drag(hw,round(cx+view['app_x']+60*view['scale']),round(cy+view['app_y']+80*view['scale']),50,30,button=1)
@@ -166,17 +190,24 @@ def main():
         click(hs,hw,'mode-Interact')
         summary['checks'].append('build-mode-keeps-chat-visible-and-drawing-undo-synchronise')
         check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id)
-        summary['checks'].append('cross-app-draw-and-arrow-at-six-zooms-host-guest-render-sync-undo-reopen-resize-and-pan')
+        summary['checks'].append('cross-app-draw-and-temporary-connected-comment-at-six-zooms-with-placement-focus-send-sync-and-undo')
         capture_geometry=gs()['viewport']
+        capture_size=gs()['targets']['canvas'][2:]
         proposal(changed)
+        pointer_x,pointer_y,reference=place_agent_pointer(driver,gs,gw,click)
         message(gs,gw,'@centaur Change the application title to Family Planner.')
         until(lambda:(hs().get('child') or {}).get('title')=='Family Planner' and (gs().get('child') or {}).get('title')=='Family Planner','Agent change did not reach both native apps',timeout=20)
         assert len(hs()['projects'])==1 and len(gs()['projects'])==1,'App changes duplicated a project'
         assert not hs()['project'].get('proposal'),'Compatible request required author approval'
+        until(lambda:gs()['commentPointer']['phase']=='idle','Agent comment arrow was not cleared after send')
+        request=json.loads(request_record.read_text().split('PROJECT AND CONVERSATION:\n',1)[1].split('\n\nCURRENT ',1)[0])
+        assert request['requestComment']==reference,'Agent did not receive the comment target'
         summary['checks'].append('guest-agent-request-native-validation-and-live-update-without-approval-or-duplicates')
         assert list((source.parent/'.centaur').glob('remote-*.png')), 'Guest canvas image did not reach the host'
         with Image.open(next((source.parent/'.centaur').glob('remote-*.png'))) as context:
+            assert context.size==tuple(map(round,capture_size)),'Comment capture exceeded the canvas and included UI'
             assert_capture(context,capture_geometry)
+            assert any(r>200 and g<170 and b<170 and r-g>60 for r,g,b in context.convert('RGB').crop((round(pointer_x)-4,round(pointer_y)-4,round(pointer_x)+4,round(pointer_y)+4)).getdata()),'Agent capture lost the placed arrowhead'
             # The centred sample leaves this corner clear. Zoom/restart controls
             # float here in Centaur but must not be sent as part of the app.
             corner=context.convert('RGB').crop((context.width-40,8,context.width-8,40))

@@ -174,6 +174,7 @@ class UpdateControls:
         buffer=owner.editor.get_buffer()
         return bool(owner.data.get('updateBlocked') or owner.data.get('busy') or owner.data.get('joining') or
                     owner.data.get('inviting') or owner.pending_message or owner.points or owner.active_form or
+                    getattr(getattr(owner,'comment',None),'phase','idle')!='idle' or
                     not owner.data.get('connected') or owner.project.get('queueCount'))
 
     def restore(self):

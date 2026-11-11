@@ -143,7 +143,10 @@ popover.project-menu > contents { min-width: 160px; }
 popover.project-menu .flat-button { padding: 0 16px; min-height: 40px; }
 popover.project-menu .button-label { font-size: 12px; font-weight: 400; }
 popover.project-menu .flat-button > box { margin: 0; }
-.tools { background: white; border-radius: 16px; padding: 8px; box-shadow: 0 0 0 1px alpha(black,.04); }
+.tools { background: white; border-radius: 12px; padding: 8px; box-shadow: 0 0 20px alpha(black,.08); }
+.tools .canvas-tool { padding: 0; min-width: 32px; min-height: 32px; background: transparent; color: #171717; }
+.tools .canvas-tool:hover { transform: none; background: #f3f3f3; }
+.tools .canvas-tool.selected, .tools .canvas-tool.selected:hover { background: #138ed5; color: white; }
 .flat-button.grid-toggle { min-width: 24px; min-height: 24px; background: #f8f8f8; }
 .flat-button.grid-toggle.selected { background: #20a8f0; color: white; }
 .composer { background: #f8f8f8; border: 0; border-radius: 16px; box-shadow: inset 0 0 0 1px #e7e9e5; }

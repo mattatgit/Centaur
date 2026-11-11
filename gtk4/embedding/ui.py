@@ -56,6 +56,7 @@ class Svg(Gtk.DrawingArea):
         super().__init__(content_width=size, content_height=size, halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER)
         self.set_can_target(False)
         self.add_css_class('svg')
+        self.art_height=None
         self.set_from_file(str(ASSETS / filename))
         self.set_draw_func(self.draw)
 
@@ -69,7 +70,7 @@ class Svg(Gtk.DrawingArea):
         self.queue_draw()
 
     def draw(self, area, cr, width, height):
-        rect = Rsvg.Rectangle(); rect.x = rect.y = 0; rect.width = width; rect.height = height
+        rect = Rsvg.Rectangle(); rect.x = rect.y = 0; rect.width = width; rect.height = height if self.art_height is None else self.art_height
         cr.push_group()
         self.handles[self.filename].render_document(cr, rect)
         mask = cr.pop_group()

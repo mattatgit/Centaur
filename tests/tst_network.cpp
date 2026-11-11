@@ -48,6 +48,29 @@ struct Probe {
 class NetworkTests : public QObject {
     Q_OBJECT
 private slots:
+    void commentTargetsTravelWithMessagesAndRejectStaleOrInvalidLocations() {
+        QTemporaryDir hostRoot, guestRoot;
+        Controller host(hostRoot.path()); host.start(); host.setAuthor("Matt");
+        host.createProject("Comments", "Point at the shared app"); const auto id = host.projectId();
+        host.invitePeople("127.0.0.1"); QVERIFY(!host.invitationCode().isEmpty());
+        Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(), "Guest");
+        QTRY_COMPARE_WITH_TIMEOUT(guest.projectId(), id, 5000);
+        const QJsonObject comment{{"point", QJsonObject{{"x", .1}, {"y", .3}}},
+            {"frame", QJsonObject{{"x", .2}, {"y", .1}, {"width", .6}, {"height", .8}}},
+            {"revision", host.project().value("revision").toInt()}};
+        guest.sendMessage("This is the location", {}, 0, comment);
+        QTRY_COMPARE(host.project().value("messages").toList().size(), 1);
+        QTRY_COMPARE(guest.project().value("messages").toList().size(), 1);
+        QCOMPARE(QJsonObject::fromVariantMap(host.project().value("messages").toList().last().toMap()["comment"].toMap()), comment);
+        QCOMPARE(QJsonObject::fromVariantMap(guest.project().value("messages").toList().last().toMap()["comment"].toMap()), comment);
+        QVERIFY(host.project().value("annotations").toList().isEmpty());
+        QSignalSpy errors(&host, &Controller::error);
+        auto stale = comment; stale["revision"] = comment["revision"].toInt() + 1;
+        host.sendMessage("Stale location", {}, 0, stale); QTRY_COMPARE(errors.size(), 1);
+        auto invalid = comment; invalid["frame"] = QJsonObject{{"x", 0}, {"y", 0}, {"width", 0}, {"height", 1}};
+        host.sendMessage("Invalid location", {}, 0, invalid); QTRY_COMPARE(errors.size(), 2);
+        QCOMPARE(host.project().value("messages").toList().size(), 1);
+    }
     void initTestCase() {
         Q_INIT_RESOURCE(starter);
         QVERIFY(QSslSocket::supportsSsl());
