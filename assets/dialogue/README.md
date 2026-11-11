@@ -3,6 +3,7 @@
 Copied from Matt's Dialogue repository, `mattatgit/dialogue`, checkout `7e67a66c0cf338220e730ef7a972dbdb9d5a1e55` (`codex/accounts-shared-workspace`). The original repository licence is preserved in `LICENSE` and installed alongside Centaur's third-party notices.
 
 - Sidebar, Interact/Comment state and message-send SVGs are unchanged copies of `assets/` files.
+- `profile-arrow.svg` is the original Dialogue chevron from `main`, reused unchanged and rotated 90 degrees in GTK CSS for the Create menu.
 - `tile-menu.svg` is Dialogue's original three-dot project menu. The 32-pixel target, 8-pixel hover radius and dust background follow `css/create-prototype.css`; the dropdown uses its white surface, dust border and 12-pixel radius.
 - `review-icons.svg` is the original symbol sheet. Individual `grid`, `arrow`, `reload` and `share` files wrap the corresponding original symbol geometry in a standalone SVG without redrawing it.
 - `breadcrumb-arrow.svg` is the original inline SVG from `project.html`, with the SVG namespace added for standalone loading.

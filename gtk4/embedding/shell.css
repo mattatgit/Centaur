@@ -6,6 +6,22 @@ window.centaur-window:backdrop > headerbar.titlebar {
     background-color: #f8f8f8;
     background-image: none;
 }
+window.centaur-window.csd { border-radius: 8px; }
+window.centaur-window.csd > .centaur-content { border-radius: 0 0 8px 8px; }
+window.centaur-window.csd.maximized,
+window.centaur-window.csd.fullscreen,
+window.centaur-window.csd.tiled,
+window.centaur-window.csd.tiled-top,
+window.centaur-window.csd.tiled-bottom,
+window.centaur-window.csd.tiled-left,
+window.centaur-window.csd.tiled-right,
+window.centaur-window.maximized > .centaur-content,
+window.centaur-window.fullscreen > .centaur-content,
+window.centaur-window.tiled > .centaur-content,
+window.centaur-window.tiled-top > .centaur-content,
+window.centaur-window.tiled-bottom > .centaur-content,
+window.centaur-window.tiled-left > .centaur-content,
+window.centaur-window.tiled-right > .centaur-content { border-radius: 0; }
 /* The native control remains a GtkButton with window.close and its original
  * symbolic image. GTK's theme paints the circle on that image, not the button. */
 window.centaur-window > headerbar.titlebar windowcontrols.end {
@@ -56,6 +72,9 @@ button:focus-visible, entry:focus-within, dropdown:focus-visible { outline: 2px 
 .flat-button.tone-plain:hover { background: transparent; }
 .flat-button.tone-dark { background: #171717; color: white; padding: 0 16px; }
 .flat-button.tone-dark:hover { background: #171717; }
+.project-create > button { min-height: 32px; padding: 0 16px; border-radius: 8px; background: #171717; color: white; }
+.project-create > button:hover, .project-create > button:checked { background: #323232; }
+.create-chevron { transform: rotate(90deg); }
 .flat-button.tone-lime { background: #ccff00; padding: 0 16px; }
 .flat-button.tone-lime:hover { background: #ccff00; }
 .flat-button.selected { background: #138ed5; color: white; }
@@ -86,9 +105,10 @@ separator { min-height: 1px; min-width: 1px; background: #e7e9e5; }
 .muted { color: #9ea39e; }
 .small { font-family: Inter; font-size: 12px; }
 .chat-heading { font-family: 'Inter Tight'; font-size: 14pt; font-weight: 600; }
-.chat-status, .chat-name { font-family: Inter; font-size: 10.5pt; }
-.chat-name { font-weight: 600; }
-.chat-time { font-family: Inter; font-size: 9pt; }
+.chat-status { font-family: Inter; font-size: 10.5pt; }
+.chat-name { font-family: Inter; font-size: 14px; font-weight: 600; line-height: 18px; }
+.chat-time { font-family: Inter; font-size: 11px; font-weight: 600; }
+.chat-comment { font-family: Inter; font-size: 14px; font-weight: 400; line-height: 18px; }
 .version { font-family: Inter; font-size: 8.5pt; }
 .update-version, .update-version:hover, .update-version:focus-visible { color: #9ea39e; padding: 0; min-height: 24px; background: transparent; outline: none; }
 .update-caption { padding: 0 8px; min-height: 24px; border-radius: 8px; }
@@ -96,8 +116,13 @@ separator { min-height: 1px; min-width: 1px; background: #e7e9e5; }
 .update-version:focus-visible .update-caption { outline: 2px solid #138ed5; outline-offset: -2px; }
 .update-badge { min-width: 8px; min-height: 8px; border-radius: 999px; background: #ccff00; }
 .message, .composer-placeholder { font-family: 'Inter Tight'; font-size: 12.5pt; font-weight: 400; }
-.avatar { border-radius: 8px; background: #e7ede3; font-family: Inter; font-size: 9pt; font-weight: 600; }
-.avatar.agent { background: #ccff00; }
+.avatar { border-radius: 8px; background: #ff625a; color: white; font-family: Inter; font-size: 14px; font-weight: 600; }
+.avatar.agent { background: #171717; }
+.avatar.agent > .svg { margin: 0 4px; }
+.chat-scrollbar { padding: 0 8px; margin: 0; min-width: 8px; background: transparent; }
+.chat-scrollbar > range, .chat-scrollbar trough { min-width: 8px; padding: 0; margin: 0; border: 0; background: transparent; }
+.chat-scrollbar slider { min-width: 8px; padding: 0; margin: 0; border: 0; }
+.chat-scrollbar:disabled slider { background: transparent; }
 .empty-heading { font-family: 'Inter Tight'; font-size: 18pt; font-weight: 600; }
 .empty-description { font-family: Inter; font-size: 12pt; }
 .empty-project { background: #f8f8f8; box-shadow: inset 0 0 0 1px #e7e9e5; border-radius: 16px; padding: 32px; }

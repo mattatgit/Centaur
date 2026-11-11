@@ -68,6 +68,8 @@ class Centaur(Gtk.Application):
         self.window.set_icon_name(APP_ID)
         self.window.set_size_request(360, 680)
         self.root_overlay = Gtk.Overlay()
+        self.root_overlay.add_css_class('centaur-content')
+        self.root_overlay.set_overflow(Gtk.Overflow.HIDDEN)
         root = box(spacing=0); self.root_overlay.set_child(root)
         self.sidebar = box(True, 0, 'sidebar'); self.sidebar.set_size_request(SIDEBAR, -1)
         brand_row = box(spacing=0); brand_row.set_size_request(-1, HEADER)
@@ -107,8 +109,20 @@ class Centaur(Gtk.Application):
         self.top.set_center_widget(self.modes)
         self.targets['mode-switch']=self.modes
         self.top_actions = box(spacing=8); self.top_actions.set_margin_end(24); self.top_actions.set_valign(Gtk.Align.CENTER)
-        self.join_button = button('Join project',self.join,tone='plain'); self.top_actions.append(self.join_button); self.targets['join'] = self.join_button
-        self.create_button = button('+ New project',self.new_project,tone='dark'); self.top_actions.append(self.create_button); self.targets['create'] = self.create_button
+        self.create_menu=Gtk.MenuButton(css_classes=['project-create'])
+        self.create_menu.set_size_request(104,32); self.create_menu.set_tooltip_text('Create or join a project')
+        create_label=box(spacing=8); create_label.set_halign(Gtk.Align.CENTER)
+        create_label.append(label('Create','button-label'))
+        chevron=Svg('profile-arrow.svg',16); chevron.add_css_class('create-chevron'); create_label.append(chevron)
+        self.create_menu.set_child(create_label)
+        create_pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); create_pop.add_css_class('project-menu')
+        create_actions=box(True,0)
+        def project_action(callback): create_pop.popdown(); callback()
+        for key,title,callback in [('create','Create',self.new_project),('join','Join',self.join)]:
+            action=button(title,lambda cb=callback:project_action(cb),tone='plain',height=40)
+            action.get_child().set_halign(Gtk.Align.START); create_actions.append(action); self.targets[key]=action
+        create_pop.set_child(create_actions); self.create_menu.set_popover(create_pop)
+        self.top_actions.append(self.create_menu); self.targets['project-menu']=self.create_menu
         self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
         self.invite_button = button('Invite',self.invite,tone='outline',width=88); self.top_actions.append(self.invite_button)
         self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg',width=88); self.top_actions.append(self.deploy_button)
@@ -222,14 +236,22 @@ class Centaur(Gtk.Application):
         self.overlay.add_overlay(self.build_tools); self.panes.set_start_child(self.overlay); self.panes.set_resize_start_child(True); self.panes.set_shrink_start_child(False)
         self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
         self.targets['chat-panel']=self.chat
-        chat=margins(box(True,16),24); chat.set_vexpand(True); self.chat.append(chat)
+        chat=box(True,0); chat.set_margin_top(24); chat.set_margin_bottom(24); chat.set_vexpand(True); self.chat.append(chat)
         heading=box(True,8); heading.append(label('Chat','chat-heading'))
         self.chat_status=label('Connecting…','chat-status muted'); self.chat_status.set_ellipsize(Pango.EllipsizeMode.END); heading.append(self.chat_status)
-        chat.append(heading); chat.append(Gtk.Separator())
-        self.chat_scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.messages=box(True,24); self.chat_scroll.set_child(self.messages)
-        message_overlay=Gtk.Overlay(vexpand=True); message_overlay.set_child(self.chat_scroll)
+        chat.append(heading)
+        divider=Gtk.Separator(); divider.set_margin_top(16); chat.append(divider)
+        self.chat_scroll=Gtk.ScrolledWindow(vexpand=True,hexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                          vscrollbar_policy=Gtk.PolicyType.EXTERNAL)
+        self.messages=box(True,18); self.messages.set_margin_top(24); self.messages.set_margin_bottom(24)
+        self.messages.set_margin_start(24); self.messages.set_margin_end(8); self.chat_scroll.set_child(self.messages)
+        scroll_row=box(spacing=0); scroll_row.append(self.chat_scroll)
+        self.chat_scrollbar=Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,adjustment=self.chat_scroll.get_vadjustment())
+        self.chat_scrollbar.add_css_class('chat-scrollbar'); self.chat_scrollbar.set_margin_top(16); self.chat_scrollbar.set_margin_bottom(16)
+        scroll_row.append(self.chat_scrollbar)
+        message_overlay=Gtk.Overlay(vexpand=True); message_overlay.set_child(scroll_row)
         self.empty_chat=box(True,16); self.empty_chat.set_halign(Gtk.Align.FILL); self.empty_chat.set_valign(Gtk.Align.CENTER)
+        self.empty_chat.set_margin_start(24); self.empty_chat.set_margin_end(32)
         self.empty_chat.append(label('Start with a conversation.','empty-heading',True))
         self.empty_chat.append(label('Talk to each other here. When you’re ready for help, mention @centaur.','message',True))
         self.empty_chat.append(label('Sketch on the canvas or point with Comment. Your marks accompany the next request to the agent.','message muted',True))
@@ -246,6 +268,10 @@ class Centaur(Gtk.Application):
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)
+        for item in (heading,divider,self.busy,self.proposal,self.composer,self.update_footer):
+            item.set_margin_start(24); item.set_margin_end(24)
+        for item in (self.busy,self.proposal,self.composer,self.update_footer): item.set_margin_top(16)
+        self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider})
         self.panes.set_end_child(self.chat); self.panes.set_resize_end_child(False); self.panes.set_shrink_end_child(False)
         self.stack.add_named(wrapper,'workspace'); self.set_tool('draw'); self.initial_pane=True
 
@@ -289,7 +315,7 @@ class Centaur(Gtk.Application):
         self.top_start.set_margin_start(24 if workspace else 0)
         self.sidebar.set_visible(not workspace); self.modes.set_visible(workspace)
         for item in (self.workspace_brand,self.projects_crumb,self.breadcrumb_arrow,self.breadcrumb,self.invite_button,self.deploy_button): item.set_visible(workspace)
-        self.join_button.set_visible(page=='projects'); self.create_button.set_visible(page=='projects'); self.import_button.set_visible(page=='systems')
+        self.create_menu.set_visible(page=='projects'); self.import_button.set_visible(page=='systems')
         self.targets['nav-projects']=self.projects_crumb if workspace else self.nav['projects']
         self.window.set_size_request(1000 if workspace else 360,680)
         if workspace:
@@ -412,25 +438,34 @@ class Centaur(Gtk.Application):
 
     def refresh_messages(self):
         self.clear(self.messages)
+        self.message_rows=[]
         self.empty_chat.set_visible(not self.project.get('messages'))
         for message in self.project.get('messages',[]):
-            item=box(True,8); head=box(spacing=8)
+            item=box(spacing=8); column=box(True,0); column.set_hexpand(True); head=box(spacing=8)
             author=message.get('author','')
             agent=message.get('kind')!='human'
             if agent:
                 author=author.lstrip('@')
                 if author.lower()=='centaur': author='Centaur'
-            avatar=label(author[:1].upper(),'avatar agent' if agent else 'avatar'); avatar.set_xalign(.5); avatar.set_size_request(24,24); head.append(avatar)
+            if agent:
+                avatar=box(css='avatar agent'); avatar.append(Svg('centaur.svg',24)); avatar.set_halign(Gtk.Align.START)
+            else:
+                avatar=label(author[:1].upper(),'avatar'); avatar.set_xalign(.5)
+            avatar.set_size_request(32,32); avatar.set_valign(Gtk.Align.START); item.append(avatar)
             self.targets['chat-avatar']=avatar
-            name=label(author,'chat-name'); name.set_hexpand(True); name.set_ellipsize(Pango.EllipsizeMode.END); head.append(name)
+            name=label(author,'chat-name'); name.set_ellipsize(Pango.EllipsizeMode.END); name.set_valign(Gtk.Align.BASELINE); head.append(name)
             try: time=datetime.fromisoformat(message['time'].replace('Z','+00:00')).astimezone().strftime('%H:%M')
             except (KeyError,ValueError): time=''
-            head.append(label(time,'chat-time muted')); item.append(head)
+            stamp=label(time,'chat-time muted'); stamp.set_valign(Gtk.Align.BASELINE); head.append(stamp); column.append(head)
             text=message.get('text','')
             if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
-            body=label(text,'message muted' if message.get('kind')=='system' else 'message',True); body.set_selectable(True)
+            body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
             self.chat_body=body
-            item.append(body); self.messages.append(item)
+            column.append(body); item.append(column); self.messages.append(item)
+            baseline=body.get_layout().get_baseline()/Pango.SCALE
+            body.set_margin_top(max(0,round(32-head.measure(Gtk.Orientation.VERTICAL,-1)[0]-baseline)))
+            self.message_rows.append((avatar,name,stamp,body))
+            self.targets.update({'chat-name':name,'chat-body':body,'chat-time':stamp})
         def bottom():
             adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size())); return False
         GLib.idle_add(bottom)
@@ -764,7 +799,6 @@ class Centaur(Gtk.Application):
         (self.sidebar.add_css_class if compact else self.sidebar.remove_css_class)('compact')
         for item in self.nav_labels: item.set_visible(not compact)
         self.profile_text.set_visible(not compact)
-        button_text(self.create_button,'+ New' if self.window.get_width()<600 else '+ New project')
         self.projects_inner.set_margin_top(24 if self.stack.get_width()<720 else 40)
         for edge in ('bottom','start','end'): getattr(self.projects_inner,'set_margin_'+edge)(self.projects_inner.get_margin_top())
         setting_margin=24 if self.stack.get_width()<600 else 40
@@ -796,6 +830,21 @@ class Centaur(Gtk.Application):
                             'bodyFont':self.chat_body.get_pango_context().get_font_description().to_string() if hasattr(self,'chat_body') else None,
                             'statusFont':self.chat_status.get_pango_context().get_font_description().to_string(),
                             'headerText':self.chat_status.get_text()}
+            data['chatRows']=[]
+            for widgets in getattr(self,'message_rows',[])[:4]:
+                row={}
+                for key,widget in zip(('avatar','name','time','body'),widgets):
+                    ok,rect=widget.compute_bounds(self.window)
+                    if not ok: continue
+                    entry={'bounds':[rect.get_x(),rect.get_y(),rect.get_width(),rect.get_height()]}
+                    if isinstance(widget,Gtk.Label):
+                        iterator=widget.get_layout().get_iter(); baselines=[]
+                        while True:
+                            baselines.append(rect.get_y()+widget.get_layout_offsets()[1]+iterator.get_baseline()/Pango.SCALE)
+                            if not iterator.next_line(): break
+                        entry['baselines']=baselines
+                    row[key]=entry
+                data['chatRows'].append(row)
             data['updater']={'version':self.version(),'status':self.updates.status.get_text(),
                              'footerLabel':self.updates.footer_labels.get_visible_child().get_text(),
                              'footerStatus':self.updates.footer_status.get_text(),

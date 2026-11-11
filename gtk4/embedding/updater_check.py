@@ -97,7 +97,7 @@ def main():
         process=subprocess.Popen([str(profile/'bin/centaur-gtk4'),'--data-dir',str(data),'--report-dir',str(report)],env=env)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
         summary['checks'].append('throttled-signed-nar-settings-and-footer-advance-before-copy-exit')
-        until(lambda:state().get('targets',{}).get('create'),'Old fixture did not map')
+        until(lambda:state().get('targets',{}).get('project-menu'),'Old fixture did not map')
         assert state()['branding']=={'appIcon':'org.centaur.Gtk4','fullIcon':True,'symbolicIcon':True},state()['branding']
         desktop=home/'.local/share/applications/org.centaur.Gtk4.desktop'
         assert desktop.is_symlink() and desktop.resolve()==previous/'share/applications/org.centaur.Gtk4.desktop'
@@ -113,6 +113,7 @@ def main():
         summary['checks'].append('desktop-id-and-color-symbolic-icons-user-registration-renderer-preservation')
         window=driver.find_window('org.centaur.Gtk4',process.pid)
         def click(name):
+            if name in ('create','join'): click('project-menu')
             x,y,w,h=target(state,name)
             driver.click(window,round(x+w/2),round(y+h/2)); time.sleep(.15)
         click('create'); until(lambda:state().get('form'),'Project form did not open')

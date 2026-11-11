@@ -33,7 +33,9 @@ def check_window_controls(driver, folder):
     Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     window = Gtk.ApplicationWindow(application=app, title='Centaur', default_width=704, default_height=400, decorated=True)
     content = Gtk.Label(label='Native Centaur window controls')
-    window.set_child(content)
+    content.add_css_class('sidebar')
+    clip=Gtk.Overlay(css_classes=['centaur-content']); clip.set_overflow(Gtk.Overflow.HIDDEN); clip.set_child(content)
+    window.set_child(clip)
     context = GLib.MainContext.default()
 
     def settle(seconds=.25):
@@ -121,6 +123,12 @@ def check_window_controls(driver, folder):
 
         move(hx+32, hy+hh+32)
         capture('normal')
+        with Image.open(folder/'normal.png') as source:
+            pixels=source.convert('RGB'); width,height=pixels.size
+            assert pixels.getpixel((2,height-3))!=(248,248,248), 'Bottom left corner is square'
+            assert pixels.getpixel((width-3,height-3))!=(248,248,248), 'Bottom right corner is square'
+            assert pixels.getpixel((width//2,height-3))==(248,248,248), 'Bottom content was clipped away'
+        report['checks'].append('matching-native-8px-bottom-corners-and-clipped-content')
         move(ix+12, iy+12)
         assert controls()['close'].get_state_flags() & Gtk.StateFlags.PRELIGHT
         capture('hover')

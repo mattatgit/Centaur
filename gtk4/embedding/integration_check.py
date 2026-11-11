@@ -45,12 +45,13 @@ def main():
         process=subprocess.Popen([str(executable),'--data-dir',str(root),'--report-dir',str(report)],env=env)
         processes.append(process)
         state=lambda:read(report/'shell.json')
-        until(lambda:state().get('targets',{}).get('create'), 'GTK shell did not map')
+        until(lambda:state().get('targets',{}).get('project-menu'), 'GTK shell did not map')
         window=driver.find_window('org.centaur.Gtk4',state()['pid']); driver.resize(window,1200,860)
         until(lambda:state().get('windowSize')==[1200,860], 'GTK did not report its resized allocation')
         driver.ipc(f'[con_id={window}] move position {40 if name=="host" else 1280} px 60 px')
         return process,state,window
     def click(state,window,name):
+        if name in ('create','join'): click(state,window,'project-menu')
         x,y,w,h=target(state,name)
         driver.click(window,round(x+w/2),round(y+h/2))
         time.sleep(.15)
@@ -72,6 +73,8 @@ def main():
         click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
         click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
         click(hs,hw,'nav-projects')
+        click(hs,hw,'project-menu'); driver.screenshot(hw,folder/'ui-create-dropdown.png',focus=False)
+        driver.key('Escape')
         click(hs,hw,'create'); until(lambda:hs().get('form')=='Make something together','New project form did not open')
         dialog=until(lambda:hs()['targets'].get('dialog-card'),'Modal did not allocate inside Centaur')
         assert dialog[2]==464 and abs(dialog[0]+dialog[2]/2-720)<=1 and abs(dialog[1]+dialog[3]/2-472)<=1,'Project dialog is not centred in Centaur'
@@ -106,8 +109,8 @@ def main():
         resize_host(1200,860); driver.ipc(f'[con_id={hw}] move position 40 px 60 px')
         original_pid=hs()['childPid']
         message(hs,hw,'Hello from Matt')
-        until(lambda:'Inter Tight' in (hs()['layout']['bodyFont'] or ''),'Chat body did not use the bundled Inter Tight style')
-        assert hs()['targets']['chat-avatar'][2:]==[24,24]
+        until(lambda:hs()['layout']['bodyFont']=='Inter 14px','Chat body did not use the redline Inter style')
+        assert hs()['targets']['chat-avatar'][2:]==[32,32]
         assert hs()['layout']['statusFont']=='Inter 14px'
         assert hs()['childPid']==original_pid,'Ordinary chat restarted the app'
         control=Bridge(roots[0],env)
