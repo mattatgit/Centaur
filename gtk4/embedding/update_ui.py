@@ -17,6 +17,8 @@ class UpdateControls:
         self.work=None; self.process=None; self.handed_off=False; self.ready_written=False; self.restored=False
         self.install_after_check=False
         self.footer_feedback=False; self.footer_hovered=False; self.footer_focused=False
+        self.footer_hover_suppressed=False; self.footer_focus_suppressed=False
+        self.footer_notice_until=0
         self.next_check=time.monotonic()+2
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
         self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
@@ -39,12 +41,17 @@ class UpdateControls:
         self.footer_button.set_cursor_from_name('pointer')
         self.footer_button.set_tooltip_text('Update app · v'+owner.version())
         row=box(spacing=8)
+        # Reserve the largest caption's space, but paint only the natural-width
+        # START-aligned label. The hit target and right-hand status never move.
         self.footer_labels=Gtk.Stack(hhomogeneous=True,vhomogeneous=True)
-        self.footer_labels.add_named(label('v'+owner.version(),'version'),'version')
-        self.footer_labels.add_named(label('Update app','version'),'action')
+        for name,text in [('version','v'+owner.version()),('action','Update app'),
+                          ('available','Update available'),('updating','Updating…')]:
+            caption=label(text,'version update-caption'); caption.set_halign(Gtk.Align.START)
+            self.footer_labels.add_named(caption,name)
         self.footer_labels.set_visible_child_name('version'); row.append(self.footer_labels)
+        badge_slot=Gtk.Box(width_request=8,valign=Gtk.Align.CENTER)
         self.badge=Gtk.Box(css_classes=['update-badge'],width_request=8,height_request=8,valign=Gtk.Align.CENTER)
-        self.badge.set_visible(False); row.append(self.badge)
+        self.badge.set_visible(False); badge_slot.append(self.badge); row.append(badge_slot)
         self.footer_button.set_child(row)
         self.footer_button.connect('clicked',lambda b:self.clicked())
         motion=Gtk.EventControllerMotion()
@@ -59,16 +66,29 @@ class UpdateControls:
                               'update-badge':self.badge,'update-progress':self.footer_status})
 
     def footer_state(self,hovered=None,focused=None):
-        if hovered is not None: self.footer_hovered=hovered
-        if focused is not None: self.footer_focused=focused
-        self.footer_labels.set_visible_child_name('action' if self.footer_hovered or self.footer_focused else 'version')
+        if hovered is not None:
+            self.footer_hovered=hovered
+            if not hovered: self.footer_hover_suppressed=False
+        if focused is not None:
+            self.footer_focused=focused
+            if not focused: self.footer_focus_suppressed=False
+        self.refresh_footer()
 
     def set_sensitive(self,value):
         self.button.set_sensitive(value); self.footer_button.set_sensitive(value)
 
     def refresh_footer(self):
-        self.badge.set_visible(bool(self.manifest))
-        message=self.status.get_text() if self.checking or self.work or self.process or self.footer_feedback else ''
+        busy=bool(self.work or self.process or self.starting)
+        action=not (busy or self.checking) and (
+            (self.footer_hovered and not self.footer_hover_suppressed) or
+            (self.footer_focused and not self.footer_focus_suppressed))
+        name='updating' if busy else 'action' if action else 'available' if self.manifest else 'version'
+        self.footer_labels.set_visible_child_name(name)
+        self.owner.targets['update-caption']=self.footer_labels.get_visible_child()
+        (self.footer_button.add_css_class if action else self.footer_button.remove_css_class)('action')
+        self.badge.set_visible(bool(self.manifest) and not busy)
+        message=self.status.get_text() if self.checking or busy or self.footer_feedback else ''
+        if not message and time.monotonic()<self.footer_notice_until: message='Up to date'
         self.footer_status.set_text(message); self.footer_status.set_tooltip_text(message or None)
         self.footer_button.set_tooltip_text(('Update available · ' if self.manifest else 'Update app · ')+ 'v'+self.owner.version())
 
@@ -77,6 +97,7 @@ class UpdateControls:
         self.checked=True; self.checking=True; self.status.set_text('Checking for updates…'); self.set_sensitive(False)
         self.next_check=time.monotonic()+900
         self.install_after_check=install
+        self.footer_notice_until=0
         self.refresh_footer()
         def worker():
             try:
@@ -90,17 +111,26 @@ class UpdateControls:
     def checked_result(self,manifest,error):
         if self.owner.closing: return False
         self.checking=False; self.manifest=manifest
-        self.footer_feedback=bool(error) or self.install_after_check
+        install=self.install_after_check; self.install_after_check=False
+        self.footer_notice_until=0
+        self.footer_feedback=bool(error)
         self.status.set_text(error or ('Update available · '+manifest['version'].removeprefix('Centaur GTK4 ') if manifest else 'You’re up to date.'))
         self.button.set_tooltip_text('Update available' if manifest else 'Check for updates')
-        self.set_sensitive(True); self.refresh_footer()
-        install=self.install_after_check; self.install_after_check=False
+        self.set_sensitive(True)
+        if install and not manifest and not error:
+            # Keep the result visible under a stationary pointer/retained focus.
+            # Each input source rearms independently after leaving the control.
+            self.footer_hover_suppressed=self.footer_hovered
+            self.footer_focus_suppressed=self.footer_focused
+            self.footer_notice_until=time.monotonic()+3
+        self.refresh_footer()
         if install and manifest: self.clicked()
         return False
 
     def clicked(self):
         if self.checking or self.process or self.starting: return
         self.footer_feedback=True
+        self.footer_notice_until=0
         if not self.manifest: self.check(install=True); return
         if self.blocked(): self.status.set_text('Finish the current work before updating.'); self.refresh_footer(); return
         owner=self.owner
@@ -120,7 +150,7 @@ class UpdateControls:
                                               start_new_session=True,close_fds=True)
             self.status.set_text('Preparing the update…'); self.set_sensitive(False); self.refresh_footer()
         except Exception as error:
-            self.process=None; self.status.set_text('Could not start the updater. '+str(error)); self.set_sensitive(True); self.refresh_footer()
+            self.process=None; self.work=None; self.status.set_text('Could not start the updater. '+str(error)); self.set_sensitive(True); self.refresh_footer()
 
     def blocked(self):
         owner=self.owner

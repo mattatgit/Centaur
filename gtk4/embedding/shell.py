@@ -802,6 +802,7 @@ class Centaur(Gtk.Application):
                              'badgeVisible':self.updates.badge.get_visible(),
                              'footerSensitive':self.updates.footer_button.get_sensitive(),
                              'footerFocused':self.updates.footer_focused,
+                             'footerHovered':self.updates.footer_hovered,
                              'available':bool(self.updates.manifest),'running':bool(self.updates.process),
                              'work':str(self.updates.work) if self.updates.work else None,
                              'package':os.environ.get('CENTAUR_GTK_PACKAGE')}

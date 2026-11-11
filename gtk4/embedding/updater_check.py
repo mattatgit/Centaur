@@ -18,6 +18,7 @@ from updater import Runtime, CACHE, KEY, NIX_FLAGS
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
 from progress_check import check_progress
+from footer_check import check_footer
 
 
 def download_counter(folder,manifest):
@@ -93,6 +94,7 @@ def main():
     state=lambda:read(report/'shell.json'); new_pid=None; control=None
     summary={'checks':[],'real_nix_profile':True,'signed_cache':True,'production_approved':False}
     try:
+        check_footer(driver,folder/'footer-states')
         download_counter(folder,manifest)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')
         summary['checks'].append('throttled-signed-nar-settings-and-footer-advance-before-copy-exit')
@@ -136,7 +138,7 @@ def main():
         badge=state()['targets']['update-badge']; assert badge[2:]==[8,8],'Update badge is not 8px'
         version=state()['targets']['update-version']; composer=state()['targets']['composer']
         assert version[0]==composer[0],'Version button is not left aligned with the composer'
-        assert state()['updater']['footerLabel'].startswith('v0.4.0-preview+')
+        assert state()['updater']['footerLabel']=='Update available'
         driver.screenshot(window,folder/'footer-update-available.png')
         rect=driver.rect(window)
         driver.ipc(f"seat seat0 cursor set {round(rect['x']+version[0]+version[2]/2)} {round(rect['y']+version[1]+version[3]/2)}")
@@ -145,9 +147,11 @@ def main():
         assert state()['targets']['update-version']==version,'Version button shifted or resized on hover'
         driver.screenshot(window,folder/'footer-update-hover.png')
         with Image.open(folder/'footer-update-hover.png') as source:
-            pixels=source.convert('RGB'); x,y,w,h=map(round,version)
+            pixels=source.convert('RGB'); x,y,w,h=map(round,state()['targets']['update-caption'])
             assert pixels.getpixel((x+4,y+h//2))==(235,235,235),'Version hover has no grey background'
             assert pixels.getpixel((x,y))==(255,255,255),'Version hover corners are not rounded'
+            assert w<version[2]-24,'Highlight retained the version width'
+            assert pixels.getpixel((x+w+4,y+h//2))!=(235,235,235),'Hover paints reserved label space'
         # Move away and reach the action using native keyboard traversal.
         click('editor')
         for _ in range(6):
@@ -168,6 +172,7 @@ def main():
             data=state()
             if data.get('updater',{}).get('running'):
                 assert data['page']=='workspace','Footer update navigated away from chat'
+                assert data['updater']['footerLabel']=='Updating…','Running update did not replace action label'
                 assert data['updater']['footerStatus']==data['updater']['status'],'Footer did not mirror live update status'
                 text=data['updater']['footerStatus']
                 if not samples or text!=samples[-1]: samples.append(text)
@@ -190,7 +195,15 @@ def main():
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
         assert auth.read_text()=='opaque-test-credentials','Updater changed existing OMP credentials'
         new_window=driver.find_window('org.centaur.Gtk4',new_pid); driver.screenshot(new_window,folder/'updated-app.png')
+        until(lambda:state()['updater']['footerLabel']=='v'+state()['updater']['version'],'Restart did not restore installed version')
+        x,y,w,h=target(state,'update-version'); driver.click(new_window,round(x+w/2),round(y+h/2))
+        until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
+        assert state()['updater']['footerLabel']=='v'+state()['updater']['version'],'Stationary pointer kept action after real no-update check'
+        driver.screenshot(new_window,folder/'footer-up-to-date.png')
+        until(lambda:state()['updater']['footerStatus']=='','Real no-update notice did not clear')
+        assert state()['updater']['footerLabel']=='v'+state()['updater']['version']
         summary['checks']+=['settings-version-and-published-update','footer-background-availability-8px-badge-alignment-hover-and-keyboard',
+                            'footer-natural-width-paint-stable-geometry-pointer-and-focus-rearm-transient-no-update',
                             'footer-click-live-status-detached-download-signature-verification',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
                             'qt-profile-and-data-preserved']

@@ -89,6 +89,7 @@ def check_progress(driver,folder,path,info):
             pump(); controls.tick(); value=read(folder/'status.json')
             message=controls.status.get_text()
             assert message==controls.footer_status.get_text(),'Settings/footer progress diverged'
+            assert controls.footer_labels.get_visible_child().get_text()=='Updating…','Byte progress hid Updating caption'
             if not samples or message!=samples[-1]['message']:
                 samples.append({'bytes':value.get('downloadBytes',0),'total':value.get('totalBytes'),
                                 'message':message,'copyRunning':worker.is_alive()})
@@ -104,6 +105,7 @@ def check_progress(driver,folder,path,info):
         assert samples[-1]['bytes']==len(payload),samples
         transaction.status('verifying','Download complete. Verifying the update…'); controls.tick(); pump()
         assert controls.status.get_text().endswith(' · Verifying…') and 'Downloaded ' in controls.footer_status.get_text()
+        assert controls.footer_labels.get_visible_child().get_text()=='Updating…'
         (folder/'visible-progress.json').write_text(json.dumps(samples,indent=2))
     finally:
         window.destroy(); pump(); server.shutdown(); server.server_close(); serving.join(timeout=2)

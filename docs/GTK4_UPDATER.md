@@ -322,3 +322,45 @@ was not received at publication. The timer failure is reproduced independently;
 do not claim this CI result is hands-on confirmation of the VM's trace. The old
 installed helper still owns the operation that installs this fix. Hands-on
 counter validation applies to a later download started from the corrected build.
+
+## Footer state and highlight refinement — 11 November 2026
+
+The owner's installed `0.4.0-preview+4451f19` exposed an oversized hover fill
+and an action label that persisted after an up-to-date check. The footer now
+reserves a stable homogeneous caption slot and an 8px badge slot, while each
+caption is START-aligned at its natural width. Only that caption paints the
+grey background, with 8px horizontal padding and an 8px radius. The focus outline
+also follows the visible caption. The full reserved control remains clickable.
+
+Idle shows the installed version. Verified background discovery shows
+`Update available` automatically, keeping the existing yellow badge. Hover or
+focus offers `Update app`. A manual check finding no update restores the version
+and shows `Up to date` on the right for three seconds. A stationary pointer or
+retained focus does not hide that result, even after the notice expires. Pointer
+leave/re-entry and keyboard focus leave/re-entry independently rearm the action;
+a pointer left over the control cannot suppress a later keyboard visit. Focus
+remains visible and activation remains available while the version is displayed.
+
+During an update the left caption is `Updating…`, the badge is hidden and both
+entry points are disabled. The right status continues mirroring the existing
+download/verifying/restarting messages. A restarted process derives its version
+from its installed package and rediscovers availability; no availability state
+is persisted. Discovery still starts after about two seconds and repeats every
+900 seconds. There is no automatic installation.
+
+`footer_check.py` exercises the actual GTK controls in an isolated native display:
+idle, caption padding and pixel bounds, stable control/status geometry, a real
+pointer click with doubled asynchronous discovery, transient result expiry,
+pointer re-entry, native Tab/Return activation and focus re-entry, availability,
+badge geometry and progress. The signed updater suite also checks background
+availability, real profile activation/restart, the new installed version, and a
+real subsequent no-update check. The controlled signed-transfer fixture checks
+`Updating…` through live byte progress and verification.
+
+This is a UI refinement. Signed feed validation, download accounting, host gates,
+profile activation, rollback, project/data/OMP handling, Qt and GNOME titlebar/
+launcher code are unchanged. The owner's real-VM download counter still stuck at
+zero remains a separate unresolved issue; CI progress is not VM acceptance.
+Exact verified build and evidence are recorded below after publication. Hands-on
+acceptance belongs in Centaur Install, ARM64 GNOME VM only, one in-app step at a
+time without terminal or Air testing.
