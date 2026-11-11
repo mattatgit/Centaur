@@ -18,7 +18,6 @@ from updater import Runtime, CACHE, KEY, NIX_FLAGS
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
 from progress_check import check_progress
-from footer_check import check_footer
 
 
 def download_counter(folder,manifest):
@@ -94,7 +93,6 @@ def main():
     state=lambda:read(report/'shell.json'); new_pid=None; control=None
     summary={'checks':[],'real_nix_profile':True,'signed_cache':True,'production_approved':False}
     try:
-        check_footer(driver,folder/'footer-states')
         download_counter(folder,manifest)
         process=subprocess.Popen([str(profile/'bin/centaur-gtk4'),'--data-dir',str(data),'--report-dir',str(report)],env=env)
         summary['checks'].append('real-signed-cache-compressed-byte-counter-into-empty-store')

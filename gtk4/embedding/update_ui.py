@@ -16,6 +16,7 @@ class UpdateControls:
         self.owner=owner; self.manifest=None; self.checking=False; self.checked=False
         self.work=None; self.process=None; self.handed_off=False; self.ready_written=False; self.restored=False
         self.install_after_check=False
+        self.check_focus=None
         self.footer_feedback=False; self.footer_hovered=False; self.footer_focused=False
         self.footer_hover_suppressed=False; self.footer_focus_suppressed=False
         self.footer_notice_until=0
@@ -83,6 +84,8 @@ class UpdateControls:
         self.button.set_sensitive(value); self.footer_button.set_sensitive(value)
 
     def reset_footer_action(self):
+        focus=self.owner.window.get_focus()
+        self.footer_focused=bool(focus and (focus==self.footer_button or focus.is_ancestor(self.footer_button)))
         self.footer_hover_suppressed=self.footer_hovered
         self.footer_focus_suppressed=self.footer_focused
 
@@ -103,6 +106,8 @@ class UpdateControls:
 
     def check(self,install=False):
         if self.checking or self.process or self.starting: return
+        focus=self.owner.window.get_focus()
+        self.check_focus=focus if focus in (self.button,self.footer_button) else None
         self.checked=True; self.checking=True; self.status.set_text('Checking for updates…'); self.set_sensitive(False)
         self.next_check=time.monotonic()+900
         self.install_after_check=install
@@ -126,6 +131,10 @@ class UpdateControls:
         self.status.set_text(error or ('Update available · '+manifest['version'].removeprefix('Centaur GTK4 ') if manifest else 'You’re up to date.'))
         self.button.set_tooltip_text('Update available' if manifest else 'Check for updates')
         self.set_sensitive(True)
+        # Disabling GtkButton clears keyboard focus. Restore the initiating
+        # entry point only if the user has not focused another control meanwhile.
+        if self.check_focus and self.owner.window.get_focus() is None: self.check_focus.grab_focus()
+        self.check_focus=None
         if install and not manifest and not error:
             # Keep the result visible under a stationary pointer/retained focus.
             # Each input source rearms independently after leaving the control.

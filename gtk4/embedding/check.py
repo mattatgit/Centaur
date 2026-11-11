@@ -44,9 +44,12 @@ def main():
         raise SystemExit('Usage: centaur-gtk4-check NEW_REPORT_DIRECTORY (disposable CI display only)')
     folder = Path(sys.argv[1]).resolve()
     folder.mkdir(parents=True, exist_ok=False)
+    driver = Driver()
+    if driver.wayland:
+        from footer_check import check_footer
+        check_footer(driver,folder/'footer-states')
     launcher = Path(sys.argv[0]).resolve().parent / 'centaur-gtk4-test'
     process = subprocess.Popen([str(launcher), '--report-dir', str(folder)])
-    driver = Driver()
     summary = {'casilda_approved': False, 'checks': [], 'host_backend': 'wayland' if driver.wayland else 'x11'}
     child_pid = None
     try:

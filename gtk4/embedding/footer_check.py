@@ -48,7 +48,7 @@ def check_footer(driver,folder):
         return [round(r.get_x()),round(r.get_y()),round(r.get_width()),round(r.get_height())]
     caption=lambda:controls.footer_labels.get_visible_child()
     text=lambda:caption().get_text()
-    gate=threading.Event(); evidence={}
+    gate=threading.Event(); evidence={}; handle=None
     def input_state():
         focus=window.get_focus()
         return {'focus':focus.__gtype__.name if focus else None,'footerFocused':controls.footer_focused,
@@ -115,6 +115,14 @@ def check_footer(driver,folder):
         assert not controls.footer_focused,('Tab did not leave footer focus',input_state())
         driver.key('ISO_Left_Tab'); settle()
         assert controls.footer_focused and text()=='Update app',('Focus re-entry did not rearm action',input_state())
+        # Moving focus elsewhere during discovery must not be undone on return.
+        gate.clear()
+        with patch('update_ui.check_update',side_effect=no_update):
+            driver.key('Return'); wait(lambda:controls.checking,'Keyboard retry did not check')
+            click(entry); gate.set()
+            wait(lambda:not controls.checking,'Retry did not finish')
+        settle()
+        assert window.get_focus() and window.get_focus()!=controls.footer_button and not controls.footer_focused,'Check stole focus back from another control'
         hover(entry); click(entry)
         controls.checked_result({'version':'Centaur GTK4 0.4.0-preview+abcdef0'},None); settle()
         assert text()=='Update available' and controls.badge.get_visible(),'Background discovery did not show availability'
@@ -132,5 +140,5 @@ def check_footer(driver,folder):
     finally:
         evidence['lastInput']=input_state()
         (folder/'geometry.json').write_text(json.dumps(evidence,indent=2))
-        driver.screenshot(handle,folder/'last-state.png')
+        if handle: driver.screenshot(handle,folder/'last-state.png')
         gate.set(); window.destroy(); pump()
