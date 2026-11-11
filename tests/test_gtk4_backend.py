@@ -29,7 +29,13 @@ class BackendTests(unittest.TestCase):
 
     def test_child_isolated_and_stopped_without_touching_parent_environment(self):
         report = self.root / 'report.json'
-        script = 'import json,os,pathlib,time; pathlib.Path(os.environ["CENTAUR_GTK4_PROBE_REPORT"]).write_text(json.dumps(dict(os.environ))); time.sleep(30)'
+        script = '''import json,os,pathlib,time
+report = pathlib.Path(os.environ["CENTAUR_GTK4_PROBE_REPORT"])
+temporary = report.with_suffix('.tmp')
+temporary.write_text(json.dumps(dict(os.environ)))
+temporary.replace(report)
+time.sleep(30)
+'''
         with patch.dict(os.environ, DISPLAY=':test', WAYLAND_DISPLAY='desktop-test'):
             self.preview.start(backend.AppSpec((sys.executable, '-c', script)), self.root, report)
             process = self.preview.process
