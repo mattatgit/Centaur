@@ -72,9 +72,11 @@ button:focus-visible, entry:focus-within, dropdown:focus-visible { outline: 2px 
 .flat-button.tone-plain:hover { background: transparent; }
 .flat-button.tone-dark { background: #171717; color: white; padding: 0 16px; }
 .flat-button.tone-dark:hover { background: #171717; }
-.project-create > button { min-height: 32px; padding: 0 16px; border-radius: 8px; background: #171717; color: white; }
-.project-create > button:hover, .project-create > button:checked { background: #323232; }
-.create-chevron { transform: rotate(90deg); }
+/* Match Figma 20:785's rendered positions: caption x=12, arrow x=51.
+ * The 39px caption and unchanged 24px SVG leave 5px inside the 80px frame. */
+.project-create > button { min-height: 32px; padding: 0 5px 0 12px; border-radius: 8px; background: #171717; color: white; }
+.project-create > button:hover, .project-create > button:checked { background: #171717; }
+.project-create .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; line-height: 16px; }
 .flat-button.tone-lime { background: #ccff00; padding: 0 16px; }
 .flat-button.tone-lime:hover { background: #ccff00; }
 .flat-button.selected { background: #138ed5; color: white; }
@@ -118,7 +120,7 @@ separator { min-height: 1px; min-width: 1px; background: #e7e9e5; }
 .message, .composer-placeholder { font-family: 'Inter Tight'; font-size: 12.5pt; font-weight: 400; }
 .avatar { border-radius: 8px; background: #ff625a; color: white; font-family: Inter; font-size: 14px; font-weight: 600; }
 .avatar.agent { background: #171717; }
-.avatar.agent > .svg { margin: 0 4px; }
+.avatar.agent > .svg { margin: 0 8px; }
 .chat-scrollbar { padding: 0 8px; margin: 0; min-width: 8px; background: transparent; }
 .chat-scrollbar > range, .chat-scrollbar trough { min-width: 8px; padding: 0; margin: 0; border: 0; background: transparent; }
 .chat-scrollbar slider { min-width: 8px; padding: 0; margin: 0; border: 0; }
@@ -179,5 +181,10 @@ scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8
 .colour-label { font-family: Inter; font-size: 11px; font-weight: 400; }
 .meatball { color: #9ea39e; }
 popover.project-menu .flat-button:hover { background: #ebebeb; transform: none; }
+popover.create-project-menu > contents { min-width: 104px; padding: 8px; border: 0; border-radius: 8px; background: white; box-shadow: 0 0 20px alpha(black,.08); }
+popover.create-project-menu .flat-button { min-height: 24px; padding: 0 8px; border-radius: 8px; }
+popover.create-project-menu .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 400; line-height: 16px; }
+popover.create-project-menu .flat-button:hover,
+popover.create-project-menu .flat-button:focus-visible { background: #f8f8f8; transform: none; }
 .new-project-description label { font-family: Inter; font-size: 12pt; }
 .flat-button.colour-button, .flat-button.colour-button:hover { background: #f8f8f8; }

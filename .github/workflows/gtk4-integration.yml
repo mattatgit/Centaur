@@ -8,6 +8,7 @@ on:
       - 'gtk4/**'
       - 'templates/**'
       - 'assets/branding/**'
+      - 'assets/figma/**'
       - 'packaging/centaur-app.svg'
       - 'packaging/gtk4-centaur.desktop'
       - 'tests/**'

@@ -34,6 +34,7 @@ in pkgs.stdenvNoCC.mkDerivation {
     cp *.py *.css "$out/share/centaur-gtk4-test/"
     mkdir -p "$out/share/centaur-gtk4-test/assets"
     cp ${../assets/dialogue}/*.svg ${../assets/dialogue}/*.png "$out/share/centaur-gtk4-test/assets/"
+    cp ${../assets/figma}/*.svg "$out/share/centaur-gtk4-test/assets/"
     cp ${../assets/dialogue/LICENSE} "$out/share/centaur-gtk4-test/Dialogue-LICENSE"
     cp ${../assets/branding/Centaur_mono.svg} "$out/share/centaur-gtk4-test/assets/centaur.svg"
     cp ${casilda.src}/COPYING "$out/share/centaur-gtk4-test/Casilda-COPYING"

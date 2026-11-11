@@ -110,20 +110,24 @@ class Centaur(Gtk.Application):
         self.targets['mode-switch']=self.modes
         self.top_actions = box(spacing=8); self.top_actions.set_margin_end(24); self.top_actions.set_valign(Gtk.Align.CENTER)
         self.create_menu=Gtk.MenuButton(css_classes=['project-create'])
-        self.create_menu.set_size_request(104,32); self.create_menu.set_tooltip_text('Create or join a project')
-        create_label=box(spacing=8); create_label.set_halign(Gtk.Align.CENTER)
-        create_label.append(label('Create','button-label'))
-        chevron=Svg('profile-arrow.svg',16); chevron.add_css_class('create-chevron'); create_label.append(chevron)
+        self.create_menu.set_size_request(80,32); self.create_menu.set_tooltip_text('Create or join a project')
+        create_label=box(spacing=0); create_label.set_halign(Gtk.Align.START); create_label.set_valign(Gtk.Align.CENTER)
+        create_caption=label('Create','button-label'); create_caption.set_size_request(39,16); create_caption.set_valign(Gtk.Align.CENTER)
+        create_label.append(create_caption)
+        chevron=Svg('create-dropdown-arrow.svg',24); create_label.append(chevron)
         self.create_menu.set_child(create_label)
         create_pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); create_pop.add_css_class('project-menu')
+        create_pop.add_css_class('create-project-menu')
         create_pop.set_halign(Gtk.Align.END)
         create_actions=box(True,0)
         def project_action(callback): create_pop.popdown(); callback()
-        for key,title,callback in [('create','Create',self.new_project),('join','Join',self.join)]:
-            action=button(title,lambda cb=callback:project_action(cb),tone='plain',height=40)
+        for key,title,callback in [('create','Create a project',self.new_project),('join','Join a project',self.join)]:
+            action=button(title,lambda cb=callback:project_action(cb),tone='plain',height=24)
             action.get_child().set_halign(Gtk.Align.START); create_actions.append(action); self.targets[key]=action
+            self.targets[key+'-option-caption']=action.centaur_label
         create_pop.set_child(create_actions); self.create_menu.set_popover(create_pop)
         self.top_actions.append(self.create_menu); self.targets['project-menu']=self.create_menu
+        self.targets.update({'create-caption':create_caption,'create-arrow':chevron,'create-actions':create_actions})
         self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
         self.invite_button = button('Invite',self.invite,tone='outline',width=88); self.top_actions.append(self.invite_button)
         self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),'share.svg',width=88); self.top_actions.append(self.deploy_button)
@@ -453,7 +457,8 @@ class Centaur(Gtk.Application):
                 author=author.lstrip('@')
                 if author.lower()=='centaur': author='Centaur'
             if agent:
-                avatar=box(css='avatar agent'); avatar.append(Svg('centaur.svg',24)); avatar.set_halign(Gtk.Align.START)
+                avatar=box(css='avatar agent'); mark=Svg('centaur.svg',16); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
+                self.targets['chat-agent-avatar']=avatar; self.targets['chat-agent-mark']=mark
             else:
                 avatar=label(author[:1].upper(),'avatar'); avatar.set_xalign(.5)
             avatar.set_size_request(32,32); avatar.set_valign(Gtk.Align.START); item.append(avatar)

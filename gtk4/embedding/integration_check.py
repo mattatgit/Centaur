@@ -74,6 +74,22 @@ def main():
         click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
         click(hs,hw,'nav-projects')
         click(hs,hw,'project-menu'); driver.screenshot(hw,folder/'ui-create-dropdown.png',focus=False)
+        trigger=target(hs,'project-menu'); arrow=target(hs,'create-arrow'); caption=target(hs,'create-caption')
+        actions=target(hs,'create-actions'); first=target(hs,'create'); second=target(hs,'join')
+        assert trigger[2:]==[80,32] and actions[2:]==[104,48],(trigger,actions)
+        assert first[2:]==second[2:]==[104,24] and second[1]-first[1]==24,(first,second)
+        assert caption[0]-trigger[0]==12 and arrow[0]-trigger[0]==51 and arrow[2:]==[24,24],(caption,arrow,trigger)
+        assert actions[0]+104+8==trigger[0]+80 and actions[1]-trigger[1]==40,(actions,trigger)
+        assert target(hs,'create-option-caption')[0]-first[0]==8
+        rect=driver.rect(hw)
+        driver.ipc(f"seat seat0 cursor set {round(rect['x']+first[0]+first[2]/2)} {round(rect['y']+first[1]+first[3]/2)}")
+        driver.seat_command('motion 0 0'); time.sleep(.2)
+        driver.screenshot(hw,folder/'ui-create-dropdown-hover.png',focus=False)
+        with Image.open(folder/'ui-create-dropdown-hover.png') as source:
+            pixels=source.convert('RGB'); x,y,w,h=map(round,first)
+            assert pixels.getpixel((x+4,y+h//2))==(248,248,248),'Dropdown hover must use F8F8F8'
+            assert pixels.getpixel((x,y))==(255,255,255),'Dropdown hover must have rounded corners'
+        (folder/'figma-create-metrics.json').write_text(json.dumps({'trigger':trigger,'caption':caption,'arrow':arrow,'actions':actions,'create':first,'join':second},indent=2))
         driver.key('Escape')
         click(hs,hw,'create'); until(lambda:hs().get('form')=='Make something together','New project form did not open')
         dialog=until(lambda:hs()['targets'].get('dialog-card'),'Modal did not allocate inside Centaur')
@@ -172,6 +188,10 @@ def main():
             return abs(scroll['upper']-scroll['pageSize']-scroll['value'])<1
         until(at_bottom,'Chat did not follow the latest message after layout')
         driver.screenshot(hw,folder/'ui-chat-agent.png')
+        avatar=target(hs,'chat-agent-avatar'); mark=target(hs,'chat-agent-mark')
+        assert avatar[2:]==[32,32] and mark[2:]==[16,16],(avatar,mark)
+        assert mark[0]-avatar[0]==8 and mark[1]-avatar[1]==8,(avatar,mark)
+        (folder/'figma-avatar-metrics.json').write_text(json.dumps({'avatar':avatar,'markViewport':mark,'silhouette':[15,16]},indent=2))
         invalid=json.loads(json.dumps(changed)); invalid['files']['style.css']='window { made-up-property: broken; }'
         proposal(invalid)
         message(hs,hw,'@centaur Test a malformed change')

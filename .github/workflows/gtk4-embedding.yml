@@ -6,6 +6,7 @@ on:
     paths:
       - 'gtk4/**'
       - 'assets/branding/**'
+      - 'assets/figma/**'
       - 'packaging/gtk4-embedding-test.nix'
       - 'packaging/gtk4-test-seat.nix'
       - 'packaging/patches/casilda-*.patch'
