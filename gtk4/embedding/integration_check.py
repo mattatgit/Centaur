@@ -170,8 +170,8 @@ def main():
         driver.ipc(f"seat seat0 cursor set {round(rect['x']+hover[0]+16)} {round(rect['y']+hover[1]+16)}")
         driver.seat_command('motion 0 0'); time.sleep(.2)
         driver.screenshot(hw,folder/'ui-toolbar-hover.png')
-        with Image.open(folder/'ui-toolbar-hover.png') as source:
-            image=source.convert('RGB'); draw=toolbar_metrics['buttons']['tool-draw']
+        with Image.open(folder/'ui-toolbar-hover.png') as toolbar_image:
+            image=toolbar_image.convert('RGB'); draw=toolbar_metrics['buttons']['tool-draw']
             assert image.getpixel((round(hover[0]+4),round(hover[1]+16)))==(243,243,243),'Toolbar hover must use F3F3F3'
             assert image.getpixel((round(draw[0]+4),round(draw[1]+16)))==(19,142,213),'Selected tool must use blue'
         (folder/'figma-toolbar-metrics.json').write_text(json.dumps(toolbar_metrics,indent=2))
