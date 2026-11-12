@@ -77,6 +77,20 @@ class ImportTests(unittest.TestCase):
         for value in ('https://token@github.com/a/b','ext::evil','file:///tmp/a','https://github.com/a/b/tree/main','https://github.com/a/b?token=secret','https://example.com/a/b'):
             with self.subTest(value=value),self.assertRaises(imports.ImportError): imports.github_url(value)
 
+    def test_repository_export_rules_cannot_omit_or_rewrite_source(self):
+        subprocess.run(['git','init','-q',str(self.original)],check=True)
+        (self.original/'.gitattributes').write_text('hidden.swift export-ignore\nversion.txt export-subst\n')
+        (self.original/'hidden.swift').write_text('Original source')
+        (self.original/'version.txt').write_text('$Format:%H$')
+        subprocess.run(['git','-C',str(self.original),'add','.'],check=True)
+        subprocess.run(['git','-C',str(self.original),'-c','user.name=Test','-c','user.email=test@example.test','commit','-qm','Source'],check=True)
+        # Exercise the actual bare-clone/archive path against a local Git
+        # fixture; only URL validation/network transport are substituted.
+        with patch.object(imports,'github_url',return_value=str(self.original)):
+            imports.acquire(self.managed,{'type':'github','location':'https://github.com/test/source'})
+        self.assertEqual((self.managed/'source/hidden.swift').read_text(),'Original source')
+        self.assertEqual((self.managed/'source/version.txt').read_text(),'$Format:%H$')
+
     def test_git_history_and_uncommitted_edits_preserved_without_source_configuration(self):
         subprocess.run(['git','init','-q',str(self.original)],check=True)
         (self.original/'README.md').write_text('committed')

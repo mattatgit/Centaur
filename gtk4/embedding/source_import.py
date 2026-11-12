@@ -95,6 +95,11 @@ def acquire(root, source):
             url=github_url(source['location'])
             history=work/'history.git'
             git(['clone','--bare','--single-branch','--',url,str(history)])
+            # Preserve committed bytes, rather than a release archive whose
+            # .gitattributes may omit files or substitute version placeholders.
+            # https://git-scm.com/docs/git-archive#_attributes
+            (history/'info').mkdir(exist_ok=True)
+            (history/'info/attributes').write_text('* -export-ignore -export-subst\n')
             # git archive doesn't checkout filters, hooks, .gitmodules or LFS.
             def unpack(stream):
                 nonlocal skipped
