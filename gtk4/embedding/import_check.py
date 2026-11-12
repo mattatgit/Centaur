@@ -111,7 +111,7 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     click(state,window,'import-branch'); click(state,window,'import-branch-option-'+default)
     assert state()['importDialog']['branchLabel']==default
     click(state,window,'import-submit')
-    until(lambda:state()['project'].get('import',{}).get('status')=='awaitingAnswer','Public GitHub source import did not finish',timeout=110)
+    until(lambda:state()['project'].get('name')=='GitHub example' and state()['project'].get('import',{}).get('status')=='awaitingAnswer','Public GitHub source import did not finish',timeout=110)
     project=state()['project']; info=project['import']
     storage=root/'projects'/project['id']/'.centaur/import'/info['storage']
     assert (storage/'source/README').is_file() and (storage/'history.git/HEAD').is_file()
