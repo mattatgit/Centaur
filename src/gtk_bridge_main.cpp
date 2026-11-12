@@ -56,6 +56,8 @@ int main(int argc, char **argv) {
             const auto type = command["type"].toString();
             const auto id = command["projectId"].toString();
             if (type == "create") controller.createGtkProject(command["name"].toString(), command["description"].toString());
+            else if (type == "importProject") controller.importGtkProject(command);
+            else if (type == "retryImport" || type == "runImport") controller.importAction(type,command["source"].toObject());
             else if (type == "open") controller.openProject(id);
             else if (type == "close") controller.closeProject();
             else if (type == "author") controller.setAuthor(command["name"].toString());

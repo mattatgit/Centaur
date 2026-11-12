@@ -38,6 +38,7 @@ qt_add_resources(centaur_typography tight_fonts PREFIX "/fonts" BASE assets/font
 add_library(centaur_core STATIC
     src/workspace.cpp src/workspace.h
     src/session.cpp src/session.h
+    src/session_import.cpp
     src/collaboration.cpp src/collaboration.h
     src/irohbridge.cpp src/irohbridge.h
     src/agent.cpp src/agent.h

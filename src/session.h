@@ -42,6 +42,11 @@ private:
     void applyProposal(const QString &id, QJsonObject state);
     void nextRequest();
     void retryRequest(QJsonObject &state);
+    bool importCommand(const QJsonObject &command, QIODevice *sender);
+    void importJob(const QString &id, const QString &mode, QJsonObject payload = {});
+    void importResult(const QString &id, const QString &mode, const QJsonObject &result, int epoch = -1);
+    void queueImport(QJsonObject &state, const QString &text, const QString &author);
+    QHash<QString, QProcess *> m_imports;
     QJsonObject m_activeRequest;
     QTimer m_reconnect;
     std::unique_ptr<CollaborationHost> m_network;

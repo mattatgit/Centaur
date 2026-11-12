@@ -72,7 +72,7 @@ QVariantList Workspace::projects() const {
     return result;
 }
 
-QString Workspace::createProject(const QString &name, const QString &description, QString *error, const QString &format) {
+QString Workspace::createProject(const QString &name, const QString &description, QString *error, const QString &format, bool imported) {
     if (name.trimmed().isEmpty() || name.size() > 100) {
         if (error) *error = "Give the project a name of up to 100 characters.";
         return {};
@@ -93,12 +93,12 @@ QString Workspace::createProject(const QString &name, const QString &description
         return {};
     }
     const QByteArray source = starter.readAll();
-    if (source.isEmpty() || !writeFile(path + "/" + filename, source, error)
+    if (source.isEmpty() || (!imported && !writeFile(path + "/" + filename, source, error))
         || !writeFile(path + "/.gitignore", ".centaur/\n", error)
         || !writeFile(path + "/README.md", ("# " + name.trimmed() + "\n\n" + description +
             (gtk ? "\n\nNative GTK4 app. Source bundle: App.gtk.json; behaviour, GtkBuilder UI and CSS are separate.\n" : "\n\nNative Qt Quick app. Run with `centaur-preview App.qml`.\n")).toUtf8(), error)
         || !git(path, {"init", "-b", "main"}, error)
-        || !git(path, {"add", filename, "README.md", ".gitignore"}, error)
+        || !git(path, imported ? QStringList{"add", "README.md", ".gitignore"} : QStringList{"add", filename, "README.md", ".gitignore"}, error)
         || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost", "commit", "-m", "Start native app"}, error)) {
         QDir(path).removeRecursively();
         return {};

@@ -26,6 +26,7 @@ from annotations import AnnotationSpace, position as annotation_position
 from comment_pointer import CommentPointer,paint_arrow
 from update_ui import UpdateControls
 from desktop import APP_ID, launch_settings, register as register_desktop
+from import_ui import show_import
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal,
                 label, box, margins, button, button_text, selected)
@@ -117,24 +118,26 @@ class Centaur(Gtk.Application):
         self.top.set_center_widget(self.modes)
         self.targets['mode-switch']=self.modes
         self.top_actions = box(spacing=8); self.top_actions.set_margin_end(24); self.top_actions.set_valign(Gtk.Align.CENTER)
-        self.create_menu=Gtk.MenuButton(css_classes=['project-create'])
-        self.create_menu.set_size_request(80,32); self.create_menu.set_tooltip_text('Create or join a project')
-        create_label=box(spacing=0); create_label.set_halign(Gtk.Align.START); create_label.set_valign(Gtk.Align.CENTER)
-        create_caption=label('Create','button-label'); create_caption.set_size_request(39,16); create_caption.set_valign(Gtk.Align.CENTER)
-        create_label.append(create_caption)
-        chevron=Svg('create-dropdown-arrow.svg',24); create_label.append(chevron)
-        self.create_menu.set_child(create_label)
+        self.create_menu=box(spacing=0,css='project-create-split'); self.create_menu.set_size_request(80,32)
+        create_main=button('Create',self.new_project,css='project-create-main',tone='dark',width=51)
+        self.create_menu.append(create_main); self.targets['create-main']=create_main
+        create_caption=create_main.centaur_label
+        create_caption.set_size_request(39,16); create_main.get_child().set_halign(Gtk.Align.START)
+        arrow_menu=Gtk.MenuButton(css_classes=['project-create-arrow']); arrow_menu.set_size_request(29,32)
+        arrow_menu.set_tooltip_text('Create, import or join a project')
+        chevron=Svg('create-dropdown-arrow.svg',24); arrow_menu.set_child(chevron); self.create_menu.append(arrow_menu)
         create_pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); create_pop.add_css_class('project-menu')
         create_pop.add_css_class('create-project-menu')
         create_pop.set_halign(Gtk.Align.END)
         create_actions=box(True,0)
         def project_action(callback): create_pop.popdown(); callback()
-        for key,title,callback in [('create','Create a project',self.new_project),('join','Join a project',self.join)]:
+        for key,title,callback in [('create','Create project',self.new_project),('import','Import project',lambda:show_import(self)),('join','Join project',self.join)]:
             action=button(title,lambda cb=callback:project_action(cb),tone='plain',height=24)
             action.get_child().set_halign(Gtk.Align.START); create_actions.append(action); self.targets[key]=action
             self.targets[key+'-option-caption']=action.centaur_label
-        create_pop.set_child(create_actions); self.create_menu.set_popover(create_pop)
-        self.top_actions.append(self.create_menu); self.targets['project-menu']=self.create_menu
+        create_pop.set_child(create_actions); arrow_menu.set_popover(create_pop)
+        self.top_actions.append(self.create_menu); self.targets['project-menu']=arrow_menu
+        self.targets['project-create-split']=self.create_menu
         self.targets.update({'create-caption':create_caption,'create-arrow':chevron,'create-actions':create_actions})
         self.import_button = button('Import',lambda:None,tone='dark'); self.import_button.set_sensitive(False); self.top_actions.append(self.import_button)
         self.invite_button = button('Invite',self.invite,tone='outline',width=88); self.top_actions.append(self.invite_button)
@@ -239,6 +242,8 @@ class Centaur(Gtk.Application):
         self.overlay.add_overlay(tools)
         self.preview_label=label('','small muted',True); self.preview_label.set_halign(Gtk.Align.CENTER); self.preview_label.set_valign(Gtk.Align.CENTER); self.preview_label.set_can_target(False)
         self.overlay.add_overlay(self.preview_label)
+        self.import_working=Gtk.Spinner(width_request=24,height_request=24,halign=Gtk.Align.CENTER,valign=Gtk.Align.CENTER)
+        self.import_working.set_can_target(False); self.overlay.add_overlay(self.import_working); self.import_working.set_visible(False)
         self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER); self.build_tools.set_valign(Gtk.Align.END); self.build_tools.set_margin_bottom(16)
         self.tool_buttons={}
         for tool,title,icon in [('draw','Draw','toolbar-draw-active.svg'),('comment','Comment','toolbar-comment.svg')]:
@@ -282,6 +287,15 @@ class Centaur(Gtk.Application):
         self.busy=box(spacing=8,css='busy'); self.busy_text=label('Centaur is working…','chat-status muted'); self.busy_text.set_hexpand(True); self.busy.append(self.busy_text)
         self.stop_button=button('Stop',lambda:self.service.send('cancel'),tone='plain'); self.busy.append(self.stop_button); chat.append(self.busy); self.busy.set_visible(False)
         self.proposal=box(True,8,'proposal'); chat.append(self.proposal); self.proposal.set_visible(False)
+        self.import_actions=box(spacing=8); chat.append(self.import_actions); self.import_actions.set_visible(False)
+        self.import_run=button('Run preview',lambda:self.service.send('runImport')); self.import_actions.append(self.import_run)
+        self.import_retry=button('Retry import',lambda:show_import(self,retry=True)); self.import_actions.append(self.import_retry)
+        def open_imported():
+            info=self.project.get('import',{}); relative=info.get('output') or 'source'
+            path=self.root/'projects'/self.project['id']/'.centaur/import'/info.get('storage','')/relative
+            Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
+        self.import_open=button('Open source',open_imported,tone='plain'); self.import_actions.append(self.import_open)
+        self.targets.update({'import-run':self.import_run,'import-retry':self.import_retry,'import-open':self.import_open})
         self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False); self.editor.add_css_class('message'); self.targets['editor']=self.editor
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
         row=box(spacing=8); self.mention=button('@centaur',self.insert_mention,tone='plain'); row.append(self.mention)
@@ -291,9 +305,9 @@ class Centaur(Gtk.Application):
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)
-        for item in (heading,divider,self.busy,self.proposal,self.composer,self.update_footer):
+        for item in (heading,divider,self.busy,self.proposal,self.import_actions,self.composer,self.update_footer):
             item.set_margin_start(24); item.set_margin_end(24)
-        for item in (self.busy,self.proposal,self.composer,self.update_footer): item.set_margin_top(16)
+        for item in (self.busy,self.proposal,self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
         self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider})
         self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
         self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
@@ -467,6 +481,16 @@ class Centaur(Gtk.Application):
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
             self.refresh_proposal()
+            imported=self.project.get('import',{}); phase=imported.get('status')
+            local=not data.get('remote',False)
+            self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
+            self.import_retry.set_visible(local and phase in ('failed','interrupted'))
+            self.import_open.set_visible(local and bool(imported.get('framework')))
+            button_text(self.import_open,'Open adaptation' if imported.get('output') else 'Open source')
+            self.import_actions.set_visible(any(w.get_visible() for w in (self.import_run,self.import_retry,self.import_open)))
+            working=bool(imported) and not imported.get('previewReady')
+            self.import_working.set_visible(working)
+            (self.import_working.start if working and phase in ('fetching','investigating','inspecting') else self.import_working.stop)()
             if self.page=='workspace': GLib.idle_add(self.start_preview)
         elif old_id:
             self.stop_preview(); self.navigate('projects')
@@ -800,6 +824,8 @@ class Centaur(Gtk.Application):
 
     def start_preview(self,force=False):
         if self.closing or self.page!='workspace' or not self.project: return False
+        if self.project.get('import') and not self.project['import'].get('previewReady'):
+            self.stop_preview(); self.preview_status=''; return False
         if self.project.get('appFormat')!='gtk4-v1':
             self.preview_status='This Qt project is preserved. Open it with Qt Centaur.'; return False
         key=(self.project['id'],self.project.get('revision'))

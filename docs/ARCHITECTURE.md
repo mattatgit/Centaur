@@ -162,3 +162,86 @@ The optional Linux `landline-embedding-test` package pins Landline's Rust/egui c
 
 This is a launch/embedding experiment, not project import. Accepted source, checkpoints and authoring collaboration remain single-file QML; editing imported Rust projects, distributing their source/assets and rebuilding them collaboratively require a separate project contract.
 
+## GTK4 project import — 12 November 2026
+
+The GTK4 branch introduces a source-import layer independent of the three-file
+`gtk4-v1` runnable bundle. The preserved Qt UI and installation remain unchanged.
+The Create split button opens a new project directly; its arrow offers Create
+project, Import project and Join project. The import form follows Figma `27:741`
+inside section `27:738`, with an independently editable friendly name, a GitHub
+URL or native folder chooser, and optional instructions.
+
+Project identity, conversation, membership and accepted app history still belong
+to the existing coordinator. An imported project starts without a fake starter
+app. Its persistent `import` state records acquisition, investigation, waiting,
+failure, explicit preview readiness and accepted preview state. Chat and project
+navigation remain usable during asynchronous work. Import workers block updates,
+deletion and archiving until their filesystem operation has finished. Interrupted
+acquisition is recorded for retry; agent requests use the existing durable queue.
+Retries retain the same project and conversation and create a fresh source-copy
+directory rather than overwriting an earlier import attempt.
+
+Each attempt has three separate locations beneath
+`<project>/.centaur/import/<attempt-id>/`:
+
+- `source/`: a Centaur-managed source snapshot, never modified by the agent.
+- `history.git/`: separate Git history where available, without copied local
+  repository configuration or hooks. GitHub history has an unusable push URL;
+  copied local history has no upstream remote.
+- `adaptations/version-*/`: separately versioned generated files for other
+  targets. `candidate.gtk.json` is a statically checked GTK candidate; only an
+  explicit local Run preview action permits the normal native checker to execute
+  it and commit accepted output as the project's `App.gtk.json`.
+
+The worker never runs source scripts, dependency installation, Git hooks,
+submodule checkout or checkout filters. Folder copies exclude dependency/build
+directories, common credential files, special files and symlinks. Other source
+files and uncommitted working-tree contents are preserved; omitted files are
+counted. This is a source snapshot, not a full filesystem backup. Git archives
+are streamed and regular files are written through validated relative paths.
+Source limits are 20,000 files, 128 MB total and 16 MB per file, with bounded
+worker and Git timeouts. Git history may be larger than the source snapshot.
+Private GitHub repositories use the importing account's existing Git credential
+helper; Centaur accepts no credentials embedded in URLs and never asks for tokens
+in chat. Interactive sign-in belongs outside the import workflow.
+
+The agent receives an inventory and bounded text excerpts, not arbitrary
+filesystem or shell access. Its structured `inspect` response requests up to 12
+relative source files per round; there are eight rounds per conversational step,
+24 KB per file, 96 KB per read and 160 KB retained context. Private filenames,
+binary files, symlink escapes and recognizable credentials are withheld. This
+filter is defensive detection rather than a guarantee that arbitrary source can
+contain no secrets. Local source locators and inspection context are excluded
+from collaboration snapshots. Debug events stay in
+`.centaur/import-debug.jsonl`; shared chat contains concise findings and questions.
+
+The original source framework and the intended adaptation are distinct. Import
+instructions and ordinary chat answers determine the adaptation; the agent must
+not silently substitute GTK4 for CSS/JS, iOS or another requested target.
+Unsupported runtimes can be inspected and receive separate generated files
+without a preview backend. The current direct runnable contract is an
+`App.gtk.json` bundle, not an arbitrary GTK, Rust, Nix, web or iOS repository.
+Imported native code executes with the user's permissions after Run preview;
+the existing runtime is not a sandbox.
+
+Import from Projects always uses the initiating machine's local coordinator,
+including when that machine also participates as a guest elsewhere. A folder
+path is never forwarded to a remote project host. The new project can then be
+shared using existing invitations. Attaching a guest's local folder to an
+already-hosted remote project would require a separately authenticated transfer
+protocol and is not offered by this first import flow. Guests can join pending
+imports and chat before an app bundle exists; only accepted runnable output is
+distributed as preview source. Original repositories and generated non-GTK
+adaptations remain on the importing host.
+
+Dialogue's existing prototype ZIP/revision UI was reviewed. Its dedicated
+Landline upload path is not a generic repository inspector, and its visible
+revision/status model is unsuitable here. Centaur instead reuses its existing
+project coordinator, Git checkpoints, durable agent queue, chat, invitations,
+native modal and button components. Native CI exercises the modal, direct
+compatible import without execution, explicit run, unsupported source plus a
+chat-guided CSS/JS adaptation, and a public GitHub import. Unit regressions cover
+copy isolation, private-file/path boundaries, failed-copy retry and interrupted
+host recovery. GNOME's native folder chooser and authenticated private repository
+access still need hands-on VM acceptance.
+

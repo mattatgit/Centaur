@@ -12,6 +12,7 @@ from check import until, read, target
 from test_driver import Driver
 from ink_check import check_ink, assert_capture,place_agent_pointer
 from window_controls_check import check_window_controls
+from import_check import check_imports
 
 
 class Bridge:
@@ -52,7 +53,7 @@ def main():
         driver.ipc(f'[con_id={window}] move position {40 if name=="host" else 1280} px 60 px')
         return process,state,window
     def click(state,window,name):
-        if name in ('create','join'): click(state,window,'project-menu')
+        if name in ('create','import','join'): click(state,window,'project-menu')
         x,y,w,h=target(state,name)
         driver.click(window,round(x+w/2),round(y+h/2))
         time.sleep(.15)
@@ -75,10 +76,11 @@ def main():
         click(hs,hw,'nav-settings'); driver.screenshot(hw,folder/'ui-settings.png')
         click(hs,hw,'nav-projects')
         click(hs,hw,'project-menu'); driver.screenshot(hw,folder/'ui-create-dropdown.png',focus=False)
-        trigger=target(hs,'project-menu'); arrow=target(hs,'create-arrow'); caption=target(hs,'create-caption')
+        trigger=target(hs,'project-create-split'); arrow=target(hs,'create-arrow'); caption=target(hs,'create-caption')
         actions=target(hs,'create-actions'); first=target(hs,'create'); second=target(hs,'join')
-        assert trigger[2:]==[80,32] and actions[2:]==[104,48],(trigger,actions)
-        assert first[2:]==second[2:]==[104,24] and second[1]-first[1]==24,(first,second)
+        assert trigger[2:]==[80,32] and actions[2:]==[104,72],(trigger,actions)
+        assert first[2:]==second[2:]==[104,24] and second[1]-first[1]==48,(first,second)
+        assert target(hs,'import')[1]-first[1]==24
         assert caption[0]-trigger[0]==12 and arrow[0]-trigger[0]==51 and arrow[2:]==[24,24],(caption,arrow,trigger)
         assert actions[0]+104+8==trigger[0]+80 and actions[1]-trigger[1]==40,(actions,trigger)
         assert target(hs,'create-option-caption')[0]-first[0]==8
@@ -92,7 +94,7 @@ def main():
             assert pixels.getpixel((x,y))==(255,255,255),'Dropdown hover must have rounded corners'
         (folder/'figma-create-metrics.json').write_text(json.dumps({'trigger':trigger,'caption':caption,'arrow':arrow,'actions':actions,'create':first,'join':second},indent=2))
         driver.key('Escape')
-        click(hs,hw,'create'); until(lambda:hs().get('form')=='Make something together','New project form did not open')
+        click(hs,hw,'create-main'); until(lambda:hs().get('form')=='Make something together','Split button main action did not create directly')
         dialog=until(lambda:hs()['targets'].get('dialog-card'),'Modal did not allocate inside Centaur')
         assert dialog[2]==464 and abs(dialog[0]+dialog[2]/2-720)<=1 and abs(dialog[1]+dialog[3]/2-472)<=1,'Project dialog is not centred in Centaur'
         driver.screenshot(hw,folder/'ui-new-project.png',focus=False)
@@ -281,6 +283,7 @@ def main():
         summary['checks'].append('responsive-project-grid-original-menu-rename-and-cancelled-delete')
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
+        summary['checks']+=check_imports(driver,folder,hs,hw,click,message,roots[0],original,reply_file,request_record)
         summary['passed']=True
     finally:
         for name in ('host','guest'):

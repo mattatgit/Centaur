@@ -90,6 +90,8 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
                     state["proposal"] = QJsonObject();
+                    auto imported=state["import"].toObject();
+                    if (!imported.isEmpty()) { imported["previewReady"]=true; imported["status"]="ready"; state["import"]=imported; }
                     addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
                         ? "Restored that version of the app." : "Updated the app.", "agent");
                     emit sourceChanged(id);
@@ -104,6 +106,10 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
 }
 
 Session::~Session() {
+    for (auto *process : m_imports) {
+        disconnect(process,nullptr,this,nullptr); process->terminate();
+        if (!process->waitForFinished(2000)) { process->kill(); process->waitForFinished(1000); }
+    }
     disconnect(&m_agent, nullptr, this, nullptr);
     disconnect(&m_validator, nullptr, this, nullptr);
     m_agent.cancel();
@@ -158,6 +164,12 @@ void Session::start(bool background) {
         for (const auto &project : m_workspace.projects()) {
             const auto id = project.toMap()["id"].toString();
             auto state = m_workspace.load(id);
+            auto imported = state["import"].toObject();
+            if (imported["status"] == "fetching" || imported["status"] == "inspecting") {
+                imported["status"] = "interrupted"; state["import"] = imported;
+                addMessage(state,state["agentName"].toString(),"The source import was interrupted. Retry when you’re ready; the original is untouched.","system");
+                persist(id,state);
+            }
             if (!state["activeRequest"].toObject().isEmpty()) {
                 auto queue = state["agentQueue"].toArray(); queue.prepend(state["activeRequest"]);
                 state["agentQueue"] = queue; state.remove("activeRequest"); persist(id, state);
@@ -225,6 +237,7 @@ void Session::publish(const QString &id) {
         state["sharing"] = m_network ? m_network->sharing(state["id"].toString()) : QJsonObject();
         state["queueCount"] = state["agentQueue"].toArray().size();
         state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
+        state.remove("importLocal");
         states.append(state);
     }
     QJsonObject data{{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(m_workspace.projects())},
@@ -259,7 +272,7 @@ bool Session::persist(const QString &id, QJsonObject state) {
 }
 
 bool Session::updateBlocked() const {
-    if (m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning
+    if (!m_imports.isEmpty() || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning
         || (m_network && m_network->preparingInvitation())) return true;
     for (const auto &project : m_workspace.projects()) {
         const auto state = m_workspace.load(project.toMap()["id"].toString());
@@ -293,6 +306,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return;
     }
     if (m_updateStopping || !m_updateToken.isEmpty()) { fail("Centaur is restarting for an update. Try again shortly."); return; }
+    if (importCommand(command,sender)) return;
     if (type == "shutdown") { QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return; }
     if (type == "create" || type == "openStarter") {
         // Only the host has the authoritative list at startup. Resolve this in
@@ -356,13 +370,19 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
-        const bool addressed = text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
+        const auto imported = state["import"].toObject();
+        const bool importAnswer = !imported.isEmpty() && !imported["previewReady"].toBool()
+            && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating");
+        const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
         // Ordinary conversation can continue while the agent works. Explicit
         // directions and sketches still invalidate stale work/agreements.
         if (addressed || state["proposal"].toObject()["conflict"].isObject()) {
             state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
         if (addressed) {
+            if (importAnswer && imported["status"]=="awaitingAnswer") {
+                auto info=imported; info["inspectionRounds"]=0; info["status"]="investigating"; state["import"]=info;
+            }
             auto queue = state["agentQueue"].toArray();
             if (queue.size() >= 50) { fail("The request queue is full. Wait for the agent to catch up."); return; }
             QString image;
@@ -370,7 +390,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             const auto expected = m_workspace.projectPath(id) + "/.centaur/";
             const auto canonical = QFileInfo(filename).canonicalFilePath();
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
-            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}});
+            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import",importAnswer}});
             state["agentQueue"] = queue;
         }
         if (!persist(id, state)) return;
@@ -443,17 +463,20 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         state["name"] = name;
         if (!persist(id, state)) return;
     } else if (type == "delete") {
+        if (m_imports.contains(id)) { fail("Wait for the source import to finish before deleting."); return; }
         if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before deleting."); return; }
         if (m_validatingProject == id) { fail("Wait for the app check to finish before deleting."); return; }
         QString error;
         if (!m_workspace.deleteProject(id, &error)) { fail(error); return; }
         if (m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
     } else if (type == "archive") {
+        if (m_imports.contains(id)) { fail("Wait for the source import to finish before archiving."); return; }
         if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before archiving."); return; }
         if (m_validatingProject == id) { fail("Wait for the app check to finish before archiving."); return; }
         state["archived"] = true;
         if (persist(id, state) && m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
     } else if (type == "cancel") {
+        if (m_imports.contains(id)) m_imports.value(id)->terminate();
         if (m_agentProject == id && m_agent.busy()) {
             m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear();
         }
@@ -475,6 +498,33 @@ void Session::finishAgent(const QJsonObject &reply) {
     auto state = m_workspace.load(id);
     bool automatic = false;
     state.remove("activeRequest");
+    if (!state["import"].toObject().isEmpty() && !state["import"].toObject()["previewReady"].toBool()
+        && state["epoch"].toInt() == m_agentEpoch) {
+        auto info=state["import"].toObject();
+        const auto kind=reply["kind"].toString();
+        if (reply["conflict"].isObject()) {
+            info["status"]="awaitingAnswer"; state["import"]=info;
+            addMessage(state,state["agentName"].toString(),reply["message"].toString()+" Please resolve these directions together before I prepare the adaptation.","agent");
+            persist(id,state); publish(id); return;
+        }
+        if (kind=="inspect") {
+            info["requestAuthor"]=requester;
+            const int rounds=info["inspectionRounds"].toInt()+1; info["inspectionRounds"]=rounds;
+            if (rounds>8) {
+                info["status"]="awaitingAnswer"; state["import"]=info;
+                addMessage(state,state["agentName"].toString(),"Which part of the imported app should we focus on first?","agent");
+                persist(id,state); publish(id); return;
+            }
+            info["status"]="inspecting"; state["import"]=info; persist(id,state); publish(id);
+            importJob(id,"read",{{"paths",reply["paths"]}}); return;
+        }
+        info["status"]="awaitingAnswer"; state["import"]=info;
+        addMessage(state,state["agentName"].toString(),reply["message"].toString(),"agent");
+        persist(id,state); publish(id);
+        if (kind=="artifact") importJob(id,"stage",{{"files",reply["files"]},{"target",reply["target"]}});
+        else if (kind=="proposal" && reply["gtk"].isObject()) importJob(id,"bundle",{{"bundle",reply["gtk"]}});
+        return;
+    }
     if (state["epoch"].toInt() != m_agentEpoch) {
         retryRequest(state);
         addMessage(state, state["agentName"].toString(), "New directions arrived. I’m checking the request against the latest conversation.", "system");
@@ -541,6 +591,8 @@ void Session::agentError(const QString &message) {
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
     state.remove("activeRequest");
+    auto imported=state["import"].toObject();
+    if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="awaitingAnswer"; state["import"]=imported; }
     addMessage(state, state["agentName"].toString(), message, "system");
     persist(id, state);
     publish(id);
@@ -576,15 +628,18 @@ void Session::nextRequest() {
     for (const auto &project : m_workspace.projects()) {
         const auto id = project.toMap()["id"].toString();
         auto state = m_workspace.load(id); auto queue = state["agentQueue"].toArray();
+        if (m_imports.contains(id)) continue;
         if (queue.isEmpty()) continue;
         m_activeRequest = queue.first().toObject(); queue.removeFirst(); state["agentQueue"] = queue;
         state["activeRequest"] = m_activeRequest;
         if (!persist(id, state)) return;
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
+        request.remove("importLocal");
+        if (!state["import"].toObject().isEmpty()) request["sourceInspection"] = state["importLocal"].toObject()["context"];
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
         request["requestComment"] = m_activeRequest["comment"];
-        request["appHistory"] = m_workspace.history(id);
+        request["appHistory"] = !state["import"].toObject().isEmpty() && !state["import"].toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
         m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
         publish(id); return;

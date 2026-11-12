@@ -215,6 +215,15 @@ void Controller::createProject(const QString &name, const QString &description) 
 void Controller::createGtkProject(const QString &name, const QString &description) {
     m_session.send({{"type", "create"}, {"name", name}, {"description", description}, {"appFormat", "gtk4-v1"}});
 }
+void Controller::importGtkProject(const QJsonObject &data) {
+    auto command=data; command["type"]="importProject"; command["author"]=m_author;
+    m_session.send(command);
+}
+void Controller::importAction(const QString &type, const QJsonObject &source) {
+    if (remoteProject()) { emit error("Run or retry source imports on the project host."); return; }
+    if (type!="retryImport" && type!="runImport") return;
+    route(m_projectId,{{"type",type},{"source",source}});
+}
 void Controller::openProject(const QString &id) {
     if (!m_states.contains(id)) return;
     if (m_projectId != id) { stopPreview(); m_invitationCode.clear(); }

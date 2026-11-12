@@ -487,7 +487,9 @@ void SharedProject::receive(const QJsonObject &data) {
         emit changed();
     } else if (type == "project") {
         const auto state = data["state"].toObject(); const auto source = data["source"].toString();
-        if (state["id"] != id() || source.size() > 256000 || source.trimmed().isEmpty() || digest(source.toUtf8()) != data["sourceHash"].toString()) { m_socket.abort(); return; }
+        const auto imported=state["import"].toObject();
+        const bool awaitingImport=!imported.isEmpty() && !imported["previewReady"].toBool();
+        if (state["id"] != id() || source.size() > 256000 || (source.trimmed().isEmpty() && !awaitingImport) || digest(source.toUtf8()) != data["sourceHash"].toString()) { m_socket.abort(); return; }
         if (!privateFile(path() + "/snapshot.json", data) || !Workspace::writeFile(path() + "/" + Workspace::sourceName(state), source.toUtf8())) {
             emit error("Could not save the shared app on this device."); m_socket.abort(); return;
         }

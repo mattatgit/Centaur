@@ -77,6 +77,12 @@ button:focus-visible, entry:focus-within, dropdown:focus-visible { outline: 2px 
 .project-create > button { min-height: 32px; padding: 0 5px 0 12px; border-radius: 8px; background: #171717; color: white; }
 .project-create > button:hover, .project-create > button:checked { background: #171717; }
 .project-create .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; line-height: 16px; }
+.project-create-split { background: #171717; border-radius: 8px; color: white; }
+.project-create-split .project-create-main { padding: 0 0 0 12px; border-radius: 8px 0 0 8px; }
+.project-create-main > box { margin: 0; }
+.project-create-split .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; line-height: 16px; }
+.project-create-arrow > button { padding: 0 5px 0 0; min-height: 32px; border-radius: 0 8px 8px 0; background: #171717; color: white; }
+.project-create-split button:hover, .project-create-split button:checked { background: #303030; transform: none; }
 .flat-button.tone-lime { background: #ccff00; padding: 0 16px; }
 .flat-button.tone-lime:hover { background: #ccff00; }
 .flat-button.selected { background: #138ed5; color: white; }
@@ -161,6 +167,21 @@ textview, textview text { background: transparent; color: #171717; padding: 0; }
 window.dialog { background: transparent; }
 .dialog-card { background: white; border-radius: 16px; padding: 24px; }
 .dialog-title { font-family: Inter; font-size: 16px; font-weight: 600; }
+.dialog-card.import-dialog { padding: 16px 24px; box-shadow: 0 0 25px alpha(black,.1); }
+.import-title { font-family: 'Inter Tight'; font-size: 16px; font-weight: 600; }
+.import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; }
+.import-dialog .import-field { min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: #f8f8f8; font-family: 'Inter Tight'; font-size: 12px; font-weight: 500; }
+.import-dialog .import-field placeholder { color: #9ea39e; }
+.import-dialog .import-source-entry { padding-right: 104px; }
+.import-dialog .import-choose { min-height: 24px; padding: 0 8px; border-radius: 8px; background: white; color: #9ea39e; }
+.import-dialog .import-choose:hover { background: #ebebeb; transform: none; }
+.import-dialog .import-choose.icon-only { min-width: 0; }
+.import-dialog .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; }
+.import-prompt-box { background: #f8f8f8; border-radius: 12px; }
+.import-prompt, .import-prompt text { background: transparent; font-family: 'Inter Tight'; font-size: 12px; font-weight: 500; }
+.import-prompt { padding: 12px 16px; }
+.import-placeholder { font-family: 'Inter Tight'; font-size: 12px; font-weight: 500; color: #9ea39e; }
+.import-error { font-size: 10px; }
 .danger { color: #ad3232; }
 entry { background: white; background-image: none; border: 1px solid #c6c6c6; border-radius: 8px; box-shadow: none; min-height: 22px; padding: 8px 16px; font-size: 14px; }
 entry:disabled { opacity: .45; }

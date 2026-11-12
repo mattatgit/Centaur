@@ -57,6 +57,60 @@ class CoreTests : public QObject {
     Q_OBJECT
 private slots:
     void initTestCase() { Q_INIT_RESOURCE(starter); }
+    void importedProjectsHaveNoStarterAndRecoverInterruptedAcquisition() {
+        QTemporaryDir directory; Workspace workspace(directory.path()); QString error;
+        const auto id=workspace.createProject("Imported app","Existing source",&error,"gtk4-v1",true);
+        QVERIFY2(!id.isEmpty(),qPrintable(error)); QVERIFY(!QFileInfo::exists(workspace.projectPath(id)+"/App.gtk.json"));
+        auto state=workspace.load(id);
+        state["import"]=QJsonObject{{"status","fetching"},{"previewReady",false}};
+        state["importLocal"]=QJsonObject{{"source",QJsonObject{{"type","folder"},{"location",directory.path()+"/private-source"}}}};
+        QVERIFY(workspace.save(id,state));
+        Session host(directory.path()); QSignalSpy snapshots(&host,&Session::snapshot); host.start();
+        QCOMPARE(workspace.load(id)["import"].toObject()["status"].toString(),QString("interrupted"));
+        QVERIFY(!snapshots.isEmpty());
+        const auto published=snapshots.last().first().toJsonObject()["states"].toArray().first().toObject();
+        QVERIFY(!published.contains("importLocal"));
+        QCOMPARE(workspace.projects().size(),1);
+    }
+    void importClarificationUsesNormalChatAndRetriesKeepOneProject() {
+        QTemporaryDir directory;
+        const auto helper=directory.path()+"/import-helper";
+        const auto agent=directory.path()+"/agent";
+        const auto shell=QStandardPaths::findExecutable("sh");
+        auto helperReply=[&](const QJsonObject &reply) {
+            return Workspace::writeFile(helper,("#!"+shell+"\ncat >/dev/null\nsleep 0.1\ncat <<'REPLY'\n").toUtf8()
+                +QJsonDocument(reply).toJson(QJsonDocument::Compact)+"\nREPLY\n")
+                && QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner);
+        };
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
+        auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
+        AgentOverride override(agent);
+        QVERIFY(helperReply({{"ok",false},{"message","Repository unavailable; please retry."}}));
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        const QJsonObject source{{"type","folder"},{"location",directory.path()}};
+        controller.importGtkProject({{"name","Friendly name"},{"source",source},{"instructions","Make a CSS/JS staging version."}});
+        QTRY_COMPARE(controller.projects().size(),1);
+        QTRY_VERIFY(!controller.projectId().isEmpty());
+        const auto id=controller.projectId();
+        QTRY_VERIFY(controller.updateBlocked());
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("failed"));
+        QVERIFY(!controller.project().contains("importLocal"));
+        QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","Which screen should I reproduce first?"}}));
+        QVERIFY(helperReply({{"ok",true},{"framework","iOS / Swift"},{"paths",QJsonArray{"App.swift"}},
+            {"files",QJsonObject{{"App.swift","import SwiftUI"}}},{"candidate",false},{"fileCount",1}}));
+        controller.importAction("retryImport",source);
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer"));
+        QTRY_VERIFY(!controller.agentBusy());
+        QCOMPARE(controller.projectId(),id); QCOMPARE(controller.projects().size(),1);
+        QCOMPARE(controller.project()["import"].toMap()["instructions"].toString(),QString("Make a CSS/JS staging version."));
+        const auto before=controller.project()["messages"].toList().size();
+        QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","I’ll start with the home screen."}}));
+        QVERIFY(controller.sendMessage("The home screen, please.")); // No @mention required.
+        QTRY_VERIFY(controller.project()["messages"].toList().size()>=before+2);
+        QTRY_VERIFY(!controller.agentBusy());
+        QCOMPARE(controller.project()["messages"].toList().last().toMap()["text"].toString(),QString("I’ll start with the home screen."));
+        QCOMPARE(controller.projects().size(),1);
+    }
     void gtkProjectsKeepTheirFormatHistoryAndAgentPolicy() {
         QTemporaryDir dir;
         const auto agentPath = dir.path() + "/agent";

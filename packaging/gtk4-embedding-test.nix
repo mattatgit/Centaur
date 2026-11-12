@@ -62,13 +62,14 @@ in pkgs.stdenvNoCC.mkDerivation {
       done
       substitute ${./gtk4-centaur.desktop} "$out/share/applications/org.centaur.Gtk4.desktop" --subst-var out
       desktop-file-validate "$out/share/applications/org.centaur.Gtk4.desktop"
-      for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check centaur-gtk4-update centaur-gtk4-updater-check; do
+      for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check centaur-gtk4-update centaur-gtk4-updater-check centaur-gtk4-import; do
         case "$entry" in
           centaur-gtk4) module=shell ;;
           centaur-gtk4-preview) module=runner ;;
           centaur-gtk4-integration-check) module=integration_check ;;
           centaur-gtk4-update) module=updater ;;
           centaur-gtk4-updater-check) module=updater_check ;;
+          centaur-gtk4-import) module=source_import ;;
         esac
         cat > "$out/bin/$entry" <<EOF
       #!${python}/bin/python3
@@ -96,6 +97,8 @@ in pkgs.stdenvNoCC.mkDerivation {
       gappsWrapperArgs+=(--set CENTAUR_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_RUNNER "$out/bin/centaur-gtk4-preview")
+      gappsWrapperArgs+=(--set CENTAUR_GTK_IMPORT_TOOL "$out/bin/centaur-gtk4-import")
+      gappsWrapperArgs+=(--prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.git ]})
       gappsWrapperArgs+=(--set CENTAUR_GTK_PACKAGE "$out")
       gappsWrapperArgs+=(--set CENTAUR_GTK4_SOURCE_TIME ${toString sourceTimestamp})
     ''}
