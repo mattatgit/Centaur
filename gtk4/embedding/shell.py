@@ -484,7 +484,8 @@ class Centaur(Gtk.Application):
             imported=self.project.get('import') or {}; phase=imported.get('status')
             local=not data.get('remote',False)
             self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
-            self.import_retry.set_visible(local and phase in ('failed','interrupted'))
+            self.import_retry.set_visible(local and bool(imported) and phase not in ('fetching','inspecting','investigating') and not data.get('busy'))
+            button_text(self.import_retry,'Retry import' if phase in ('failed','interrupted') else 'Change source')
             self.import_open.set_visible(local and bool(imported.get('framework')))
             button_text(self.import_open,'Open adaptation' if imported.get('output') else 'Open source')
             self.import_actions.set_visible(any(w.get_visible() for w in (self.import_run,self.import_retry,self.import_open)))
@@ -649,6 +650,7 @@ class Centaur(Gtk.Application):
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         def escape(c,keyval,keycode,state):
             if keyval==Gdk.KEY_Escape:
+                if hasattr(dialog,'escape_handler') and dialog.escape_handler(): return True
                 if dialog is getattr(self,'join_dialog',None): self.service.send('cancelJoin')
                 self.dismiss_dialog(dialog); return True
             return False
@@ -991,6 +993,12 @@ class Centaur(Gtk.Application):
             theme=Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
             data['branding']={'appIcon':self.window.get_icon_name(),'fullIcon':theme.has_icon(APP_ID),
                               'symbolicIcon':theme.has_icon(APP_ID+'-symbolic')}
+            if self.active_form and self.active_form.get_title()=='Import a project':
+                data['importDialog']={'canImport':self.targets['import-submit'].get_sensitive(),
+                    'branchVisible':self.targets['import-branch'].get_mapped(),
+                    'branchLabel':self.targets['import-branch-label'].get_text(),
+                    'branches':[k[len('import-branch-option-'):] for k,v in self.targets.items() if k.startswith('import-branch-option-') and v.get_mapped()],
+                    'nameFocused':bool(self.targets['import-name'].get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN)}
             try: data['child']=json.loads(self.child_report.read_text()) if self.backend else None
             except (AttributeError,FileNotFoundError,ValueError): data['child']=None
             for name,widget in self.targets.items():

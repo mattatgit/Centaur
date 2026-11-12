@@ -90,6 +90,7 @@ public:
     void createGtkProject(const QString &name, const QString &description);
     void importGtkProject(const QJsonObject &data);
     void importAction(const QString &type, const QJsonObject &source = {});
+    QJsonObject importSource() const;
     Q_INVOKABLE void openProject(const QString &id);
     Q_INVOKABLE void closeProject();
     Q_INVOKABLE void archiveProject(const QString &id);

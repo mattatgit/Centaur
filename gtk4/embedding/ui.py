@@ -273,6 +273,7 @@ class Modal:
 
     def destroy(self):
         if self.closed: return
+        if hasattr(self,'on_close'): self.on_close()
         self.closed=True; self.root.set_visible(False); self.limit.release()
         self.owner.root_overlay.remove_overlay(self.root)
         self.owner.root_overlay.get_child().set_can_target(True)

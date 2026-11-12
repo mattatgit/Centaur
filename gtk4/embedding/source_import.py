@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from urllib.parse import urlsplit, unquote
 
 MAX_FILES, MAX_BYTES, MAX_FILE = 20000, 128*1024*1024, 16*1024*1024
 SKIP = {'.git', '.hg', '.svn', 'node_modules', '.venv', 'venv', '__pycache__',
@@ -32,10 +33,44 @@ def inside(path, parent):
 
 
 def github_url(value):
-    match = re.fullmatch(r'https://github\.com/([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*?)(?:\.git)?/?', value.strip())
+    return github_source(value)['repository']+'.git'
+
+
+def github_source(value):
+    url=urlsplit(value.strip())
+    match=re.fullmatch(r'/([A-Za-z0-9][A-Za-z0-9_.-]*)/([A-Za-z0-9][A-Za-z0-9_.-]*?)(?:\.git)?(?:/tree/(.+?))?/?',url.path)
+    if url.scheme!='https' or url.netloc!='github.com' or url.query or url.fragment:
+        match=None
     if not match or match[2] in ('.', '..'):
-        raise ImportError('Use a GitHub repository URL such as https://github.com/owner/project, without credentials or a branch path.')
-    return 'https://github.com/'+match[1]+'/'+match[2]+'.git'
+        raise ImportError('Use a GitHub repository or branch URL without credentials.')
+    tail=unquote(match[3] or '').rstrip('/')
+    if tail and (any(p in ('','.','..') for p in tail.split('/')) or any(c in tail for c in '\\?*[\x00\r\n')):
+        raise ImportError('That GitHub branch URL is invalid.')
+    return {'repository':'https://github.com/'+match[1]+'/'+match[2], 'tree':tail}
+
+
+def branches(value, branch=None, allow_missing=False):
+    parsed=github_source(value); url=github_url(value)
+    # HEAD's symbolic target determines the default, never branch-name guesses.
+    # https://git-scm.com/docs/git-ls-remote
+    raw=git(['ls-remote','--symref','--',url,'HEAD','refs/heads/*']).decode('utf-8')
+    refs={}; default=None
+    for line in raw.splitlines():
+        left,_,ref=line.partition('\t')
+        if left.startswith('ref: refs/heads/') and ref=='HEAD': default=left[len('ref: refs/heads/'):]
+        elif ref.startswith('refs/heads/') and re.fullmatch('[a-f0-9]{40}|[a-f0-9]{64}',left): refs[ref[len('refs/heads/'):]]=left
+    if not refs: raise ImportError('No branches are available. Check this machine’s access to the repository.')
+    tail=parsed['tree']; directory=''
+    matches=[name for name in refs if tail==name or tail.startswith(name+'/')]
+    inferred=max(matches,key=len) if matches else None
+    if tail and not inferred and not branch and not allow_missing: raise ImportError('I couldn’t retrieve the branch in that URL. Please check the selection and try again.')
+    if inferred: directory=tail[len(inferred):].lstrip('/')
+    selected=branch if branch else inferred or default
+    missing=selected not in refs or bool(tail and not inferred and not branch)
+    if missing and not allow_missing: raise ImportError('I couldn’t retrieve that branch. Please check the selection and try again.')
+    return {'repository':parsed['repository'],'sourceUrl':value.strip(),'defaultBranch':default,
+            'branches':sorted(refs),'branch':None if missing else selected,'commit':refs.get(selected) if not missing else None,'directory':directory,
+            'selectionError':'That branch is unavailable. Please choose another branch.' if missing else ''}
 
 
 def relative(value):
@@ -91,10 +126,19 @@ def acquire(root, source):
         with target.open('xb') as output: shutil.copyfileobj(stream,output,1024*1024)
         target.chmod(0o700 if executable else 0o600)
     try:
+        provenance={}
         if source['type']=='github':
             url=github_url(source['location'])
+            resolved=branches(source['location'],source.get('branch'))
             history=work/'history.git'
-            git(['clone','--bare','--single-branch','--',url,str(history)])
+            git(['clone','--bare','--single-branch','--branch',resolved['branch'],'--',url,str(history)])
+            actual=git(['--git-dir='+str(history),'rev-parse','refs/heads/'+resolved['branch']+'^{commit}']).decode().strip()
+            head=git(['--git-dir='+str(history),'symbolic-ref','HEAD']).decode().strip()
+            if actual!=resolved['commit'] or head!='refs/heads/'+resolved['branch']:
+                raise ImportError('That branch changed while it was being copied. Please retry; no other branch was used.')
+            if resolved['directory'] and git(['--git-dir='+str(history),'cat-file','-t',actual+':'+resolved['directory']]).strip()!=b'tree':
+                raise ImportError('The folder in that URL is unavailable on the selected branch.')
+            provenance={k:resolved[k] for k in ('repository','sourceUrl','branch','commit','directory')}
             # Preserve committed bytes, rather than a release archive whose
             # .gitattributes may omit files or substitute version placeholders.
             # https://git-scm.com/docs/git-archive#_attributes
@@ -133,7 +177,7 @@ def acquire(root, source):
         if not count: raise ImportError('That folder has no importable source files. Choose the application’s source folder.')
         (work/'source').rename(root/'source')
         if (work/'history.git').exists(): (work/'history.git').rename(root/'history.git')
-        result=inspect(root); result.update(fileCount=count,bytes=total,omitted=skipped)
+        result=inspect(root); result.update(fileCount=count,bytes=total,omitted=skipped,**provenance)
         return result
     finally: shutil.rmtree(work,ignore_errors=True)
 
@@ -166,10 +210,13 @@ def inspect(root):
     source=root/'source'
     paths=sorted(p.relative_to(source).as_posix() for p in source.rglob('*') if p.is_file() and not p.is_symlink())
     names={PurePosixPath(p).name for p in paths}
-    framework=('GTK4 bundle' if 'App.gtk.json' in paths else 'iOS / Swift' if any(p.endswith(('.swift','.xcodeproj/project.pbxproj')) for p in paths)
-               else 'Web / JavaScript' if 'package.json' in names else 'Python' if any(p.endswith('.py') for p in paths)
-               else 'Rust' if 'Cargo.toml' in names else 'Unknown')
-    preferred=['README.md','App.gtk.json','package.json','Cargo.toml','flake.nix','pyproject.toml']
+    framework=('GTK4 bundle' if 'App.gtk.json' in paths else 'Nix / Rust' if 'flake.nix' in names and 'Cargo.toml' in names
+               else 'Rust' if 'Cargo.toml' in names else 'Web / JavaScript' if 'package.json' in names
+               else 'iOS / Swift' if any(p.endswith(('.swift','.xcodeproj/project.pbxproj')) for p in paths)
+               else 'Python' if any(p.endswith('.py') for p in paths) else 'Unknown')
+    preferred=['App.gtk.json','flake.nix','Cargo.toml']
+    preferred += sorted([p for p in paths if PurePosixPath(p).name in ('Cargo.toml','flake.nix','package.json','pyproject.toml')],key=lambda p:(len(PurePosixPath(p).parts),p))
+    preferred += ['README.md']+[p for p in paths if p.endswith(('/main.rs','/lib.rs'))][:3]
     preferred += [p for p in paths if p.endswith(('.swift','.py','.ui','.html','.css','.js','.tsx'))][:7]
     files=read_files(root,[p for p in dict.fromkeys(preferred) if p in paths][:12])
     candidate=False
@@ -204,8 +251,10 @@ def main():
     def interrupted(*unused): raise ImportError('The import was interrupted. Your source is unchanged; please retry.')
     signal.signal(signal.SIGTERM,interrupted)
     try:
-        request=json.load(sys.stdin); root=Path(request['root']).resolve(); mode=request['mode']
-        if mode=='acquire': result=acquire(root,request['source'])
+        request=json.load(sys.stdin); mode=request['mode']
+        root=Path(request.get('root','.')).resolve()
+        if mode=='branches': result=branches(request['location'],request.get('branch'),allow_missing=True)
+        elif mode=='acquire': result=acquire(root,request['source'])
         elif mode=='read':
             scope=request.get('scope','source')
             if scope not in ('source','adaptation'): raise ImportError('Choose source or adaptation files to inspect.')

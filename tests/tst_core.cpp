@@ -72,6 +72,41 @@ private slots:
         QVERIFY(!published.contains("importLocal"));
         QCOMPARE(workspace.projects().size(),1);
     }
+    void githubBranchCorrectionKeepsProjectConversationAndPreviousWork() {
+        QTemporaryDir directory;
+        const auto helper=directory.path()+"/import-helper",agent=directory.path()+"/agent";
+        const auto shell=QStandardPaths::findExecutable("sh");
+        auto helperReply=[&](const QString &branch,const QString &commit) {
+            const QJsonObject data{{"ok",true},{"repository","https://github.com/example/app"},{"sourceUrl","https://github.com/example/app/tree/main"},
+                {"branch",branch},{"commit",commit},{"framework","Nix / Rust"},{"candidate",false},
+                {"files",QJsonObject{{"flake.nix",branch}}},{"paths",QJsonArray{"flake.nix"}}};
+            return Workspace::writeFile(helper,("#!"+shell+"\ncat >/dev/null\ncat <<'REPLY'\n").toUtf8()+QJsonDocument(data).toJson(QJsonDocument::Compact)+"\nREPLY\n")
+                && QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner);
+        };
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
+        auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
+        AgentOverride override(agent); QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","What should we work on?"}}));
+        QVERIFY(helperReply("main",QString(40,'a')));
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        controller.importGtkProject({{"name","Landline"},{"source",QJsonObject{{"type","github"},{"location","https://github.com/example/app/tree/main"},{"branch","main"}}}});
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer")); QTRY_VERIFY(!controller.agentBusy());
+        const auto id=controller.projectId(); const auto info=controller.project()["import"].toMap();
+        Workspace workspace(controller.dataRoot()); const auto root=workspace.projectPath(id);
+        const auto old=root+"/.centaur/import/"+info["storage"].toString()+"/adaptations/user-work";
+        QVERIFY(QDir().mkpath(old)); QVERIFY(Workspace::writeFile(old+"/index.html","USER EDITS"));
+        QVERIFY(Workspace::writeFile(root+"/App.gtk.json","ACCEPTED APP"));
+        QVERIFY(helperReply("linux-nix",QString(40,'b')));
+        QVERIFY(controller.sendMessage("Use the linux-nix branch."));
+        QTRY_COMPARE(controller.project()["import"].toMap()["branch"].toString(),QString("linux-nix"));
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer")); QTRY_VERIFY(!controller.agentBusy());
+        QCOMPARE(controller.projects().size(),1); QCOMPARE(controller.projectId(),id);
+        QCOMPARE(controller.project()["import"].toMap()["commit"].toString(),QString(40,'b'));
+        QCOMPARE(controller.importSource()["branch"].toString(),QString("linux-nix"));
+        QVERIFY(!controller.project()["importAttempts"].toList().isEmpty());
+        QFile changes(old+"/index.html"); QVERIFY(changes.open(QIODevice::ReadOnly)); QCOMPARE(changes.readAll(),QByteArray("USER EDITS"));
+        QCOMPARE(workspace.source(id),QString("ACCEPTED APP"));
+        QVERIFY(controller.project()["messages"].toList().size()>=6);
+    }
     void importedHistoryExcludesIdentityOnlyCommitAndKeepsRepeatedAppCheckpoints() {
         QTemporaryDir directory; Workspace workspace(directory.path()); QString error;
         const auto id=workspace.createProject("Imported","Source",&error,"gtk4-v1",true);

@@ -22,6 +22,29 @@ void Session::queueImport(QJsonObject &state, const QString &text, const QString
     auto info = state["import"].toObject(); info["status"] = "investigating"; state["import"] = info;
 }
 
+bool Session::correctImportBranch(const QString &id, QJsonObject &state, const QString &text, const QString &author) {
+    if (state.value("import").toObject()["sourceType"]!="github") return false;
+    auto words=text;
+    const auto mention="@"+state["agentName"].toString();
+    if (words.startsWith(mention,Qt::CaseInsensitive)) words=words.mid(mention.size()).trimmed();
+    static const QRegularExpression first("^(?:please\\s+)?(?:use|switch\\s+to|change\\s+to)\\s+(?:the\\s+)?[`\"']?([^\\s`\"']+?)[`\"']?\\s+branch[.!]?$",QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression second("^(?:please\\s+)?(?:use|switch\\s+to)\\s+(?:the\\s+)?branch\\s+[`\"']?([^\\s`\"']+?)[`\"']?[.!]?$",QRegularExpression::CaseInsensitiveOption);
+    auto match=first.match(words); if (!match.hasMatch()) match=second.match(words);
+    if (!match.hasMatch()) return false;
+    if (m_imports.contains(id) || m_validatingProject==id) {
+        addMessage(state,state["agentName"].toString(),"The current source operation is still finishing. Please choose the branch again once it finishes.","agent");
+        persist(id,state); publish(id); return true;
+    }
+    if (m_agentProject==id && m_agent.busy()) { m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear(); }
+    state.remove("activeRequest"); state["agentQueue"]=QJsonArray();
+    auto source=state["importLocal"].toObject()["source"].toObject(); source["branch"]=match.captured(1);
+    if (!persist(id,state)) return true;
+    // This authenticated chat command changes only a GitHub ref on its owning
+    // host. It never forwards a guest filesystem path or grants remote import.
+    importCommand({{"type","retryImport"},{"projectId",id},{"author",author},{"source",source}},nullptr);
+    return true;
+}
+
 bool Session::importCommand(const QJsonObject &command, QIODevice *sender) {
     const auto type = command["type"].toString();
     if (type != "importProject" && type != "retryImport" && type != "runImport") return false;
@@ -36,21 +59,23 @@ bool Session::importCommand(const QJsonObject &command, QIODevice *sender) {
     const auto author = command["author"].toString().trimmed().left(50);
     if (author.isEmpty()) { fail("Choose your name before importing."); return true; }
     if (type == "importProject" || type == "retryImport") {
-        if (type == "retryImport" && (state.isEmpty() || m_imports.contains(id)
-            || (state["import"].toObject()["status"] != "failed" && state["import"].toObject()["status"] != "interrupted"))) {
-            fail("That import is not waiting to retry."); return true;
+        if (type == "retryImport" && (state.value("import").toObject().isEmpty() || m_imports.contains(id)
+            || m_validatingProject==id || (m_agent.busy() && m_agentProject==id))) {
+            fail("Wait for the current import work to finish, then change its source."); return true;
         }
         auto source = command["source"].toObject();
         if (source.isEmpty()) source = state["importLocal"].toObject()["source"].toObject();
         auto location = source["location"].toString().trimmed();
         const auto sourceType = source["type"].toString();
-        static const QRegularExpression github("^https://github\\.com/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*(?:\\.git)?/?$");
+        static const QRegularExpression github("^https://github\\.com/[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*(?:/tree/[^?#\\s]+)?/?$");
         if ((sourceType == "github" && !github.match(location).hasMatch())
             || (sourceType == "folder" && (!QDir::isAbsolutePath(location) || !QFileInfo(location).isDir()))
             || (sourceType != "github" && sourceType != "folder")) {
             fail("Choose a local project folder or enter a GitHub repository URL without credentials."); return true;
         }
+        const auto branch=source["branch"].toString().trimmed();
         source = {{"type", sourceType}, {"location", location}};
+        if (sourceType=="github" && !branch.isEmpty()) source["branch"]=branch;
         if (type == "importProject") {
             QString error;
             id = m_workspace.createProject(command["name"].toString(), "Imported project", &error, "gtk4-v1", true);
@@ -61,10 +86,19 @@ bool Session::importCommand(const QJsonObject &command, QIODevice *sender) {
             addMessage(state, author, command["instructions"].toString().trimmed().isEmpty()
                 ? "Import this project." : command["instructions"].toString().left(12000));
         }
-        auto info = state["import"].toObject(); info["status"] = "fetching";
+        auto info = state["import"].toObject();
+        if (type=="retryImport") {
+            auto attempts=state["importAttempts"].toArray(); attempts.append(info);
+            while (attempts.size()>50) attempts.removeFirst(); state["importAttempts"]=attempts;
+        }
+        info["status"] = "fetching"; info["previewReady"]=false;
+        info["author"]=author;
+        state["epoch"]=state["epoch"].toInt()+1; state["agentQueue"]=QJsonArray(); state["proposal"]=QJsonObject();
         info["storage"]=QUuid::createUuid().toString(QUuid::WithoutBraces);
         info.remove("output"); info.remove("framework"); info["inspectionRounds"]=0;
         info["sourceType"] = sourceType; info["sourceName"] = QFileInfo(location).fileName();
+        if (sourceType=="github") { info["sourceUrl"]=location; info["branch"]=branch; }
+        for (const auto &key:{"commit","repository","directory"}) info.remove(key);
         state["import"] = info;
         state["importLocal"] = QJsonObject{{"source", source}};
         addMessage(state, state["agentName"].toString(), "I’ll make a separate copy and take a look. Your original project stays untouched.", "agent");
@@ -138,6 +172,15 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
         info["status"] = "failed";
         addMessage(state,state["agentName"].toString(),result["message"].toString("I couldn’t finish that import. Please retry."),"system");
     } else if (mode == "acquire") {
+        if (info["sourceType"]=="github") {
+            if (result["branch"].toString().isEmpty() || result["commit"].toString().isEmpty()) {
+                info["status"]="failed"; state["import"]=info;
+                addMessage(state,state["agentName"].toString(),"I couldn’t verify the selected branch. Please check it and retry.","system");
+                persist(id,state); publish(id); return;
+            }
+            for (const auto &key:{"repository","sourceUrl","branch","commit","directory"}) info[key]=result[key];
+            auto source=local["source"].toObject(); source["branch"]=result["branch"]; local["source"]=source;
+        }
         local["context"] = QJsonObject{{"paths",result["paths"]},{"files",result["files"]},{"inventoryTruncated",result["inventoryTruncated"]}};
         info["framework"] = result["framework"]; info["fileCount"] = result["fileCount"]; info["omitted"] = result["omitted"];
         if (result["candidate"].toBool() && info["instructions"].toString().trimmed().isEmpty()) {
@@ -147,7 +190,9 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
             state["import"] = info;
             queueImport(state,"Investigate the imported source. Follow these instructions if supplied: " + info["instructions"].toString(),info["author"].toString());
             info = state["import"].toObject();
-            addMessage(state,state["agentName"].toString(),"The source is copied. I’m checking how it’s organised.","agent");
+            addMessage(state,state["agentName"].toString(),info["sourceType"]=="github"
+                ? "I found the “"+info["branch"].toString()+"” branch. I’ll use that source."
+                : "The source is copied. I’m checking how it’s organised.","agent");
         }
     } else if (mode == "read") {
         const auto contextKey=result["scope"]=="adaptation" ? QString("adaptation") : QString("context");

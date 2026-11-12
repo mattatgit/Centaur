@@ -370,6 +370,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
+        if (correctImportBranch(id,state,text,author)) return;
         const auto imported = state.value("import").toObject();
         const bool importAnswer = !imported.isEmpty() && !imported["previewReady"].toBool()
             && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating");
@@ -645,7 +646,8 @@ void Session::nextRequest() {
         request["requestComment"] = m_activeRequest["comment"];
         request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
-        m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
+        const bool pendingImport=!state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool();
+        m_agent.ask(m_workspace.projectPath(id), request, pendingImport ? QString() : m_workspace.source(id), image);
         publish(id); return;
     }
 }

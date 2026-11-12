@@ -74,7 +74,8 @@ class ImportTests(unittest.TestCase):
     def test_github_urls_never_accept_tokens_or_executable_protocols(self):
         self.assertEqual(imports.github_url('https://github.com/mattatgit/landline'),'https://github.com/mattatgit/landline.git')
         self.assertEqual(imports.github_url('https://github.com/mattatgit/landline.git/'),'https://github.com/mattatgit/landline.git')
-        for value in ('https://token@github.com/a/b','ext::evil','file:///tmp/a','https://github.com/a/b/tree/main','https://github.com/a/b?token=secret','https://example.com/a/b'):
+        self.assertEqual(imports.github_url('https://github.com/a/b/tree/main'),'https://github.com/a/b.git')
+        for value in ('https://token@github.com/a/b','ext::evil','file:///tmp/a','https://github.com/a/b?token=secret','https://example.com/a/b'):
             with self.subTest(value=value),self.assertRaises(imports.ImportError): imports.github_url(value)
 
     def test_repository_export_rules_cannot_omit_or_rewrite_source(self):

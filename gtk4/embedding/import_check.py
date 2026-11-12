@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from check import until, target
+from PIL import Image
 
 
 def check_imports(driver,folder,state,window,click,message,root,bundle,reply_file,request_record):
@@ -13,12 +14,13 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
         assert bounds[2:]==[408,432],('Figma modal dimensions',bounds)
         for key,text in [('import-name',name),('import-source',str(source)),('import-prompt',prompt)]:
             if text: click(state,window,key); driver.type(text)
+        if str(source).startswith('https://github.com/'):
+            until(lambda:state().get('importDialog',{}).get('canImport'),'GitHub branch discovery did not enable import',timeout=110)
 
     count=len(state()['projects'])
     form('Friendly imported app','https://token@github.com/owner/private')
     driver.screenshot(window,folder/'ui-import-modal.png',focus=False)
-    click(state,window,'import-submit')
-    until(lambda:state().get('targets',{}).get('import-error'),'Invalid source did not stay in the modal')
+    assert not state()['importDialog']['canImport'],'Credential URL enabled import'
     assert len(state()['projects'])==count
     driver.key('Escape')
     checks.append('figma-import-modal-and-credential-url-validation')
@@ -28,6 +30,22 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     app=json.loads(json.dumps(bundle)); app['files']['app.py']='from pathlib import Path\nPath('+repr(str(marker))+').write_text("explicit run")\n'+app['files']['app.py']
     original_file=original/'App.gtk.json'; original_file.write_text(json.dumps(app)); before=original_file.read_bytes()
     form('Friendly imported app',original)
+    assert not state()['importDialog']['branchVisible'],'Local folder displayed branch selector'
+    click(state,window,'import-name'); driver.key('End')
+    until(lambda:state()['importDialog']['nameFocused'],'Name input lost keyboard focus')
+    driver.screenshot(window,folder/'ui-import-input-focus.png',focus=False)
+    with Image.open(folder/'ui-import-input-focus.png') as image:
+        pixels=image.convert('RGB'); x,y,w,h=map(round,target(state,'import-name'))
+        assert not any(pixels.getpixel((xx,yy))==(19,142,213) for xx in range(x-3,x+w+3) for yy in range(y-3,y+h+3)), 'Input retains blue focus outline'
+        assert pixels.getpixel((x+1,y+h//2))==(248,248,248) and pixels.getpixel((x+w-2,y+h//2))==(248,248,248),'Input edges are clipped'
+    click(state,window,'import-source')
+    rect=driver.rect(window); x,y,w,h=target(state,'import-submit')
+    driver.ipc(f"seat seat0 cursor set {round(rect['x']+x+w-2)} {round(rect['y']+y+h/2)}"); driver.seat_command('motion 0 0')
+    driver.screenshot(window,folder/'ui-import-button-hover.png',focus=False)
+    with Image.open(folder/'ui-import-button-hover.png') as image:
+        pixels=image.convert('RGB'); x,y,w,h=map(round,target(state,'import-submit'))
+        assert pixels.getpixel((x+w-1,y+h//2))==(23,23,23),'Import button right edge is clipped'
+        assert pixels.getpixel((x+w-1,y+1))==(255,255,255),'Import button right corner lost its radius on hover'
     click(state,window,'import-submit')
     until(lambda:state().get('page')=='workspace' and state().get('project',{}).get('name')=='Friendly imported app','Import did not enter workspace immediately')
     until(lambda:state()['project'].get('import',{}).get('status')=='readyToRun','Compatible source was not staged')
@@ -83,7 +101,15 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
 
     reply_file.write_text(json.dumps({'kind':'question','message':'The repository is imported. What would you like to work on?'}))
     prompt='Preserve the source and tell me what this repository contains.'
-    form('GitHub example','https://github.com/octocat/Hello-World',prompt); click(state,window,'import-submit')
+    form('GitHub example','https://github.com/octocat/Hello-World',prompt)
+    default=state()['importDialog']['branchLabel']; click(state,window,'import-branch')
+    until(lambda:len(state().get('importDialog',{}).get('branches',[]))>1,'Branch menu did not populate')
+    other=next(name for name in state()['importDialog']['branches'] if name!=default)
+    click(state,window,'import-branch-option-'+other)
+    assert state()['importDialog']['branchLabel']==other
+    click(state,window,'import-branch'); click(state,window,'import-branch-option-'+default)
+    assert state()['importDialog']['branchLabel']==default
+    click(state,window,'import-submit')
     until(lambda:state()['project'].get('import',{}).get('status')=='awaitingAnswer','Public GitHub source import did not finish',timeout=110)
     project=state()['project']; info=project['import']
     storage=root/'projects'/project['id']/'.centaur/import'/info['storage']
@@ -92,4 +118,24 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     assert 'importLocal' not in project
     driver.screenshot(window,folder/'ui-import-github.png',focus=False)
     checks.append('public-github-history-optional-prompt-and-private-locator-not-published')
+    value='https://github.com/mattatgit/landline/tree/linux-nix'
+    form('Landline Linux',value,'Investigate the Linux/Nix application on this selected branch.')
+    assert state()['importDialog']['branchLabel']=='linux-nix'
+    bounds=target(state,'dialog-card'); assert bounds[2:]==[408,512],bounds
+    assert target(state,'import-branch')[1]>target(state,'import-source')[1],'Branch is not beneath Source'
+    click(state,window,'import-branch'); driver.screenshot(window,folder/'ui-import-branches-open.png',focus=False)
+    if state().get('targets',{}).get('import-branch-search'):
+        click(state,window,'import-branch-search'); driver.type('linux-nix')
+        until(lambda:state()['importDialog']['branches']==['linux-nix'],'Branch search did not filter its options')
+    assert target(state,'import-branch-option-linux-nix')[3]==24
+    driver.key('Escape')
+    until(lambda:state().get('form')=='Import a project','Closing branch popup closed the form')
+    driver.screenshot(window,folder/'ui-import-branch-selected.png',focus=False)
+    click(state,window,'import-submit')
+    until(lambda:state()['project'].get('name')=='Landline Linux' and state()['project'].get('import',{}).get('status')=='awaitingAnswer','Landline branch import failed',timeout=110)
+    project=state()['project']; info=project['import']
+    assert info['branch']=='linux-nix' and info['commit']=='205fc1185335dc1c85b359af7673f6e5d7653222'
+    assert 'LandlineNix/Cargo.toml' in request_record.read_text() and 'LandlineNix/src/main.rs' in request_record.read_text()
+    assert info['commit'] in request_record.read_text() and info['framework']=='Nix / Rust'
+    checks.append('landline-linux-nix-url-preselection-verified-commit-and-linux-agent-context')
     return checks

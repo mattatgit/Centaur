@@ -43,6 +43,7 @@ private:
     void nextRequest();
     void retryRequest(QJsonObject &state);
     bool importCommand(const QJsonObject &command, QIODevice *sender);
+    bool correctImportBranch(const QString &id, QJsonObject &state, const QString &text, const QString &author);
     void importJob(const QString &id, const QString &mode, QJsonObject payload = {});
     void importResult(const QString &id, const QString &mode, const QJsonObject &result, int epoch = -1);
     void queueImport(QJsonObject &state, const QString &text, const QString &author);

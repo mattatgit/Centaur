@@ -164,6 +164,36 @@ This is a launch/embedding experiment, not project import. Accepted source, chec
 
 ## GTK4 project import — 12 November 2026
 
+### Branch selection and import-modal refinement
+
+GitHub import resolves repository refs with `git ls-remote --symref` using the
+existing Git credential helper. The selector appears only for GitHub sources;
+its default comes from the remote HEAD. `/tree/` URLs select the longest matching
+actual branch ref, supporting slash-containing names and distinguishing an
+optional directory. Per the owner's clarification, the order is **Source, then
+Branch**, using the styles/assets from Figma frames `30:1110` and `30:1159`.
+The selector is searchable for larger branch lists. Stale/cancelled lookups cannot
+change the current selection. Modal inputs retain native focus, editing and the
+blinking caret without blue focus outlines; ordinary GTK layout replaces fixed
+positioning and modal hover scaling is disabled to keep rounded edges intact.
+
+Acquisition clones the explicit selected branch and checks its symbolic HEAD and
+commit against freshly resolved refs before publishing any source to the agent.
+An inaccessible, deleted or changed branch fails without default-branch fallback.
+Import metadata retains the original URL, canonical repository, selected branch,
+resolved commit and directory. The initial inspection prioritises Nix/Rust build
+manifests over preserved Swift files in mixed repositories such as Landline.
+
+`Change source` and `Retry import` reuse the same project and conversation.
+An explicit chat command such as “Use the linux-nix branch” can correct a GitHub
+import on its owning host, including an authenticated collaborator's request.
+Prior source copies/adaptations and accepted app files remain intact; the new
+source uses a fresh attempt directory and initial execution still requires
+Run preview. Private local source locators are sent only to the local frontend
+to prefill correction, never in collaboration snapshots. A corrected source is
+given to the agent with verified provenance and without the previous branch's
+accepted app bundle as competing input.
+
 The GTK4 branch introduces a source-import layer independent of the three-file
 `gtk4-v1` runnable bundle. The preserved Qt UI and installation remain unchanged.
 The Create split button opens a new project directly; its arrow offers Create

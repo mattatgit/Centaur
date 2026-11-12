@@ -224,6 +224,10 @@ void Controller::importAction(const QString &type, const QJsonObject &source) {
     if (type!="retryImport" && type!="runImport") return;
     route(m_projectId,{{"type",type},{"source",source}});
 }
+QJsonObject Controller::importSource() const {
+    if (remoteProject() || project().value("import").toMap().isEmpty()) return {};
+    return Workspace(dataRoot()).load(m_projectId).value("importLocal").toObject()["source"].toObject();
+}
 void Controller::openProject(const QString &id) {
     if (!m_states.contains(id)) return;
     if (m_projectId != id) { stopPreview(); m_invitationCode.clear(); }

@@ -19,3 +19,10 @@ owner's Import modal frame `27:741` (section `27:738`), downloaded 12 November
 vertical padding, 40px fields, 88px prompt area and original typography.
 
 Design reference: https://www.figma.com/design/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=27-738
+
+`import-branch-arrow.svg` and `import-branch-tick.svg` are the original 24×24px
+exports from branch modal/dropdown frames `30:1110` and `30:1159` (12 November
+2026). The export transport's escaped XML was decoded without changing SVG
+geometry. The arrow is flipped vertically when open, as in Figma. The branch
+field follows Source, per the owner's explicit clarification, and otherwise
+uses the frame's 40px fields, 24px options, 8px menu padding and 8px hover radius.
