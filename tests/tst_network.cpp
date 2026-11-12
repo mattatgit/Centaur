@@ -49,6 +49,8 @@ class NetworkTests : public QObject {
     Q_OBJECT
 private slots:
     void pendingImportsCanBeSharedWithoutExposingLocalSourceOrMovingGuestPaths() {
+        const auto oldClient=qgetenv("CENTAUR_GTK_CLIENT"); qputenv("CENTAUR_GTK_CLIENT","1");
+        auto restoreClient=qScopeGuard([oldClient] { if (oldClient.isNull()) qunsetenv("CENTAUR_GTK_CLIENT"); else qputenv("CENTAUR_GTK_CLIENT",oldClient); });
         QTemporaryDir hostRoot,guestRoot;
         Workspace workspace(hostRoot.path()); QString error;
         const auto id=workspace.createProject("Imported iOS source","Imported project",&error,"gtk4-v1",true);

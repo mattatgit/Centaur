@@ -141,7 +141,7 @@ def read_files(root, paths):
         file=source/str(path)
         if file.is_symlink() or not inside(file.resolve(),source) or not file.is_file():
             result[name]='[File unavailable]'; continue
-        raw=file.read_bytes()[:24000]
+        with file.open('rb') as stream: raw=stream.read(24000)
         total+=len(raw)
         if total>96000: result[name]='[Inspection byte limit reached]'; continue
         try: text=raw.decode('utf-8')
