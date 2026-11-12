@@ -76,11 +76,11 @@ def git(args, cwd=None, consume=None):
 def acquire(root, source):
     if (root/'source').exists():
         return inspect(root)
-    root.mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True,mode=0o700); root.chmod(0o700)
     work = Path(tempfile.mkdtemp(prefix='acquire-', dir=root))
     destination=work/'source'; destination.mkdir()
     count=total=skipped=0
-    def save(name, stream, size):
+    def save(name, stream, size, executable=False):
         nonlocal count,total,skipped
         path=relative(name)
         if excluded(path): skipped+=1; return
@@ -89,7 +89,7 @@ def acquire(root, source):
             raise ImportError('This source is too large for the first import prototype (128 MB, 20,000 files, 16 MB per file).')
         target=destination/str(path); target.parent.mkdir(parents=True,exist_ok=True)
         with target.open('xb') as output: shutil.copyfileobj(stream,output,1024*1024)
-        target.chmod(0o600)
+        target.chmod(0o700 if executable else 0o600)
     try:
         if source['type']=='github':
             url=github_url(source['location'])
@@ -100,7 +100,7 @@ def acquire(root, source):
                 nonlocal skipped
                 with tarfile.open(fileobj=stream,mode='r|') as files:
                     for item in files:
-                        if item.isfile(): save(item.name,files.extractfile(item),item.size)
+                        if item.isfile(): save(item.name,files.extractfile(item),item.size,bool(item.mode&0o111))
                         elif not item.isdir(): skipped+=1
             git(['--git-dir='+str(history),'archive','--format=tar','HEAD'],consume=unpack)
             # Prevent accidental upstream writes even when inspecting manually.
@@ -117,7 +117,8 @@ def acquire(root, source):
                 for name in files:
                     file=Path(directory)/name
                     if file.is_symlink() or not file.is_file(): skipped+=1; continue
-                    with file.open('rb') as stream: save(file.relative_to(original).as_posix(),stream,file.stat().st_size)
+                    with file.open('rb') as stream:
+                        stat=file.stat(); save(file.relative_to(original).as_posix(),stream,stat.st_size,bool(stat.st_mode&0o111))
             # Preserve reachable local history independently of the working copy.
             # Do not follow worktree .git files or copy source configuration/hooks.
             if (original/'.git').is_dir() and not (original/'.git').is_symlink():
@@ -168,7 +169,7 @@ def inspect(root):
             bundle=load_bundle(source/'App.gtk.json') # syntax only, NEVER construct()
             (root/'candidate.gtk.json').write_text(json.dumps(bundle))
             candidate=True
-        except (ValueError,SyntaxError,KeyError): pass
+        except (ValueError,SyntaxError,KeyError,TypeError,AttributeError): pass
     return dict(framework=framework,paths=paths[:1500],inventoryTruncated=len(paths)>1500,files=files,candidate=candidate)
 
 

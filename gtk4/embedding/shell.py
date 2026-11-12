@@ -291,7 +291,7 @@ class Centaur(Gtk.Application):
         self.import_run=button('Run preview',lambda:self.service.send('runImport')); self.import_actions.append(self.import_run)
         self.import_retry=button('Retry import',lambda:show_import(self,retry=True)); self.import_actions.append(self.import_retry)
         def open_imported():
-            info=self.project.get('import',{}); relative=info.get('output') or 'source'
+            info=self.project.get('import') or {}; relative=info.get('output') or 'source'
             path=self.root/'projects'/self.project['id']/'.centaur/import'/info.get('storage','')/relative
             Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
         self.import_open=button('Open source',open_imported,tone='plain'); self.import_actions.append(self.import_open)
@@ -481,7 +481,7 @@ class Centaur(Gtk.Application):
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
             self.refresh_proposal()
-            imported=self.project.get('import',{}); phase=imported.get('status')
+            imported=self.project.get('import') or {}; phase=imported.get('status')
             local=not data.get('remote',False)
             self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
             self.import_retry.set_visible(local and phase in ('failed','interrupted'))

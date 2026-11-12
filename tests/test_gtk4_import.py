@@ -97,6 +97,17 @@ class ImportTests(unittest.TestCase):
         self.assertTrue(self.acquire()['candidate'])
         self.assertTrue((self.managed/'candidate.gtk.json').exists())
 
+    def test_malformed_bundle_still_imports_as_preserved_source(self):
+        (self.original/'App.gtk.json').write_text('["not a bundle"]')
+        self.assertFalse(self.acquire()['candidate'])
+        self.assertEqual((self.managed/'source/App.gtk.json').read_text(),'["not a bundle"]')
+
+    def test_source_executable_modes_preserved_without_granting_other_users_access(self):
+        script=self.original/'run.sh'; script.write_text('#!/bin/sh\nexit 0\n'); script.chmod(0o755)
+        self.acquire()
+        self.assertEqual((self.managed/'source/run.sh').stat().st_mode&0o777,0o700)
+        self.assertEqual(self.managed.stat().st_mode&0o777,0o700)
+
     def test_adaptation_writes_only_new_separate_output_versions(self):
         (self.original/'App.swift').write_text('Original iOS app'); self.acquire()
         request={'target':'css-js','files':{'index.html':'<h1>Staging</h1>','css/main.css':'body {}'}}

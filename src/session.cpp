@@ -90,7 +90,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
                     state["proposal"] = QJsonObject();
-                    auto imported=state["import"].toObject();
+                    auto imported=state.value("import").toObject();
                     if (!imported.isEmpty()) { imported["previewReady"]=true; imported["status"]="ready"; state["import"]=imported; }
                     addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
                         ? "Restored that version of the app." : "Updated the app.", "agent");
@@ -164,7 +164,7 @@ void Session::start(bool background) {
         for (const auto &project : m_workspace.projects()) {
             const auto id = project.toMap()["id"].toString();
             auto state = m_workspace.load(id);
-            auto imported = state["import"].toObject();
+            auto imported = state.value("import").toObject();
             if (imported["status"] == "fetching" || imported["status"] == "inspecting") {
                 imported["status"] = "interrupted"; state["import"] = imported;
                 addMessage(state,state["agentName"].toString(),"The source import was interrupted. Retry when you’re ready; the original is untouched.","system");
@@ -370,7 +370,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
-        const auto imported = state["import"].toObject();
+        const auto imported = state.value("import").toObject();
         const bool importAnswer = !imported.isEmpty() && !imported["previewReady"].toBool()
             && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating");
         const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
@@ -498,7 +498,7 @@ void Session::finishAgent(const QJsonObject &reply) {
     auto state = m_workspace.load(id);
     bool automatic = false;
     state.remove("activeRequest");
-    if (!state["import"].toObject().isEmpty() && !state["import"].toObject()["previewReady"].toBool()
+    if (!state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool()
         && state["epoch"].toInt() == m_agentEpoch) {
         auto info=state["import"].toObject();
         const auto kind=reply["kind"].toString();
@@ -591,7 +591,7 @@ void Session::agentError(const QString &message) {
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
     state.remove("activeRequest");
-    auto imported=state["import"].toObject();
+    auto imported=state.value("import").toObject();
     if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="awaitingAnswer"; state["import"]=imported; }
     addMessage(state, state["agentName"].toString(), message, "system");
     persist(id, state);
@@ -636,10 +636,10 @@ void Session::nextRequest() {
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request.remove("importLocal");
-        if (!state["import"].toObject().isEmpty()) request["sourceInspection"] = state["importLocal"].toObject()["context"];
+        if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
         request["requestComment"] = m_activeRequest["comment"];
-        request["appHistory"] = !state["import"].toObject().isEmpty() && !state["import"].toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
+        request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
         m_agent.ask(m_workspace.projectPath(id), request, m_workspace.source(id), image);
         publish(id); return;

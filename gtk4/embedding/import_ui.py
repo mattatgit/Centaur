@@ -78,5 +78,5 @@ def show_import(owner, retry=False):
     owner.targets.update({'import-name':name,'import-source':source,'import-choose':pick,'import-prompt':prompt,'import-submit':submit,'import-cancel':cancel})
     if retry:
         name.set_text(owner.project.get('name','')); name.set_editable(False)
-        prompt.get_buffer().set_text(owner.project.get('import',{}).get('instructions','')); prompt.set_editable(False)
+        prompt.get_buffer().set_text((owner.project.get('import') or {}).get('instructions','')); prompt.set_editable(False)
     dialog.present(); (source if retry else name).grab_focus()
