@@ -194,6 +194,21 @@ to prefill correction, never in collaboration snapshots. A corrected source is
 given to the agent with verified provenance and without the previous branch's
 accepted app bundle as competing input.
 
+Verified ARM64 preview **0.4.0-preview+dbadb0c**:
+[product/import/updater CI](https://github.com/mattatgit/Centaur/actions/runs/43195626302)
+and [embedding CI](https://github.com/mattatgit/Centaur/actions/runs/43195626235)
+passed. The 66 Python tests and retained service/network/Iroh suite cover branch
+selection, slash refs, missing/deleted/inaccessible branches, changed commits,
+same-project chat correction and preservation of existing edits. Native checks
+cover the 408×432 / 408×512 layouts, Source → Branch order, manual selection,
+search, original SVGs, caret-only input focus, intact hover corners, and actual
+Landline `linux-nix` acquisition at `205fc1185335dc1c85b359af7673f6e5d7653222`
+with its Nix/Rust files supplied to the agent. All 579 signed closure paths and
+the real in-app update/restart passed; the feed was read back and matched the
+immutable binary. [Screenshots, summary and manifest](evidence/gtk4-branches-dbadb0c)
+record the result. GNOME and real OMP interpretation remain hands-on checks in
+Centaur Install.
+
 The GTK4 branch introduces a source-import layer independent of the three-file
 `gtk4-v1` runnable bundle. The preserved Qt UI and installation remain unchanged.
 The Create split button opens a new project directly; its arrow offers Create
