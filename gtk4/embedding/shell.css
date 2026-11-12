@@ -169,7 +169,7 @@ window.dialog { background: transparent; }
 .dialog-title { font-family: Inter; font-size: 16px; font-weight: 600; }
 .dialog-card.import-dialog { padding: 16px 24px; box-shadow: 0 0 25px alpha(black,.1); }
 .import-title { font-family: 'Inter Tight'; font-size: 16px; font-weight: 600; }
-.import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; }
+.import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; line-height: 12px; }
 .import-dialog .import-field { min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: #f8f8f8; font-family: 'Inter Tight'; font-size: 12px; font-weight: 500; }
 .import-dialog .import-field placeholder { color: #9ea39e; }
 .import-dialog .import-source-entry { padding-right: 104px; }

@@ -1,5 +1,6 @@
 """Hands-on-equivalent native import flow, in disposable CI project storage."""
 import json
+import subprocess
 from pathlib import Path
 from check import until, target
 from PIL import Image
@@ -119,6 +120,7 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     driver.screenshot(window,folder/'ui-import-github.png',focus=False)
     checks.append('public-github-history-optional-prompt-and-private-locator-not-published')
     value='https://github.com/mattatgit/landline/tree/linux-nix'
+    expected_commit=subprocess.check_output(['git','ls-remote','--','https://github.com/mattatgit/landline.git','refs/heads/linux-nix'],text=True).split()[0]
     form('Landline Linux',value,'Investigate the Linux/Nix application on this selected branch.')
     assert state()['importDialog']['branchLabel']=='linux-nix'
     bounds=target(state,'dialog-card'); assert bounds[2:]==[408,512],bounds
@@ -134,7 +136,7 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     click(state,window,'import-submit')
     until(lambda:state()['project'].get('name')=='Landline Linux' and state()['project'].get('import',{}).get('status')=='awaitingAnswer','Landline branch import failed',timeout=110)
     project=state()['project']; info=project['import']
-    assert info['branch']=='linux-nix' and info['commit']=='205fc1185335dc1c85b359af7673f6e5d7653222'
+    assert info['branch']=='linux-nix' and info['commit']==expected_commit
     assert 'LandlineNix/Cargo.toml' in request_record.read_text() and 'LandlineNix/src/main.rs' in request_record.read_text()
     assert info['commit'] in request_record.read_text() and info['framework']=='Nix / Rust'
     checks.append('landline-linux-nix-url-preselection-verified-commit-and-linux-agent-context')
