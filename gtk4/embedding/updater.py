@@ -24,7 +24,7 @@ KEY = 'mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ5
 FEED = 'https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview'
 ALLOWED_BINS = {'centaur-gtk4','centaur-gtk4-preview','centaur-gtk4-bridge',
                 'centaur-gtk4-test','centaur-gtk4-check','centaur-gtk4-integration-check',
-                'centaur-gtk4-update','centaur-gtk4-updater-check','centaur-host','centaur-network'}
+                'centaur-gtk4-update','centaur-gtk4-updater-check','centaur-gtk4-import','centaur-host','centaur-network'}
 NIX_FLAGS = ['--extra-experimental-features','nix-command flakes','--max-jobs','0',
              '--builders','','--option','fallback','false','--option','require-sigs','true']
 
