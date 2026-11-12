@@ -498,7 +498,8 @@ void Session::finishAgent(const QJsonObject &reply) {
     auto state = m_workspace.load(id);
     bool automatic = false;
     state.remove("activeRequest");
-    if (!state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool()
+    const bool sourceTool=reply["kind"]=="inspect" || reply["kind"]=="artifact";
+    if (!state.value("import").toObject().isEmpty() && (sourceTool || !state.value("import").toObject()["previewReady"].toBool())
         && state["epoch"].toInt() == m_agentEpoch) {
         auto info=state["import"].toObject();
         const auto kind=reply["kind"].toString();

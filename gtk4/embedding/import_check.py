@@ -43,6 +43,13 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     assert marker.exists() and state()['project']['import']['previewReady']
     assert original_file.read_bytes()==before
     checks.append('local-managed-copy-name-persistence-no-starter-and-explicit-native-run')
+    preview_pid=state()['childPid']
+    reply_file.write_text(json.dumps({'kind':'inspect','message':'Checking the source','paths':['App.gtk.json']}))
+    message(state,window,'@centaur Check the imported source again.')
+    until(lambda:any(m.get('text')=='I checked the imported source.' for m in state()['project'].get('messages',[])),
+          'Source inspection did not continue after preview activation')
+    assert state()['childPid']==preview_pid,'Reading source restarted the app'
+    checks.append('controlled-source-inspection-after-preview-without-restarting-app')
 
     swift=folder/'ios-source'; swift.mkdir(); (swift/'App.swift').write_text('import SwiftUI\nstruct Example {}')
     reply_file.write_text(json.dumps({'kind':'question','message':'This is an iOS app. What would you like to make from it?'}))

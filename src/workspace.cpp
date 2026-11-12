@@ -86,6 +86,7 @@ QString Workspace::createProject(const QString &name, const QString &description
     const QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const auto path = projectPath(id);
     QDir().mkpath(path + "/.centaur");
+    if (imported) QFile::setPermissions(path+"/.centaur",QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner);
     QFile starter(gtk ? ":/templates/App.gtk.json" : ":/templates/App.qml");
     if (!starter.open(QIODevice::ReadOnly)) {
         if (error) *error = "The native starter app resource is missing.";
@@ -96,10 +97,11 @@ QString Workspace::createProject(const QString &name, const QString &description
     if (source.isEmpty() || (!imported && !writeFile(path + "/" + filename, source, error))
         || !writeFile(path + "/.gitignore", ".centaur/\n", error)
         || !writeFile(path + "/README.md", ("# " + name.trimmed() + "\n\n" + description +
-            (gtk ? "\n\nNative GTK4 app. Source bundle: App.gtk.json; behaviour, GtkBuilder UI and CSS are separate.\n" : "\n\nNative Qt Quick app. Run with `centaur-preview App.qml`.\n")).toUtf8(), error)
+            (imported ? "\n\nImported source and separate adaptations are preserved under .centaur/import. No imported code runs automatically.\n"
+                : gtk ? "\n\nNative GTK4 app. Source bundle: App.gtk.json; behaviour, GtkBuilder UI and CSS are separate.\n" : "\n\nNative Qt Quick app. Run with `centaur-preview App.qml`.\n")).toUtf8(), error)
         || !git(path, {"init", "-b", "main"}, error)
         || !git(path, imported ? QStringList{"add", "README.md", ".gitignore"} : QStringList{"add", filename, "README.md", ".gitignore"}, error)
-        || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost", "commit", "-m", "Start native app"}, error)) {
+        || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost", "commit", "-m", imported ? "Start imported project" : "Start native app"}, error)) {
         QDir(path).removeRecursively();
         return {};
     }

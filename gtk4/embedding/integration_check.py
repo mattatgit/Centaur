@@ -39,7 +39,7 @@ def main():
     reply_file=folder/'reply.json'
     agent=folder/'agent'
     request_record=folder/'agent-request.txt'
-    agent.write_text('#!'+sys.executable+'\nimport pathlib,sys\nfor arg in sys.argv[1:]:\n if arg.startswith("@") and arg.endswith(".txt"): pathlib.Path('+repr(str(request_record))+').write_text(pathlib.Path(arg[1:]).read_text())\nprint(pathlib.Path('+repr(str(reply_file))+').read_text())\n')
+    agent.write_text('#!'+sys.executable+'\nimport pathlib,sys,json\nfor arg in sys.argv[1:]:\n if arg.startswith("@") and arg.endswith(".txt"): pathlib.Path('+repr(str(request_record))+').write_text(pathlib.Path(arg[1:]).read_text())\np=pathlib.Path('+repr(str(reply_file))+')\nanswer=p.read_text()\nprint(answer)\nif json.loads(answer).get("kind")=="inspect": p.write_text(json.dumps({"kind":"question","message":"I checked the imported source."}))\n')
     agent.chmod(0o700)
     env=dict(os.environ,CENTAUR_AGENT=str(agent),CENTAUR_AUTHOR='Matt')
     def launch(name):
