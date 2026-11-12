@@ -48,6 +48,38 @@ struct Probe {
 class NetworkTests : public QObject {
     Q_OBJECT
 private slots:
+    void pendingImportsCanBeSharedWithoutExposingLocalSourceOrMovingGuestPaths() {
+        QTemporaryDir hostRoot,guestRoot;
+        Workspace workspace(hostRoot.path()); QString error;
+        const auto id=workspace.createProject("Imported iOS source","Imported project",&error,"gtk4-v1",true);
+        QVERIFY2(!id.isEmpty(),qPrintable(error)); auto state=workspace.load(id);
+        state["import"]=QJsonObject{{"status","awaitingAnswer"},{"previewReady",false},{"framework","iOS / Swift"}};
+        state["importLocal"]=QJsonObject{{"source",QJsonObject{{"location","/private/host-source"}}},
+            {"context",QJsonObject{{"files",QJsonObject{{"private.swift","HOST-ONLY-CONTEXT"}}}}}};
+        QVERIFY(workspace.save(id,state));
+        const auto agent=hostRoot.path()+"/agent";
+        QVERIFY(fakeAgent(agent,{{"kind","question"},{"message","What would you like to work on?"}}));
+        AgentEnv agentEnvironment(agent);
+        Controller host(hostRoot.path()); host.start(); host.setAuthor("Matt"); host.openProject(id);
+        host.invitePeople("127.0.0.1"); QVERIFY(!host.invitationCode().isEmpty());
+        Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(),"Guest");
+        QTRY_COMPARE_WITH_TIMEOUT(guest.projectId(),id,5000);
+        QVERIFY(guest.remoteProject()); QVERIFY(!guest.project().contains("importLocal"));
+        const auto cached=objectFile(guestRoot.path()+"/shared/"+id+"/snapshot.json");
+        const auto bytes=QJsonDocument(cached).toJson();
+        QVERIFY(!bytes.contains("HOST-ONLY-CONTEXT")); QVERIFY(!bytes.contains("/private/host-source"));
+        QVERIFY(guest.sendMessage("Please inspect the home screen."));
+        QTRY_COMPARE(host.project()["messages"].toList().size(),2);
+        QTRY_COMPARE(guest.project()["messages"].toList().size(),2);
+        QSignalSpy errors(&guest,&Controller::error);
+        guest.importAction("runImport"); QCOMPARE(errors.size(),1);
+        const auto oldHelper=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL","/unavailable-import-test-helper");
+        auto cleanup=qScopeGuard([oldHelper] { if (oldHelper.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",oldHelper); });
+        guest.importGtkProject({{"name","Guest local source"},{"source",QJsonObject{{"type","folder"},{"location",guestRoot.path()}}}});
+        QTRY_VERIFY(guest.projectId()!=id); QVERIFY(!guest.remoteProject());
+        QCOMPARE(host.projects().size(),1); QCOMPARE(guest.projects().size(),2);
+        QVERIFY(!QJsonDocument(QJsonObject::fromVariantMap(host.project())).toJson().contains(guestRoot.path().toUtf8()));
+    }
     void commentTargetsTravelWithMessagesAndRejectStaleOrInvalidLocations() {
         QTemporaryDir hostRoot, guestRoot;
         Controller host(hostRoot.path()); host.start(); host.setAuthor("Matt");

@@ -341,6 +341,7 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     const auto source = m_workspace.source(peer.project);
     state["queueCount"] = state["agentQueue"].toArray().size();
     state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
+    state.remove("importLocal");
     auto messages = state["messages"].toArray();
     int size = QJsonDocument(messages).toJson(QJsonDocument::Compact).size();
     while (messages.size() > 1 && size > 2 * 1024 * 1024) {
