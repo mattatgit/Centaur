@@ -150,7 +150,8 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
             addMessage(state,state["agentName"].toString(),"The source is copied. I’m checking how it’s organised.","agent");
         }
     } else if (mode == "read") {
-        auto context = local["context"].toObject(); auto files = context["files"].toObject();
+        const auto contextKey=result["scope"]=="adaptation" ? QString("adaptation") : QString("context");
+        auto context = local[contextKey].toObject(); auto files = context["files"].toObject();
         const auto incoming = result["files"].toObject();
         for (auto it=incoming.begin(); it!=incoming.end(); ++it) files[it.key()] = it.value();
         context["files"] = files;
@@ -158,7 +159,7 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
             info["status"] = "awaitingAnswer";
             addMessage(state,state["agentName"].toString(),"I’ve reached the inspection limit for this step. Which part should we focus on?","agent");
         } else {
-            local["context"] = context; state["import"] = info;
+            local[contextKey] = context; state["import"] = info;
             queueImport(state,"Continue using the newly inspected files.",info["requestAuthor"].toString(info["author"].toString())); info=state["import"].toObject();
         }
     } else if (mode == "bundle") {
@@ -166,6 +167,7 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
         addMessage(state,state["agentName"].toString(),"The GTK4 preview is prepared separately from your source. Run preview when you’re ready; it runs with your account’s permissions.","agent");
     } else if (mode == "stage") {
         info["status"] = "awaitingAnswer"; info["output"] = result["output"]; info["target"] = result["target"];
+        local["adaptation"]=result["inspection"];
         addMessage(state,state["agentName"].toString(),"The separate adaptation is saved. This runtime cannot be previewed in Centaur yet. Your original source is preserved.","agent");
     }
     state["import"] = info; state["importLocal"] = local;

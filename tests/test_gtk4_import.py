@@ -128,6 +128,9 @@ class ImportTests(unittest.TestCase):
         first=imports.stage(self.managed,request); second=imports.stage(self.managed,request)
         self.assertNotEqual(first['output'],second['output'])
         self.assertEqual((self.managed/first['output']/'index.html').read_text(),'<h1>Staging</h1>')
+        self.assertEqual(first['inspection']['files']['index.html'],'<h1>Staging</h1>')
+        self.assertEqual(imports.read_files(self.managed,['css/main.css'],first['output']),{'css/main.css':'body {}'})
+        with self.assertRaises(imports.ImportError): imports.read_files(self.managed,['App.swift'],'../source')
         self.assertEqual((self.managed/'source/App.swift').read_text(),'Original iOS app')
         for name in ('../../source/App.swift','/tmp/escape','.env'):
             with self.subTest(name=name),self.assertRaises(imports.ImportError): imports.stage(self.managed,{'files':{name:'BAD'}})

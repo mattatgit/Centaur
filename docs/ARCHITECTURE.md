@@ -208,7 +208,11 @@ in chat. Interactive sign-in belongs outside the import workflow.
 The agent receives an inventory and bounded text excerpts, not arbitrary
 filesystem or shell access. Its structured `inspect` response requests up to 12
 relative source files per round; there are eight rounds per conversational step,
-24 KB per file, 96 KB per read and 160 KB retained context. Private filenames,
+24 KB per file, 96 KB per read and 160 KB retained context per source/output scope.
+The latest adaptation has its own inventory and text excerpts. `inspect` with
+`scope: "adaptation"` reads that saved output; the default reads original source.
+Later edits therefore use actual generated files and create a new output version
+while keeping earlier adaptations and original source intact. Private filenames,
 binary files, symlink escapes and recognizable credentials are withheld. This
 filter is defensive detection rather than a guarantee that arbitrary source can
 contain no secrets. Local source locators and inspection context are excluded

@@ -138,8 +138,13 @@ def acquire(root, source):
     finally: shutil.rmtree(work,ignore_errors=True)
 
 
-def read_files(root, paths):
-    source=(root/'source').resolve(); result={}; total=0
+def read_files(root, paths, output=None):
+    source=(root/'source').resolve()
+    if output is not None:
+        source=(root/str(relative(output))).resolve()
+        if not inside(source,(root/'adaptations').resolve()):
+            raise ImportError('That adaptation is outside the project’s output.')
+    result={}; total=0
     if len(paths)>12: raise ImportError('Inspect up to 12 source files at a time.')
     for name in paths:
         path=relative(name)
@@ -190,7 +195,9 @@ def stage(root, data):
     folder=Path(tempfile.mkdtemp(prefix='version-',dir=output))
     for name,contents in files.items():
         target=folder/str(relative(name)); target.parent.mkdir(parents=True,exist_ok=True); target.write_text(contents)
-    return {'output':folder.relative_to(root).as_posix(),'target':str(data.get('target',''))[:80]}
+    output=folder.relative_to(root).as_posix()
+    return {'output':output,'target':str(data.get('target',''))[:80],
+            'inspection':{'paths':list(files),'files':read_files(root,list(files)[:12],output)}}
 
 
 def main():
@@ -199,7 +206,12 @@ def main():
     try:
         request=json.load(sys.stdin); root=Path(request['root']).resolve(); mode=request['mode']
         if mode=='acquire': result=acquire(root,request['source'])
-        elif mode=='read': result={'files':read_files(root,request['paths'])}
+        elif mode=='read':
+            scope=request.get('scope','source')
+            if scope not in ('source','adaptation'): raise ImportError('Choose source or adaptation files to inspect.')
+            if scope=='adaptation' and not isinstance(request.get('output'),str):
+                raise ImportError('No adaptation is available to inspect yet.')
+            result={'scope':scope,'files':read_files(root,request['paths'],request['output'] if scope=='adaptation' else None)}
         elif mode=='stage': result=stage(root,request)
         elif mode=='bundle':
             from bundle import load_bundle

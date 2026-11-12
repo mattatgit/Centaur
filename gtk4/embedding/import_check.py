@@ -66,8 +66,20 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     assert (storage/info['output']/'index.html').read_text()=='<h1>Staging app</h1>'
     assert not info.get('previewReady') and info['target']=='css-js'
     assert 'Make a CSS/JS staging version' in request_record.read_text()
+    reply_file.write_text(json.dumps({'kind':'inspect','message':'Checking the staging version','scope':'adaptation','paths':['index.html']}))
+    message(state,window,'Check the current staging version, please.')
+    until(lambda:any(m.get('text')=='I checked the imported source.' for m in state()['project'].get('messages',[])),
+          'The agent could not inspect its existing adaptation')
+    assert 'adaptationInspection' in request_record.read_text() and '<h1>Staging app</h1>' in request_record.read_text()
+    assert json.loads((root/'projects'/ios_id/'.centaur/state.json').read_text())['importLocal']['adaptation']['files']['index.html']=='<h1>Staging app</h1>'
+    reply_file.write_text(json.dumps({'kind':'artifact','message':'I’ll update the staging heading.',
+        'target':'css-js','files':{'index.html':'<h1>Updated staging app</h1>','app.js':'console.log("staging");','style.css':'body { margin: 24px; }'}}))
+    message(state,window,'Change the staging heading, please.')
+    until(lambda:state()['project'].get('import',{}).get('output')!=info['output'],'Adaptation edit was not saved')
+    assert (storage/info['output']/'index.html').read_text()=='<h1>Staging app</h1>'
+    assert (storage/state()['project']['import']['output']/'index.html').read_text()=='<h1>Updated staging app</h1>'
     driver.screenshot(window,folder/'ui-import-adaptation.png',focus=False)
-    checks.append('unsupported-source-preserved-normal-chat-clarification-and-requested-css-js-output')
+    checks.append('unsupported-source-preserved-normal-chat-clarification-css-js-output-and-versioned-edits-with-inspection')
 
     reply_file.write_text(json.dumps({'kind':'question','message':'The repository is imported. What would you like to work on?'}))
     prompt='Preserve the source and tell me what this repository contains.'

@@ -519,7 +519,7 @@ void Session::finishAgent(const QJsonObject &reply) {
                 persist(id,state); publish(id); return;
             }
             info["status"]="inspecting"; state["import"]=info; persist(id,state); publish(id);
-            importJob(id,"read",{{"paths",reply["paths"]}}); return;
+            importJob(id,"read",{{"paths",reply["paths"]},{"scope",reply["scope"].toString("source")},{"output",info["output"]}}); return;
         }
         info["status"]="awaitingAnswer"; state["import"]=info;
         addMessage(state,state["agentName"].toString(),reply["message"].toString(),"agent");
@@ -640,6 +640,7 @@ void Session::nextRequest() {
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request.remove("importLocal");
         if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
+        if (!state.value("import").toObject().isEmpty()) request["adaptationInspection"] = state.value("importLocal").toObject()["adaptation"];
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
         request["requestComment"] = m_activeRequest["comment"];
         request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
