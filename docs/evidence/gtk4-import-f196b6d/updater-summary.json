@@ -1,0 +1,19 @@
+{
+  "checks": [
+    "real-signed-cache-compressed-byte-counter-into-empty-store",
+    "throttled-signed-nar-settings-and-footer-advance-before-copy-exit",
+    "desktop-id-and-color-symbolic-icons-user-registration-renderer-preservation",
+    "settings-version-and-published-update",
+    "footer-background-availability-8px-badge-alignment-hover-and-keyboard",
+    "footer-natural-width-paint-stable-geometry-pointer-and-focus-rearm-transient-no-update",
+    "footer-click-live-status-detached-download-signature-verification",
+    "real-nix-profile-switch-and-gtk-restart",
+    "project-chat-preferences-identities-preserved",
+    "qt-profile-and-data-preserved",
+    "real-host-maintenance-gate-and-busy-agent-refusal"
+  ],
+  "real_nix_profile": true,
+  "signed_cache": true,
+  "production_approved": false,
+  "passed": true
+}

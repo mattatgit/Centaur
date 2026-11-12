@@ -249,3 +249,18 @@ copy isolation, private-file/path boundaries, failed-copy retry and interrupted
 host recovery. GNOME's native folder chooser and authenticated private repository
 access still need hands-on VM acceptance.
 
+Verified preview: **0.4.0-preview+f196b6d**, immutable source
+`f196b6d3bd7a18ee84565fb619b9a5d86953490f`. The
+[ARM64 product and updater run](https://github.com/mattatgit/Centaur/actions/runs/43158206798)
+and [standalone embedding run](https://github.com/mattatgit/Centaur/actions/runs/43158206797)
+passed. Validation includes 58 Python tests, retained service/network/Iroh tests,
+native Figma geometry and original assets, local and public GitHub import,
+source inspection after native preview activation, inspection and subsequent
+versioned edits of CSS/JS output, and actual signed-cache/profile/restart tests.
+The updater's allowed executable set includes the new importer. All 579 closure
+paths were downloaded with builders disabled and signatures verified. The
+published feed was read back and matched this exact source and store path.
+[Screenshots, native/updater summaries and signed manifest](evidence/gtk4-import-f196b6d)
+record automated acceptance; GNOME folder selection, private repository access
+and real OMP interpretation remain hands-on checks in Centaur Install.
+
