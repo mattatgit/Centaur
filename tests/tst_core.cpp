@@ -72,6 +72,18 @@ private slots:
         QVERIFY(!published.contains("importLocal"));
         QCOMPARE(workspace.projects().size(),1);
     }
+    void importedHistoryExcludesIdentityOnlyCommitAndKeepsRepeatedAppCheckpoints() {
+        QTemporaryDir directory; Workspace workspace(directory.path()); QString error;
+        const auto id=workspace.createProject("Imported","Source",&error,"gtk4-v1",true);
+        auto state=workspace.load(id); state["import"]=QJsonObject{{"status","readyToRun"},{"previewReady",false}};
+        QVERIFY(workspace.save(id,state)); QVERIFY(workspace.history(id).isEmpty());
+        QFile starter(":/templates/App.gtk.json"); QVERIFY(starter.open(QIODevice::ReadOnly));
+        const auto source=QString::fromUtf8(starter.readAll());
+        QVERIFY(workspace.applySource(id,source,"First preview",&error)); QCOMPARE(workspace.history(id).size(),1);
+        QVERIFY(workspace.applySource(id,source,"Keep this version",&error)); const auto history=workspace.history(id);
+        QCOMPARE(history.size(),2);
+        for (const auto &entry:history) QCOMPARE(workspace.sourceAt(id,entry.toObject()["checkpoint"].toString(),&error),source);
+    }
     void importClarificationUsesNormalChatAndRetriesKeepOneProject() {
         QTemporaryDir directory;
         const auto helper=directory.path()+"/import-helper";

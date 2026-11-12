@@ -380,8 +380,10 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
         if (addressed) {
-            if (importAnswer && imported["status"]=="awaitingAnswer") {
-                auto info=imported; info["inspectionRounds"]=0; info["status"]="investigating"; state["import"]=info;
+            if (!imported.isEmpty()) {
+                auto info=imported; info["inspectionRounds"]=0;
+                if (importAnswer) info["status"]="investigating";
+                state["import"]=info;
             }
             auto queue = state["agentQueue"].toArray();
             if (queue.size() >= 50) { fail("The request queue is full. Wait for the agent to catch up."); return; }

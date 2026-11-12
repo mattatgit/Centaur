@@ -147,7 +147,11 @@ QJsonArray Workspace::history(const QString &id, QString *error) const {
     QByteArray output;
     // Only metadata enters the model context. Full source stays in Git until a
     // specific restore is requested; bound context for modest hardware.
-    if (!git(path, {"log", "-100", "--format=%H%x00%cI%x00%s%x00"}, error, &output)) return {};
+    QStringList args{"log", "-100", "--format=%H%x00%cI%x00%s%x00"};
+    // Imported projects begin with an identity-only root commit, not an app.
+    // Keep subsequent checkpoints, including intentional empty app commits.
+    if (!load(id).value("import").toObject().isEmpty()) args << "--min-parents=1";
+    if (!git(path, args, error, &output)) return {};
     const auto fields = output.split('\0');
     QJsonArray history;
     for (int i = 0; i + 2 < fields.size(); i += 3) {
