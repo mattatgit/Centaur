@@ -309,3 +309,45 @@ published feed was read back and matched this exact source and store path.
 record automated acceptance; GNOME folder selection, private repository access
 and real OMP interpretation remain hands-on checks in Centaur Install.
 
+### Landline import transport diagnosis — 16 November 2026
+
+The ARM64 NixOS GNOME VM under UTM was inspected directly. Its installed
+frontend reports `0.4.0-preview+dbadb0c`; the running host points at that
+package's import helper. Reproducing with the installed Python module and
+packaged Git exposed `Could not resolve host: github.com`, during both
+`ls-remote` and `clone`. One attempt resolved the selected ref before the clone
+failed. Independent system/Python DNS lookups also alternated between success
+and failure. This is observed name-resolution failure, not evidence of missing
+GitHub permissions. No system DNS, credential, profile or application-data
+configuration was changed.
+
+Git stderr is now captured separately from source/archive bytes. Only transient
+DNS, connection and timeout failures in GitHub discovery/copy are retried, at
+most three times, with one 100-second worker budget and process-group cleanup.
+Retries retain the exact repository and selected branch. Only the new attempt's
+private partial clone may be removed; prior copies/adaptations remain intact.
+Certificate, authentication, absent repository/ref, storage and other Git errors
+stop with separate messages. Bounded, redacted operation/category/exit-status/
+attempt/stderr details are retained in the project's owner-only local
+`import-debug.jsonl`, outside project state, model context and collaboration.
+Certificate and signature verification remain enabled.
+
+A candidate copied to a temporary VM directory passed all 75 Python checks,
+including actual child DNS failures/recovery, persistent failure bounds,
+partial-clone isolation, authentication/certificate/ref/storage separation,
+redaction, streaming stderr and timeout cleanup. A real acquisition of
+`https://github.com/mattatgit/landline/tree/linux-nix` then verified branch
+`linux-nix` and commit `205fc1185335dc1c85b359af7673f6e5d7653222`, copied 48
+source files, found `LandlineNix/src/main.rs`, and identified Nix/Rust. That
+same verified copy also contains Swift files. A regression explicitly retains
+both platforms and requires the Linux manifests/entry point in initial context.
+
+The earlier screenshot's macOS-only interpretation is not proof of a wrong
+branch. The currently failed attempt had no successful source copy to inspect;
+that older result has not been reconstructed from its original snapshot.
+This temporary acquisition did not run Landline or OMP, change the installed
+Centaur build, or modify existing projects, conversations, identities, OMP
+configuration/credentials or Qt. Signed publication and native host/updater
+checks are still required for a release; installation and real-agent acceptance
+remain in **Centaur Install**.
+

@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from urllib.parse import urlsplit, unquote
 
 MAX_FILES, MAX_BYTES, MAX_FILE = 20000, 128*1024*1024, 16*1024*1024
@@ -24,7 +25,49 @@ TOKEN = re.compile(r'(?:github_pat_|gh[pousr]_|sk-[A-Za-z0-9]|-----BEGIN (?:RSA 
 
 
 class ImportError(ValueError):
-    pass
+    def __init__(self, message, diagnostic=None):
+        super().__init__(message)
+        self.diagnostic = diagnostic
+
+
+# The host gives this worker 120 seconds, including cleanup and its JSON reply.
+# Share one budget across discovery, retries, copying and verification.
+_git_deadline = None
+
+
+def git_failure(operation, code, detail, attempt, timeout=False):
+    lower = detail.lower()
+    category = 'git'
+    if timeout: category = 'timeout'
+    elif 'could not resolve host' in lower or 'could not resolve proxy' in lower: category = 'dns'
+    elif any(s in lower for s in ('ssl certificate', 'certificate verification', 'server certificate', 'ssl peer certificate')): category = 'certificate'
+    elif 'repository not found' in lower: category = 'repository'
+    elif any(s in lower for s in ('authentication failed', 'could not read username', 'permission denied (publickey)', 'error: 401', 'error: 403')): category = 'authentication'
+    elif any(s in lower for s in ('remote branch', 'couldn\'t find remote ref')): category = 'branch'
+    elif any(s in lower for s in ('no space left', 'read-only file system', 'permission denied')): category = 'storage'
+    elif any(s in lower for s in ('failed to connect', 'connection reset', 'connection timed out', 'connection closed', 'early eof', 'remote end hung up', 'error: 429', 'error: 500', 'error: 502', 'error: 503', 'error: 504')): category = 'connection'
+    # Only bounded, redacted diagnostics leave this worker. Never put raw Git
+    # stderr, credential-helper output, URLs or local paths into shared chat.
+    detail = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', detail)
+    detail = re.sub(r'https?://[^\s\"\'<>]+', '[repository URL]', detail)
+    detail = re.sub(r'(?:github_pat_|gh[pousr]_|sk-)[A-Za-z0-9_-]+', '[redacted]', detail)
+    detail = re.sub(r'(?im)^.*(?:authorization:|password|access[_-]?token|api[_-]?key).*$','[redacted]',detail)
+    detail = re.sub(r'(?<!\w)/[^\s\"\'<>:]+', '[local path]', detail)
+    diagnostic = dict(operation=operation, category=category, exitCode=code, attempts=attempt, detail=detail[-2000:])
+    messages = {
+        'dns': 'This computer could not resolve GitHub’s address. Please retry when its connection is working.',
+        'timeout': 'Git took too long to finish reading the source. Please retry.',
+        'connection': 'The connection to GitHub was interrupted. Please retry.',
+        'certificate': 'This computer could not verify GitHub’s secure connection. Check its certificate setup and retry.',
+        'repository': 'GitHub could not find that repository, or it is private. Check the address and this computer’s existing GitHub sign-in.',
+        'authentication': 'GitHub did not allow this computer to read the repository. Check its existing GitHub sign-in and retry.',
+        'branch': 'The selected branch is no longer available. Choose the branch again or change the source.',
+        'storage': 'Centaur could not write its separate source copy. Check free disk space and folder access, then retry.',
+    }
+    steps={'ls-remote':'check the repository’s branches', 'clone':'copy the repository',
+           'archive':'read the selected source', 'rev-parse':'verify the selected source',
+           'symbolic-ref':'verify the selected branch', 'cat-file':'read the selected folder'}
+    return ImportError(messages.get(category, 'Centaur could not '+steps.get(operation,'finish saving the source history')+'. Please retry.'), diagnostic)
 
 
 def inside(path, parent):
@@ -84,28 +127,52 @@ def excluded(path):
     return any(p in SKIP or SECRET.search(p) for p in path.parts)
 
 
-def git(args, cwd=None, consume=None):
+def git(args, cwd=None, consume=None, cleanup=None):
     env = {k:v for k,v in os.environ.items() if not k.startswith(('GIT_', 'SSH_ASKPASS'))}
-    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_TERMINAL_PROMPT='0', GIT_LFS_SKIP_SMUDGE='1')
+    env.update(GIT_CONFIG_NOSYSTEM='1', GIT_TERMINAL_PROMPT='0', GIT_LFS_SKIP_SMUDGE='1', LC_ALL='C')
     # Keep the user's credential helper (e.g. gh), but disable source-controlled
     # execution and protocol rewrites. No token is accepted in a source URL.
     command = ['git', '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.ext.allow=never',
                '-c', 'protocol.file.allow=always', '-c', 'submodule.recurse=false', *args]
-    process=subprocess.Popen(command,cwd=cwd,env=env,stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL,start_new_session=True)
-    try:
-        if consume:
-            consume(process.stdout); process.wait(timeout=100); output=b''
-        else: output=process.communicate(timeout=100)[0]
-        if process.returncode:
-            raise ImportError('Could not read that repository. Check its address and this machine’s GitHub access, then retry.')
-        return output
-    finally:
-        if process.poll() is None:
-            os.killpg(process.pid,signal.SIGTERM)
-            try: process.wait(timeout=1)
-            except subprocess.TimeoutExpired: os.killpg(process.pid,signal.SIGKILL); process.wait()
-        process.stdout.close()
+    operation=next((arg for arg in args if arg in ('ls-remote','clone','rev-parse','symbolic-ref','cat-file','archive','config','remote')), 'git')
+    network=operation in ('ls-remote','clone') and any(arg.startswith('https://github.com/') for arg in args)
+    # Only our fresh staging clone may be removed between transport attempts.
+    if cleanup is not None and cleanup.exists():
+        raise ImportError('The temporary source copy already exists. Please retry the import.')
+    for attempt in range(1, 4 if network else 2):
+        timeout=min(30 if network else 100, max(0.1, _git_deadline-time.monotonic()) if _git_deadline else 100)
+        expired=False; archive_error=None
+        # A file keeps stderr separate from archive bytes without filling a pipe
+        # while the tar consumer reads stdout. It is deleted on every exit path.
+        with tempfile.TemporaryFile() as errors:
+            try:
+                process=subprocess.Popen(command,cwd=cwd,env=env,stdout=subprocess.PIPE,
+                                         stderr=errors,start_new_session=True)
+            except FileNotFoundError:
+                raise ImportError('Centaur’s Git helper is unavailable. Update Centaur and retry.',
+                                  dict(operation=operation,category='tool',exitCode=None,attempts=attempt)) from None
+            try:
+                try:
+                    if consume:
+                        try: consume(process.stdout)
+                        except tarfile.TarError as error: archive_error=error
+                        process.wait(timeout=timeout); output=b''
+                    else: output=process.communicate(timeout=timeout)[0]
+                except subprocess.TimeoutExpired: expired=True
+            finally:
+                if process.poll() is None:
+                    os.killpg(process.pid,signal.SIGTERM)
+                    try: process.wait(timeout=1)
+                    except subprocess.TimeoutExpired: os.killpg(process.pid,signal.SIGKILL); process.wait()
+                process.stdout.close()
+            if not process.returncode and not expired and archive_error is None: return output
+            errors.seek(0,2); errors.seek(max(0,errors.tell()-8192))
+            detail=errors.read().decode('utf-8',errors='replace')
+            failure=git_failure(operation,process.returncode,detail or ('Unreadable source archive' if archive_error else ''),attempt,expired)
+        if not network or failure.diagnostic['category'] not in ('dns','connection','timeout') or attempt==3 or (_git_deadline and time.monotonic()+2>=_git_deadline):
+            raise failure
+        if cleanup is not None: shutil.rmtree(cleanup,ignore_errors=True)
+        time.sleep(attempt)
 
 
 def acquire(root, source):
@@ -131,7 +198,7 @@ def acquire(root, source):
             url=github_url(source['location'])
             resolved=branches(source['location'],source.get('branch'))
             history=work/'history.git'
-            git(['clone','--bare','--single-branch','--branch',resolved['branch'],'--',url,str(history)])
+            git(['clone','--bare','--single-branch','--branch',resolved['branch'],'--',url,str(history)],cleanup=history)
             actual=git(['--git-dir='+str(history),'rev-parse','refs/heads/'+resolved['branch']+'^{commit}']).decode().strip()
             head=git(['--git-dir='+str(history),'symbolic-ref','HEAD']).decode().strip()
             if actual!=resolved['commit'] or head!='refs/heads/'+resolved['branch']:
@@ -248,6 +315,8 @@ def stage(root, data):
 
 
 def main():
+    global _git_deadline
+    _git_deadline=time.monotonic()+100
     def interrupted(*unused): raise ImportError('The import was interrupted. Your source is unchanged; please retry.')
     signal.signal(signal.SIGTERM,interrupted)
     try:
@@ -270,7 +339,9 @@ def main():
         print(json.dumps({'ok':True,**result}))
     except (OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError,tarfile.TarError) as error:
         message=str(error) if isinstance(error,ImportError) else 'The import was interrupted or could not be read. Your source is unchanged; please retry.'
-        print(json.dumps({'ok':False,'message':message})); return 1
+        result={'ok':False,'message':message}
+        if isinstance(error,ImportError) and error.diagnostic: result['diagnostic']=error.diagnostic
+        print(json.dumps(result)); return 1
     return 0
 
 

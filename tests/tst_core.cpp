@@ -132,7 +132,9 @@ private slots:
         const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
         auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
         AgentOverride override(agent);
-        QVERIFY(helperReply({{"ok",false},{"message","Repository unavailable; please retry."}}));
+        const QJsonObject diagnostic{{"operation","clone"},{"category","dns"},{"exitCode",128},{"attempts",3},
+            {"detail","Could not resolve host: github.com"}};
+        QVERIFY(helperReply({{"ok",false},{"message","Repository unavailable; please retry."},{"diagnostic",diagnostic}}));
         Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
         const QJsonObject source{{"type","folder"},{"location",directory.path()}};
         controller.importGtkProject({{"name","Friendly name"},{"source",source},{"instructions","Make a CSS/JS staging version."}});
@@ -142,6 +144,12 @@ private slots:
         QTRY_VERIFY(controller.updateBlocked());
         QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("failed"));
         QVERIFY(!controller.project().contains("importLocal"));
+        QVERIFY(!QJsonDocument::fromVariant(controller.project()).toJson().contains("Could not resolve host"));
+        Workspace debugWorkspace(controller.dataRoot());
+        QFile debugLog(debugWorkspace.projectPath(id)+"/.centaur/import-debug.jsonl");
+        QVERIFY(debugLog.open(QIODevice::ReadOnly));
+        QCOMPARE(QJsonDocument::fromJson(debugLog.readLine()).object()["diagnostic"].toObject(),diagnostic);
+        QCOMPARE(debugLog.permissions() & (QFile::ReadGroup|QFile::WriteGroup|QFile::ReadOther|QFile::WriteOther),QFile::Permissions());
         QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","Which screen should I reproduce first?"}}));
         QVERIFY(helperReply({{"ok",true},{"framework","iOS / Swift"},{"paths",QJsonArray{"App.swift"}},
             {"files",QJsonObject{{"App.swift","import SwiftUI"}}},{"candidate",false},{"fileCount",1}}));

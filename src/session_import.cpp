@@ -166,8 +166,14 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
         persist(id,state); publish(id); QTimer::singleShot(0,this,&Session::nextRequest); return;
     }
     QFile log(m_workspace.projectPath(id)+"/.centaur/import-debug.jsonl");
-    if (log.open(QIODevice::WriteOnly|QIODevice::Append)) log.write(QJsonDocument(QJsonObject{{"time",Workspace::now()},
-        {"operation",mode},{"ok",result["ok"]},{"fileCount",result["fileCount"]}}).toJson(QJsonDocument::Compact)+'\n');
+    if (log.open(QIODevice::WriteOnly|QIODevice::Append)) {
+        log.setPermissions(QFile::ReadOwner|QFile::WriteOwner);
+        QJsonObject entry{{"time",Workspace::now()},{"operation",mode},{"ok",result["ok"]},{"fileCount",result["fileCount"]}};
+        // The worker bounds/redacts Git stderr. Keep it local; do not add it to
+        // project state, model context, collaboration messages or shared chat.
+        if (result["diagnostic"].isObject()) entry["diagnostic"]=result["diagnostic"];
+        log.write(QJsonDocument(entry).toJson(QJsonDocument::Compact)+'\n');
+    }
     if (!result["ok"].toBool()) {
         info["status"] = "failed";
         addMessage(state,state["agentName"].toString(),result["message"].toString("I couldn’t finish that import. Please retry."),"system");

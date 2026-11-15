@@ -40,6 +40,20 @@ class GitHubBranchTests(unittest.TestCase):
         self.assertEqual((root/'source/flake.nix').read_text(),'LINUX NIX SOURCE'); self.assertFalse((root/'source/app.swift').exists())
         self.assertEqual((self.repo/'app.swift').read_text(),'macOS SOURCE')
 
+    def test_linux_branch_with_mac_files_is_identified_from_its_linux_manifests(self):
+        self.repo_git('checkout','-q','linux-nix')
+        (self.repo/'app.swift').write_text('PRESERVED macOS SOURCE')
+        linux=self.repo/'LandlineNix'; (linux/'src').mkdir(parents=True)
+        (linux/'Cargo.toml').write_text('[package]\nname="landline"')
+        (linux/'src/main.rs').write_text('fn main() {}')
+        self.repo_git('add','.'); self.repo_git('commit','-qm','Keep both platforms')
+        result=imports.acquire(self.root/'both',{'type':'github','location':self.url+'/tree/linux-nix'})
+        self.assertEqual(result['framework'],'Nix / Rust')
+        self.assertEqual(result['commit'],self.repo_git('rev-parse','linux-nix'))
+        self.assertEqual(result['files']['LandlineNix/Cargo.toml'],'[package]\nname="landline"')
+        self.assertEqual(result['files']['LandlineNix/src/main.rs'],'fn main() {}')
+        self.assertIn('app.swift',result['paths'])
+
     def test_slash_ref_uses_longest_actual_branch_not_first_segment(self):
         info=imports.branches(self.url+'/tree/feature/new-ui/src')
         self.assertEqual(info['branch'],'feature/new-ui'); self.assertEqual(info['directory'],'src')
