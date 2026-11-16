@@ -172,6 +172,9 @@ void Session::importTool(const QString &id, QJsonObject state, const QJsonObject
         else result["data"]=operation=="source_facts" ? diagnostics["facts"].toObject()
             : QJsonObject{{"failure",diagnostics["failure"]},{"actions",diagnostics["actions"]}};
         importJob(id,"inspect",{{"hostResult",result}});
+    } else if ((operation=="runtime_version" || operation=="validate_manifest") && local["isolationUnavailable"].toBool()) {
+        importJob(id,"inspect",{{"hostResult",QJsonObject{{"schemaVersion",1},{"operation",operation},{"ok",false},
+            {"sourceAvailable",local["sourceAvailable"]},{"error",QJsonObject{{"code","isolation_unavailable"}}}}}});
     } else importJob(id,"inspect",{{"tool",tool},{"output",info["output"]}});
 }
 
@@ -216,7 +219,7 @@ void Session::importJob(const QString &id, const QString &mode, QJsonObject payl
     process->start(executable, {});
     process->write(QJsonDocument(payload).toJson(QJsonDocument::Compact)); process->closeWriteChannel();
     publish(id); // Expose the updater's busy gate while acquisition is running.
-    QTimer::singleShot(mode=="inspect" ? 10000 : 120000,process,[process] {
+    QTimer::singleShot(mode=="inspect" ? 20000 : 120000,process,[process] {
         if (process->state()!=QProcess::NotRunning) {
             process->terminate(); QTimer::singleShot(2000,process,[process] { if (process->state()!=QProcess::NotRunning) process->kill(); });
         }
@@ -250,7 +253,7 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
         auto source=local["source"].toObject(); source["branch"]=result["facts"].toObject()["branch"]; local["source"]=source;
     }
     auto actions=diagnostics["actions"].toArray();
-    actions.append(QJsonObject{{"operation",mode},{"ok",result["ok"]},{"time",Workspace::now()},{"operationId",operationId}});
+    actions.append(QJsonObject{{"operation",mode=="inspect" ? local["currentTool"].toObject()["operation"].toString(mode) : mode},{"ok",mode=="inspect" ? result["toolResult"].toObject()["ok"] : result["ok"]},{"time",Workspace::now()},{"operationId",operationId}});
     while (actions.size()>24) actions.removeFirst(); diagnostics["actions"]=actions;
     QFile log(m_workspace.projectPath(id)+"/.centaur/import-debug.jsonl");
     if (log.open(QIODevice::WriteOnly|QIODevice::Append)) {
@@ -259,6 +262,7 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
         // The worker bounds/redacts Git stderr. Keep it local; do not add it to
         // project state, model context, collaboration messages or shared chat.
         if (result["diagnostic"].isObject()) entry["diagnostic"]=result["diagnostic"];
+        if (mode=="inspect") entry["toolResult"]=result["toolResult"];
         log.write(QJsonDocument(entry).toJson(QJsonDocument::Compact)+'\n');
     }
     if (!result["ok"].toBool()) {
@@ -322,6 +326,10 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
     } else if (mode == "inspect") {
         auto observation=result["toolResult"].toObject();
         observation["operationId"]=operationId;
+        observation["attempt"]=attempt; observation["epoch"]=epoch;
+        observation["requestId"]=pending["requestId"];
+        const auto error=observation["error"].toObject()["code"].toString();
+        if (error=="isolation_unavailable") local["isolationUnavailable"]=true;
         auto observations=diagnostics["results"].toArray(); observations.append(observation);
         while (observations.size()>6 || QJsonDocument(observations).toJson(QJsonDocument::Compact).size()>160000) observations.removeFirst();
         diagnostics["results"]=observations;

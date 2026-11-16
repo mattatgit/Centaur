@@ -172,7 +172,7 @@ void Session::start(bool background) {
                 state["importLocal"]=importLocal; persist(id,state);
             }
             if (imported["status"] == "fetching" || imported["status"] == "inspecting") {
-                importLocal.remove("pending");
+                importLocal.remove("pending"); importLocal.remove("currentTool");
                 auto diagnostics=importLocal["diagnostics"].toObject();
                 diagnostics["failure"]=QJsonObject{{"schemaVersion",1},{"category","interrupted"},{"code","interrupted"},
                     {"retryable",false},{"sourceAvailable",importLocal["sourceAvailable"]}};
@@ -502,7 +502,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         }
         if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
         state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
-        auto local=state["importLocal"].toObject(); local.remove("pending"); state["importLocal"]=local;
+        auto local=state["importLocal"].toObject(); local.remove("pending"); local.remove("currentTool"); state["importLocal"]=local;
         auto imported=state["import"].toObject();
         if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="interrupted"; state["import"]=imported; }
         addMessage(state, state["agentName"].toString(), author + " stopped the agent. Pending requests were cleared.", "system");
@@ -657,6 +657,7 @@ void Session::nextRequest() {
             const auto failure=diagnostics["failure"].toObject();
             diagnostics["sourceAvailable"]=local["sourceAvailable"].toBool();
             diagnostics["capabilities"]=QJsonObject{{"terminal",false},{"inspection",true},
+                {"isolatedDiagnostics",!qEnvironmentVariable("CENTAUR_IMPORT_SANDBOX").isEmpty() && !local["isolationUnavailable"].toBool()},
                 {"retryAcquire",state["import"].toObject()["sourceType"]=="github" && !local["sourceAvailable"].toBool() && failure["retryable"].toBool()
                     && local["networkRemaining"].toInt()>0 && local["automaticRetries"].toInt()<1
                     && !state["import"].toObject()["previewReady"].toBool()}};

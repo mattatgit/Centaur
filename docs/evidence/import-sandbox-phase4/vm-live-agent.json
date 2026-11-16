@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "environment": "aarch64 NixOS UTM",
+  "agentModel": "openai-codex/gpt-6.1-sol",
+  "scenario": "sandbox",
+  "faultInjectedAcquisition": false,
+  "operations": [
+    "runtime_version",
+    "validate_manifest",
+    "read"
+  ],
+  "messages": [
+    "I\u2019ll make a separate copy and take a look. Your original project stays untouched.",
+    "The source is copied. I\u2019m checking how it\u2019s organised.",
+    "The recorded checks show Python 3.14.10 is available for diagnostics, not necessarily for running these apps. apps/one/package.json is invalid JSON: \u201cscripts\u201d has no value; the validator reports line 1, column 37.\n\nThe source describes two applications:\n\u2022 Lantern Desk \u2014 displays a list of notes. It requires MoonRuntime 99, which is not supplied.\n\u2022 Quiet Relay \u2014 copies notes between queues. It declares a standard-library requirement.\n\nNeither app has been run or converted. Which application would you like to work on?"
+  ],
+  "originalUnchanged": true,
+  "projectCodeExecuted": false,
+  "terminalEnabled": false
+}

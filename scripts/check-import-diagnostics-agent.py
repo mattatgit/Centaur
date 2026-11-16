@@ -29,7 +29,9 @@ def main():
     parser.add_argument('--services',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--omp',default=shutil.which('omp') or '/home/matt/.local/bin/omp')
-    parser.add_argument('--scenario',choices=('inspection','recovery'),default='inspection')
+    parser.add_argument('--scenario',choices=('inspection','recovery','sandbox'),default='inspection')
+    parser.add_argument('--sandbox',type=Path)
+    parser.add_argument('--product',type=Path)
     args=parser.parse_args()
     assert platform.system()=='Linux' and platform.machine()=='aarch64'
     assert 'ID=nixos' in Path('/etc/os-release').read_text()
@@ -40,6 +42,7 @@ def main():
            'apps/two/component.spec':'name = Quiet Relay\nentry = relay.odd\nrequires = standard library\n',
            'build.sh':f'#!/bin/sh\ntouch {marker}\n',
            'apps/one/desk.odd':'display a list of notes', 'apps/two/relay.odd':'copy notes between queues'}
+    if args.scenario=='sandbox':files['apps/one/package.json']='{"name": "Lantern Desk", "scripts": }'
     for name,text in files.items():
         path=source/name; path.parent.mkdir(parents=True,exist_ok=True); path.write_text(text)
     def hashes(): return {p.relative_to(source).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in source.rglob('*') if p.is_file()}
@@ -59,10 +62,12 @@ def main():
             ' result.update(repository="https://github.com/centaur-test/fixture",sourceUrl=r["source"]["location"],branch="selected",commit="b"*40,directory="")\n'+
             ' print(json.dumps({"ok":True,"networkAttempts":0,**result}))\nelse:\n sys.stdin=io.StringIO(json.dumps(r))\n raise SystemExit(main())\n')
         worker.chmod(0o700)
+    if args.product and args.scenario!='recovery':worker=args.product/'bin/centaur-gtk4-import'
     invocations=folder/'omp-arguments.jsonl'; adapter=folder/'omp-adapter'
     adapter.write_text('#!'+sys.executable+'\nimport os,sys,json\nwith open('+repr(str(invocations))+',"a") as out: out.write(json.dumps(sys.argv[1:])+"\\n")\nos.execv('+repr(args.omp)+',['+repr(args.omp)+',*sys.argv[1:]])\n'); adapter.chmod(0o700)
     data=folder/'data'; env=dict(os.environ,CENTAUR_AGENT=str(adapter),CENTAUR_GTK_IMPORT_TOOL=str(worker),
         CENTAUR_HOST=str(args.services/'bin/centaur-host'),CENTAUR_GTK_HOST=str(args.services/'bin/centaur-host'))
+    if args.sandbox:env['CENTAUR_IMPORT_SANDBOX']=str(args.sandbox)
     state={}; errors=[]
     with (folder/'bridge-stderr.txt').open('w') as stderr:
         bridge=subprocess.Popen([str(args.services/'bin/centaur-gtk4-bridge'),'--data-dir',str(data)],
@@ -83,11 +88,13 @@ def main():
         summary={}
         try:
             wait_for(lambda:state.get('snapshotReady'),30); send('author',name='Diagnostic test')
-            selected={'type':'folder','location':str(source)} if args.scenario=='inspection' else {
+            selected={'type':'folder','location':str(source)} if args.scenario!='recovery' else {
                 'type':'github','location':'https://github.com/centaur-test/fixture/tree/selected','branch':'selected'}
             instructions="Investigate the unfamiliar manifests and identify both applications and any missing prerequisite. "
             instructions+=("Use directory listing and literal search for 'requires' to check the source. " if args.scenario=='inspection' else
                            "If copying hits a temporary connection problem, use permitted recovery, then inspect the source. ")
+            if args.scenario=='sandbox':
+                instructions="Use the fixed runtime_version tool for python and validate_manifest tool on apps/one/package.json. Explain whether its syntax is valid, and identify both applications and the missing runtime. Do not evaluate project code or use shell commands. "
             send('importProject',name='Unfamiliar tools',source=selected,
                 instructions=instructions+"Do not run, prepare or convert anything. Ask which application we want to work on.")
             wait_for(lambda:state.get('project',{}).get('import',{}).get('status')=='awaitingAnswer' and not state.get('busy'),900)
@@ -98,6 +105,12 @@ def main():
             assert 'lantern' in text and 'relay' in text and ('moonruntime' in text or 'runtime' in text),messages
             if args.scenario=='inspection':
                 assert {'list','search'} <= {r['operation'] for r in observations},observations
+            elif args.scenario=='sandbox':
+                assert {'runtime_version','validate_manifest'} <= {r['operation'] for r in observations},observations
+                manifest=next(r for r in observations if r['operation']=='validate_manifest')
+                assert manifest['ok'] and not manifest['data']['valid'],manifest
+                assert all(r.get('execution',{}).get('isolated') for r in observations if r['operation'] in ('runtime_version','validate_manifest'))
+                assert all(r.get('attempt')==saved['import']['storage'] and r.get('operationId') and r.get('requestId') for r in observations)
             else:
                 assert local['automaticRetries']==1 and local['networkRemaining']==3,local
                 assert [json.loads(line) for line in calls.read_text().splitlines()]==[selected,selected]

@@ -1,4 +1,84 @@
-# Import isolation proof
+# Broker integration (Phase 4)
+
+16 November 2026. The owner authorised integrating the verified boundary into
+the diagnostic broker, keeping general terminal access disabled. ARM64 NixOS UTM verification passed;
+[measured evidence](evidence/import-sandbox-phase4/) records the exact candidate.
+Publication through the existing signed update workflow is tracked separately.
+
+The typed broker accepts two operations through the existing `kind: inspect`
+continuation:
+
+| Operation | Model fields | Result |
+| --- | --- | --- |
+| `runtime_version` | `runtime`: `python`, `git`, or `gcc`; optional `scope` | The selected pinned diagnostic executable's version; no project-environment claim |
+| `validate_manifest` | `path`: relative `.json` or `.toml`; optional `scope` | Syntax validity (or explicit parser limit) and numerical error position when available; no project evaluation or parsed values |
+
+`scope` is `source` by default or the host's recorded latest `adaptation`.
+Unknown fields, roots, executable paths, argv, shell strings and environment
+requests are refused. Runtime probes mount an empty source selection. Manifest
+validation copies only the selected text through the existing descriptor-based
+path/secret policy into a new private snapshot (240,000 bytes maximum). Binary,
+private, token-bearing, symlink, special and oversized inputs never reach the
+sandbox. Neither original files nor the full imported tree are mounted.
+This defensive policy cannot recognise every possible secret in ordinary source.
+
+The production package and engineering adversaries use the **same** `boundary.py`
+engine and native seccomp policy. Packaged executable paths/arguments are chosen
+by trusted application code. OMP retains `--no-tools`, `--no-extensions`,
+`--no-rules`, `--no-skills` and `--no-lsp`; there is no general command tool.
+The engine checks effective cgroup/rlimit controls on every job and retains the
+Phase 3 namespace, filesystem, descriptor, network and resource ceilings below.
+The broker receives only bounded structured results. It does not forward raw
+systemd/Bubblewrap/compiler/parser output, source values or host paths. Invalid
+manifest syntax is a successful diagnostic finding, not an execution failure.
+
+The existing authoritative host persists its pending operation before launch,
+reserves inspection limits, rejects duplicate requests, and binds results to
+attempt, epoch, request and operation IDs. Observations stay in private
+`importLocal`; a concise finding/question uses the existing composer and sharing
+flow. Isolation failure yields `isolation_unavailable`, disables further
+sandbox diagnostics for that attempt, and allows ordinary read-only inspection.
+There is no host-process fallback. A new authorised source attempt rechecks
+availability. Time/output/resource failures are structured and cannot grant
+new authority or unlimited retries.
+
+Cancellation terminates the worker/helper and stops its complete cgroup.
+The handler raises RuntimeError because selectors swallow InterruptedError;
+the explicit supervisor-death regression caught this before publication. Abrupt
+request-client/host death still leaves the independent eight-second systemd
+deadline; restart marks the pending work interrupted and cannot accept a late
+result. No job is replayed merely because the app restarted. Snapshot/job
+`TemporaryDirectory` contexts clean normal completion/cancellation; a SIGKILL
+can leave an owner-only temporary input directory, containing only the filtered
+selection, until system temporary-directory cleanup. The service's private
+scratch and processes still end at the independent deadline.
+
+All 88 Python checks, the retained core/network/Iroh suites, all 18 shared-engine
+isolation checks, and live OMP investigation passed on the ARM64 NixOS UTM VM.
+The production/proof engine bytes and installed broker bytes matched the tested
+source. The live agent used runtime_version, validate_manifest and read to find
+invalid JSON, identify two unfamiliar apps and a missing prerequisite, then ask
+which app to work on. It correctly distinguished the packaged diagnostic Python
+from project dependency availability. Source hashes stayed unchanged, the hostile
+build instruction did not execute, and OMP tools/extensions remained disabled.
+A separate daemon-readiness handshake check killed the supervisor itself:
+SIGTERM cleanup took 0.064 seconds; SIGKILL cleanup via the independent deadline
+took 7.991 seconds. Both left no descendants. The earlier shallow interruption
+check alone would not have detected the selector exception issue.
+
+Preparation, repair writes, dependency downloads/network grants, project builds,
+tests, arbitrary Git operations and scratch inode exhaustion are outside this
+increment. Existing Run preview keeps its existing account permissions. No
+acceptance or installation instructions belong in this development chat;
+**Centaur Install** owns the product acceptance handoff.
+
+---
+
+# Import isolation proof (Phase 3 baseline)
+
+This historical section records the standalone proof before broker integration.
+Its disabled-product statements describe that milestone; the Phase 4 section
+above defines the current integration scope.
 
 Phase 3 engineering verification, 16 November 2026. This follows the
 [diagnostic-agent review](IMPORT_DIAGNOSTICS.md#phase-3-isolation-recommendation)

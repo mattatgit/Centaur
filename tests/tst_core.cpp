@@ -78,6 +78,22 @@ private slots:
         QVERIFY(!published.contains("importLocal"));
         QCOMPARE(workspace.projects().size(),1);
     }
+    void restartingDuringDiagnosticPreservesSourceAndRejectsPendingResult() {
+        QTemporaryDir directory; Workspace workspace(directory.path()); QString error;
+        const auto id=workspace.createProject("Diagnostic restart","Existing source",&error,"gtk4-v1",true);
+        QVERIFY(!id.isEmpty()); auto state=workspace.load(id);
+        state["import"]=QJsonObject{{"status","inspecting"},{"storage","saved-attempt"},{"previewReady",false}};
+        state["importLocal"]=QJsonObject{{"sourceAvailable",true},{"networkRemaining",2},
+            {"pending",QJsonObject{{"operationId","obsolete-operation"},{"mode","inspect"}}},
+            {"currentTool",QJsonObject{{"operation","validate_manifest"},{"path","package.json"}}},
+            {"diagnostics",QJsonObject{{"results",QJsonArray{QJsonObject{{"operation","runtime_version"},{"ok",true}}}}}}};
+        QVERIFY(workspace.save(id,state)); Session host(directory.path());host.start();
+        state=workspace.load(id); QCOMPARE(state["import"].toObject()["status"].toString(),QString("interrupted"));
+        const auto local=state["importLocal"].toObject(); QVERIFY(!local.contains("pending"));
+        QVERIFY(local["sourceAvailable"].toBool()); QCOMPARE(local["networkRemaining"].toInt(),2);
+        QCOMPARE(local["diagnostics"].toObject()["results"].toArray().size(),1);
+        QVERIFY(!QFileInfo::exists(workspace.projectPath(id)+"/App.gtk.json"));
+    }
     void githubBranchCorrectionKeepsProjectConversationAndPreviousWork() {
         QTemporaryDir directory;
         const auto helper=directory.path()+"/import-helper",agent=directory.path()+"/agent";
@@ -227,6 +243,41 @@ private slots:
         QCOMPARE(local["toolCount"].toInt(),1); QCOMPARE(local["diagnostics"].toObject()["results"].toArray().size(),1);
         QVERIFY(local["sourceAvailable"].toBool()); QVERIFY(!controller.project().contains("importLocal"));
         QVERIFY(controller.project()["messages"].toList().last().toMap()["text"].toString().contains("inspection limit"));
+    }
+    void isolatedImportFailureKeepsIdentityAndDisablesFurtherDiagnostics() {
+        QTemporaryDir directory;
+        const auto shell=QStandardPaths::findExecutable("sh");
+        const auto helper=directory.path()+"/helper",agent=directory.path()+"/agent",capture=directory.path()+"/capture",count=directory.path()+"/count";
+        const QJsonObject copied{{"ok",true},{"framework","Unknown"},{"fileCount",1},{"candidate",false}};
+        const QJsonObject inspected{{"ok",true},{"toolResult",QJsonObject{{"ok",false},{"operation","runtime_version"},
+            {"sourceAvailable",true},{"error",QJsonObject{{"code","isolation_unavailable"}}}}}};
+        QVERIFY(Workspace::writeFile(helper,("#!"+shell+"\nrequest=$(cat)\ncase \"$request\" in *'\"mode\":\"acquire\"'*)\ncat <<'REPLY'\n").toUtf8()
+            +QJsonDocument(copied).toJson(QJsonDocument::Compact)+"\nREPLY\n;; *)\ncat <<'REPLY'\n"
+            +QJsonDocument(inspected).toJson(QJsonDocument::Compact)+"\nREPLY\n;; esac\n"));
+        QVERIFY(QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        const auto first=QJsonDocument(QJsonObject{{"kind","inspect"},{"message","Check the diagnostic runtime."},{"tool",QJsonObject{{"operation","runtime_version"},{"runtime","python"}}}}).toJson(QJsonDocument::Compact);
+        const auto second=QJsonDocument(QJsonObject{{"kind","question"},{"message","I can continue inspecting the files."}}).toJson(QJsonDocument::Compact);
+        QVERIFY(Workspace::writeFile(agent,("#!"+shell+"\nfor arg; do case \"$arg\" in @*) cat \"${arg#@}\" >>'"+capture+"';; esac; done\nif test -f '"+count+"'; then\ncat <<'REPLY'\n").toUtf8()
+            +second+"\nREPLY\nelse\n"+("touch '"+count+"'\ncat <<'REPLY'\n").toUtf8()+first+"\nREPLY\nfi\n"));
+        QVERIFY(QFile::setPermissions(agent,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"),sandbox=qgetenv("CENTAUR_IMPORT_SANDBOX");
+        qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8()); qputenv("CENTAUR_IMPORT_SANDBOX","/packaged-sandbox");
+        auto cleanup=qScopeGuard([previous,sandbox] {
+            if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous);
+            if (sandbox.isNull()) qunsetenv("CENTAUR_IMPORT_SANDBOX"); else qputenv("CENTAUR_IMPORT_SANDBOX",sandbox);
+        });
+        AgentOverride override(agent);
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        controller.importGtkProject({{"name","Isolated check"},{"source",QJsonObject{{"type","folder"},{"location",directory.path()}}}});
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer")); QTRY_VERIFY(!controller.agentBusy());
+        Workspace workspace(controller.dataRoot());const auto state=workspace.load(controller.projectId());
+        const auto local=state["importLocal"].toObject(); QVERIFY(local["isolationUnavailable"].toBool());
+        const auto observation=local["diagnostics"].toObject()["results"].toArray().first().toObject();
+        QCOMPARE(observation["attempt"],state["import"].toObject()["storage"]); QCOMPARE(observation["epoch"],state["epoch"]);
+        QVERIFY(!observation["operationId"].toString().isEmpty()); QVERIFY(!observation["requestId"].toString().isEmpty());
+        QFile prompts(capture); QVERIFY(prompts.open(QIODevice::ReadOnly));const auto context=prompts.readAll();
+        QVERIFY(context.contains("\"isolatedDiagnostics\":true")); QVERIFY(context.contains("\"isolatedDiagnostics\":false"));
+        QVERIFY(context.contains("\"terminal\":false")); QVERIFY(!controller.project().contains("importLocal"));
     }
     void cancellingImportDiscardsLateAcquisition() {
         QTemporaryDir directory;

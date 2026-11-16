@@ -13,6 +13,8 @@ on:
       - 'packaging/gtk4-centaur.desktop'
       - 'tests/**'
       - 'packaging/gtk4-*.nix'
+      - 'packaging/import-*.nix'
+      - 'scripts/import-isolation/**'
       - 'packaging/patches/casilda-*.patch'
       - 'scripts/check-gtk4-wayland.sh'
       - 'scripts/publish-binary-cache.sh'

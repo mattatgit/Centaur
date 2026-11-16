@@ -1,5 +1,42 @@
 # Current state
 
+## Phase 4 sandbox broker integration — 16 November 2026
+
+The owner authorised connecting the verified boundary to the import broker,
+keeping general terminal access disabled. The broker now supports fixed
+`runtime_version` (packaged Python/Git/GCC) and `validate_manifest` (JSON/TOML
+syntax) operations. Application code chooses executable paths and arguments;
+there is no shell, arbitrary command, project evaluation, dependency installation
+or repair/build tool. A private snapshot contains only selected policy-filtered
+text, never the original source tree. Source/adaptation scopes remain separate.
+
+The production runner and engineering adversaries share the same boundary engine
+and native seccomp policy. All resource/isolation controls are required per job.
+The existing coordinator binds results to attempt/epoch/request/operation IDs,
+rejects stale completions, retains bounded private observations, and routes
+findings through normal chat. Isolation failure disables these tools for the
+attempt; static inspection remains available. OMP still receives `--no-tools`
+and `--no-extensions`. Run preview permissions are unchanged.
+
+Verified only on ARM64 NixOS under UTM: 88 Python checks, all 18 boundary checks,
+core/network/Iroh suites, product build and live OMP investigation passed. An
+additional supervisor-death regression caught InterruptedError being swallowed
+by Python's selector loop. The final handler raises RuntimeError so whole-cgroup
+cleanup runs: SIGTERM took 0.064 seconds; SIGKILL left no descendants after the
+independent deadline (7.991 seconds). The live agent used both fixed tools and
+read-only inspection to diagnose malformed JSON, identify two unfamiliar apps
+and an absent prerequisite, without executing project code or changing originals.
+The exact packaged broker and shared-engine bytes matched the tested source.
+
+[Policy and limits](IMPORT_ISOLATION.md) and
+[raw evidence/source hashes](evidence/import-sandbox-phase4/) record the scope.
+Publication through the existing tested, signed Cachix updater is pending at
+this source commit; release verification is recorded separately. The installed
+owner profile remains `0.4.0-preview+e8d627c` during engineering tests. Projects,
+conversations, OMP configuration/credentials, identities and Qt installation
+were preserved. Installation and hands-on acceptance remain in **Centaur Install**.
+Repairs, preparation exports, network grants and general builds are later work.
+
 ## Import diagnostic agent review — 16 November 2026
 
 The owner's Architecture + Design handoff establishes general import diagnosis,

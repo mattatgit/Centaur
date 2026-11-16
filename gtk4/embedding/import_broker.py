@@ -1,4 +1,4 @@
-"""Bounded read-only import tools. This module never starts a process.
+"""Bounded read-only import tools. Only typed diagnostics enter the sandbox.
 
 All paths are opened relative to verified directory descriptors with NOFOLLOW.
 The coordinator chooses root/scope; source text is never evaluated or imported.
@@ -120,6 +120,9 @@ def validate(tool):
 
 def execute(root, tool, output=None):
     op=tool.get('operation','') if isinstance(tool,dict) else ''
+    if op in ('runtime_version','validate_manifest'):
+        from import_diagnostics import execute as diagnose
+        return diagnose(root,tool,output)
     result={'schemaVersion':1,'operation':op,'scope':tool.get('scope','source') if isinstance(tool,dict) else 'source',
             'ok':False,'sourceAvailable':False,'truncated':False,'omissionPolicy':'Private, generated, symbolic-link and special files are omitted.'}
     tree=None

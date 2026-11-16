@@ -16,8 +16,11 @@ host-owned broker with staged isolation gates. It is an architecture review, not
 an implemented command/repair service or a change to preview permissions.
 The [Phase 3 isolation proof](IMPORT_ISOLATION.md) now records a measured ARM64
 UTM candidate using Bubblewrap, seccomp and effective systemd cgroup controls.
-Its separate engineering package is not connected to the product's tool broker;
-fixed-command lifecycle integration remains an enablement gate.
+Phase 4 connects the shared engine to two fixed broker diagnostics: packaged
+runtime versions and JSON/TOML syntax checks over filtered private selections.
+It retains general terminal denial, per-job effective-limit checks, attempt-aware
+continuations and independent service deadlines. Repairs/builds remain gated;
+see the dated evidence in Current state.
 
 ## Platform and visual design direction
 

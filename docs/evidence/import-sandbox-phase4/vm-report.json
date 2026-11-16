@@ -1,0 +1,236 @@
+{
+  "environment": "ARM64 NixOS UTM",
+  "architecture": "aarch64",
+  "kernel": "6.18.57",
+  "uid": 1000,
+  "archiveSha256": "4e4f2ab250df89f4e7b825a154ac11adbcc4e868c79179bfbea6c3148048b9a3",
+  "product": "/nix/store/wsa69hbn1k7a64l087c2dmripnjqqrsg-centaur-gtk4-preview-0.4.0-preview",
+  "sandbox": "/nix/store/w9dki4rd8jp5sk6kb7jcq4bg9nkzc45y-centaur-import-sandbox-1",
+  "proof": "/nix/store/bdpii1fl6lnw6jc2lm8d2dlx1qyxpr85-centaur-import-isolation-proof-1",
+  "lifecycleScriptSha256": "578a8fcc80d4bc207b382feac21cd64ce54955800286e808051a8aed4c5d33a0",
+  "sourceHashesMatch": true,
+  "sameBoundaryBytes": true,
+  "installedSourceSha256": {
+    "sandbox/boundary.py": "04ea1e75490158f82bef4c65e7233bdf67e54dcf86f8f21115bfb80c05d945c4",
+    "sandbox/entry.py": "b65498f8a2315ca74ee9bc677e550609083ab9f47ccc20f4355e97465268c515",
+    "sandbox/diagnostic.py": "33d82fcd4811540eefcf29c552f6c67ae28f014a0c0032d7d34908d0c95f2cc0",
+    "product/import_broker.py": "dc324d8c707de1569557372c54b374ca69bb72eab894167c120079485128511b",
+    "product/import_diagnostics.py": "267e79dc56cd7d9c858a46e70165606f1ed2c6b09eb3fad97c6482d17a266eb5",
+    "product/import_policy.py": "acfcfac214c28881fcc11599bcdad5a5f1d61a027c9d3027b819808951b63b32",
+    "product/source_import.py": "36c43c652eeaa451c4debcf5a5a4f8f184c8f7f959616a99df39c0337c1571ed"
+  },
+  "isolation": {
+    "schemaVersion": 1,
+    "architecture": "aarch64",
+    "kernel": "6.18.57",
+    "uid": 1000,
+    "package": "/nix/store/bdpii1fl6lnw6jc2lm8d2dlx1qyxpr85-centaur-import-isolation-proof-1",
+    "versions": {
+      "bubblewrap": "0.13.1",
+      "seccomp": "2.6.1"
+    },
+    "policySha256": "f2a02eb484336a464c6716555757868bf3395f4088d7e874a764d67aae8a43eb",
+    "installedSourceSha256": {
+      "boundary.py": "04ea1e75490158f82bef4c65e7233bdf67e54dcf86f8f21115bfb80c05d945c4",
+      "check.py": "b11936fb1d78d1e4a040983d8772e9b8b4075efb6645dbead8d83fc1a8a434a2",
+      "inner.py": "8159e7b13bc8dc23fc7cf8a1dc225a55929d2044567b52f8069d87d703de1aa6",
+      "entry.py": "b65498f8a2315ca74ee9bc677e550609083ab9f47ccc20f4355e97465268c515",
+      "supervisor.py": "e0c3b0d26e87c053e0e70346d45b263c014b0fbd48eb3d9b6f6808ec6a9cc279",
+      "diagnostic.py": "33d82fcd4811540eefcf29c552f6c67ae28f014a0c0032d7d34908d0c95f2cc0"
+    },
+    "runtimeClosurePaths": 51,
+    "commandInterfaceEnabled": false,
+    "checks": [
+      {
+        "name": "filesystem-credentials-environment-fds-network-namespaces-seccomp",
+        "passed": true,
+        "effectiveLimits": {
+          "memory.max": "134217728",
+          "memory.swap.max": "0",
+          "memory.oom.group": "1",
+          "pids.max": "32",
+          "cpu.max": "25000 100000",
+          "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+          "cpu.stat": "usage_usec 18546\nuser_usec 14828\nsystem_usec 3718\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 0\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0",
+          "cgroup.events": "populated 1\nfrozen 0"
+        },
+        "isolation": true,
+        "namespaces": {
+          "mnt": "mnt:[4026532396]",
+          "pid": "pid:[4026532404]",
+          "user": "user:[4026532577]",
+          "net": "net:[4026532461]",
+          "ipc": "ipc:[4026532403]",
+          "uts": "uts:[4026532401]",
+          "cgroup": "cgroup:[4026532460]"
+        },
+        "capabilities": 0,
+        "noNewPrivileges": true,
+        "seccomp": true,
+        "inheritedDescriptors": 3
+      },
+      {
+        "name": "unknown-command-refused",
+        "passed": true,
+        "refused": true
+      },
+      {
+        "name": "version-python",
+        "passed": true,
+        "observation": "Python 3.14.10",
+        "elapsed": 0.071
+      },
+      {
+        "name": "version-git",
+        "passed": true,
+        "observation": "git version 2.56.0",
+        "elapsed": 0.068
+      },
+      {
+        "name": "version-gcc",
+        "passed": true,
+        "observation": "gcc (GCC) 16.2.0\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+        "elapsed": 0.065
+      },
+      {
+        "name": "scratch",
+        "passed": true,
+        "observation": "{\"scratchBytesWritten\": 8388608, \"aggregateQuota\": true}",
+        "elapsed": 0.187
+      },
+      {
+        "name": "file-limit",
+        "passed": true,
+        "observation": "{\"fileBytes\": 1048576}",
+        "elapsed": 0.114
+      },
+      {
+        "name": "pids",
+        "passed": true,
+        "observation": "{\"forkedChildren\": 29, \"processLimit\": true}",
+        "elapsed": 0.184
+      },
+      {
+        "name": "memory-exhaustion",
+        "passed": true,
+        "oomKills": 0,
+        "unitState": "ActiveState=failed\nResult=oom-kill\nExecMainCode=2\nExecMainStatus=9\n"
+      },
+      {
+        "name": "effective-cpu-quota",
+        "passed": true,
+        "cpuUsec": 1292764,
+        "throttledPeriods": 51,
+        "elapsed": 5.237
+      },
+      {
+        "name": "bounded-output",
+        "passed": true,
+        "retainedBytes": 32768,
+        "elapsed": 0.147
+      },
+      {
+        "name": "wall-time-and-daemon-cleanup",
+        "passed": true,
+        "elapsed": 8.218,
+        "reason": "completed",
+        "unitState": "ActiveState=failed\nResult=timeout\nExecMainCode=2\nExecMainStatus=15\n",
+        "daemonReadinessHandshake": {
+          "descendantReady": true,
+          "doubleForked": true,
+          "newSession": true,
+          "ignoresSigterm": true
+        },
+        "descendantsRemain": false
+      },
+      {
+        "name": "cancel-process-tree",
+        "passed": true,
+        "elapsed": 0.335,
+        "reason": "cancelled",
+        "unitState": "ActiveState=inactive\nResult=success\nExecMainCode=0\nExecMainStatus=0\n",
+        "daemonReadinessHandshake": {
+          "descendantReady": true,
+          "doubleForked": true,
+          "newSession": true,
+          "ignoresSigterm": true
+        },
+        "descendantsRemain": false
+      },
+      {
+        "name": "controller-death-runtime-cleanup",
+        "passed": true,
+        "elapsed": 8.118,
+        "reason": "abandoned-controller",
+        "unitState": "ActiveState=failed\nResult=timeout\nExecMainCode=2\nExecMainStatus=15\n",
+        "daemonReadinessHandshake": {
+          "descendantReady": true,
+          "doubleForked": true,
+          "newSession": true,
+          "ignoresSigterm": true
+        },
+        "descendantsRemain": false
+      },
+      {
+        "name": "fail-closed-missing-bwrap",
+        "passed": true,
+        "refused": true
+      },
+      {
+        "name": "fail-closed-mismatched-limits",
+        "passed": true,
+        "refused": true
+      },
+      {
+        "name": "fail-closed-invalid-filter",
+        "passed": true,
+        "refused": true
+      },
+      {
+        "name": "fail-closed-missing-manager",
+        "passed": true,
+        "refused": true
+      }
+    ],
+    "passed": true,
+    "originalHashesUnchanged": true
+  },
+  "supervisorDeath": {
+    "passed": true,
+    "originalUnchanged": true,
+    "cases": [
+      {
+        "signal": "SIGTERM",
+        "daemonReadinessHandshake": true,
+        "elapsed": 0.064,
+        "descendantsRemain": false
+      },
+      {
+        "signal": "SIGKILL",
+        "daemonReadinessHandshake": true,
+        "elapsed": 7.991,
+        "descendantsRemain": false
+      }
+    ]
+  },
+  "liveAgent": {
+    "ok": true,
+    "environment": "aarch64 NixOS UTM",
+    "agentModel": "openai-codex/gpt-6.1-sol",
+    "scenario": "sandbox",
+    "faultInjectedAcquisition": false,
+    "operations": [
+      "runtime_version",
+      "validate_manifest",
+      "read"
+    ],
+    "messages": [
+      "I\u2019ll make a separate copy and take a look. Your original project stays untouched.",
+      "The source is copied. I\u2019m checking how it\u2019s organised.",
+      "The recorded checks show Python 3.14.10 is available for diagnostics, not necessarily for running these apps. apps/one/package.json is invalid JSON: \u201cscripts\u201d has no value; the validator reports line 1, column 37.\n\nThe source describes two applications:\n\u2022 Lantern Desk \u2014 displays a list of notes. It requires MoonRuntime 99, which is not supplied.\n\u2022 Quiet Relay \u2014 copies notes between queues. It declares a standard-library requirement.\n\nNeither app has been run or converted. Which application would you like to work on?"
+    ],
+    "originalUnchanged": true,
+    "projectCodeExecuted": false,
+    "terminalEnabled": false
+  }
+}

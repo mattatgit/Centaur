@@ -1,5 +1,6 @@
 { pkgs, buildId, services ? null, sourceTimestamp ? 0, updaterFixture ? false }:
 let
+  importSandbox = import ./import-sandbox.nix { inherit pkgs; };
   python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pycairo p.pillow ]);
   fonts = pkgs.runCommandNoCC "centaur-inter-fonts" { } ''
     mkdir -p "$out/share/fonts"
@@ -97,6 +98,7 @@ in pkgs.stdenvNoCC.mkDerivation {
       gappsWrapperArgs+=(--set CENTAUR_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_RUNNER "$out/bin/centaur-gtk4-preview")
+      gappsWrapperArgs+=(--set CENTAUR_IMPORT_SANDBOX ${importSandbox}/bin/centaur-import-sandbox)
       gappsWrapperArgs+=(--set CENTAUR_GTK_IMPORT_TOOL "$out/bin/centaur-gtk4-import")
       gappsWrapperArgs+=(--prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.git ]})
       gappsWrapperArgs+=(--set CENTAUR_GTK_PACKAGE "$out")
@@ -106,7 +108,7 @@ in pkgs.stdenvNoCC.mkDerivation {
     gappsWrapperArgs+=(--set CENTAUR_GTK4_CASILDA_VERSION ${casilda.version})
   '';
   passthru = {
-    inherit python services;
+    inherit python services importSandbox;
     dbusConfig = "${pkgs.dbus}/share/dbus-1/session.conf";
     dbusForTests = pkgs.dbus;
     waylandTestSeat = import ./gtk4-test-seat.nix { inherit pkgs; };

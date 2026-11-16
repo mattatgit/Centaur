@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "originalUnchanged": true,
+  "cases": [
+    {
+      "signal": "SIGTERM",
+      "daemonReadinessHandshake": true,
+      "elapsed": 0.064,
+      "descendantsRemain": false
+    },
+    {
+      "signal": "SIGKILL",
+      "daemonReadinessHandshake": true,
+      "elapsed": 7.991,
+      "descendantsRemain": false
+    }
+  ]
+}
