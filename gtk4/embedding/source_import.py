@@ -140,7 +140,9 @@ def git(args, cwd=None, consume=None, cleanup=None):
     if cleanup is not None and cleanup.exists():
         raise ImportError('The temporary source copy already exists. Please retry the import.')
     for attempt in range(1, 4 if network else 2):
-        timeout=min(30 if network else 100, max(0.1, _git_deadline-time.monotonic()) if _git_deadline else 100)
+        # Keep the original copy allowance for slow/large repositories. Fast
+        # transient failures can retry within the shared worker deadline.
+        timeout=max(0.1, min(100, _git_deadline-time.monotonic())) if _git_deadline else 100
         expired=False; archive_error=None
         # A file keeps stderr separate from archive bytes without filling a pipe
         # while the tar consumer reads stdout. It is deleted on every exit path.
