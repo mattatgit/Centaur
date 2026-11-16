@@ -3,7 +3,11 @@
 16 November 2026. The owner authorised integrating the verified boundary into
 the diagnostic broker, keeping general terminal access disabled. ARM64 NixOS UTM verification passed;
 [measured evidence](evidence/import-sandbox-phase4/) records the exact candidate.
-Publication through the existing signed update workflow is tracked separately.
+Published as `0.4.0-preview+0ddbd19` through the existing signed update workflow;
+[release verification](evidence/import-sandbox-phase4/release-verification.json)
+also records native integration/updater checks and the exact feed match.
+A binary-only UTM download verified both fixed diagnostics and matching bytes
+without changing the owner profile. Hands-on acceptance remains pending.
 
 The typed broker accepts two operations through the existing `kind: inspect`
 continuation:

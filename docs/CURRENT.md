@@ -30,8 +30,17 @@ The exact packaged broker and shared-engine bytes matched the tested source.
 
 [Policy and limits](IMPORT_ISOLATION.md) and
 [raw evidence/source hashes](evidence/import-sandbox-phase4/) record the scope.
-Publication through the existing tested, signed Cachix updater is pending at
-this source commit; release verification is recorded separately. The installed
+Published **0.4.0-preview+0ddbd19** through the existing tested, signed Cachix
+workflow. The [product run](https://github.com/mattatgit/Centaur/actions/runs/43803326626)
+and [embedding run](https://github.com/mattatgit/Centaur/actions/runs/43803326579)
+passed. All 613 closure paths passed empty-store signature verification;
+native import/collaboration and Settings update/data/Qt preservation checks
+passed. Landline again used linux-nix at
+`205fc1185335dc1c85b359af7673f6e5d7653222`, with LandlineNix source in the agent
+context. The public feed exactly matches the signed manifest. A binary-only
+UTM download verified both fixed diagnostics and exact installed broker/engine
+bytes without switching any owner profile. [Release evidence](evidence/import-sandbox-phase4/release-verification.json)
+separates publication from hands-on acceptance. The installed
 owner profile remains `0.4.0-preview+e8d627c` during engineering tests. Projects,
 conversations, OMP configuration/credentials, identities and Qt installation
 were preserved. Installation and hands-on acceptance remain in **Centaur Install**.

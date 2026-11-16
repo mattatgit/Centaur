@@ -35,5 +35,23 @@ Scope: two host-chosen fixed diagnostics only. Manifest values/parser messages,
 raw compiler/systemd/Bubblewrap output and host locators are not forwarded to
 the model. There are no repair writes, builds, dependency/network grants,
 general terminal tools or changes to existing Run preview permissions.
-Publication through the existing signed updater is recorded separately after
-its required checks pass. Automated verification is not owner acceptance.
+Published `0.4.0-preview+0ddbd19` through the existing signed workflow after its
+required checks passed:
+
+- [Release verification](release-verification.json) records both successful
+  workflows and downloaded artifact SHA-256 digests. The public feed exactly
+  matches the [signed distribution manifest](release-manifest.json); all 613
+  closure paths passed empty-store signature verification.
+- [Native integration](release-native-integration.json) includes collaboration,
+  import, validation/history and Landline's linux-nix branch checks. The downloaded
+  agent context contained commit `205fc1185335dc1c85b359af7673f6e5d7653222`,
+  branch linux-nix and LandlineNix paths.
+- [Updater checks](release-updater.json) include a real disposable profile switch,
+  GTK restart and project/chat/preferences/identity/Qt preservation.
+- [Published-binary UTM verification](release-vm-verification.json) downloaded the
+  exact signed release without builds or an owner profile switch, matched the
+  installed broker/shared-engine bytes, and ran both fixed diagnostics.
+
+The owner profile stayed at `e8d627c` during engineering tests. Installation and
+hands-on acceptance remain in Centaur Install. Automated verification is not
+owner acceptance.

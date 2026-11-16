@@ -1,0 +1,63 @@
+{
+  "passed": true,
+  "sourceRevision": "0ddbd19205dd845cbd097b63b9f0564f60cc8445",
+  "version": "Centaur GTK4 0.4.0-preview+0ddbd19",
+  "storePath": "/nix/store/mlvig7qxgpp91ymqjf4wqk1rllr3y9x5-centaur-gtk4-preview-0.4.0-preview",
+  "signedBinaryOnlyDownload": true,
+  "installedSourceHashesMatch": {
+    "boundary.py": "04ea1e75490158f82bef4c65e7233bdf67e54dcf86f8f21115bfb80c05d945c4",
+    "entry.py": "b65498f8a2315ca74ee9bc677e550609083ab9f47ccc20f4355e97465268c515",
+    "diagnostic.py": "33d82fcd4811540eefcf29c552f6c67ae28f014a0c0032d7d34908d0c95f2cc0",
+    "import_diagnostics.py": "267e79dc56cd7d9c858a46e70165606f1ed2c6b09eb3fad97c6482d17a266eb5",
+    "import_broker.py": "dc324d8c707de1569557372c54b374ca69bb72eab894167c120079485128511b"
+  },
+  "diagnostics": [
+    {
+      "schemaVersion": 1,
+      "operation": "runtime_version",
+      "scope": "source",
+      "ok": true,
+      "sourceAvailable": true,
+      "truncated": false,
+      "data": {
+        "runtime": "python",
+        "version": "3.14.10",
+        "availability": "packagedDiagnosticRuntime"
+      },
+      "execution": {
+        "isolated": true,
+        "elapsed": 0.092,
+        "exitCode": 0,
+        "reason": "completed",
+        "serviceResult": "success",
+        "descendantsRemain": false
+      }
+    },
+    {
+      "schemaVersion": 1,
+      "operation": "validate_manifest",
+      "scope": "source",
+      "ok": true,
+      "sourceAvailable": true,
+      "truncated": false,
+      "data": {
+        "valid": false,
+        "format": "json",
+        "code": "invalid_manifest",
+        "line": 1,
+        "column": 10
+      },
+      "execution": {
+        "isolated": true,
+        "elapsed": 0.148,
+        "exitCode": 0,
+        "reason": "completed",
+        "serviceResult": "success",
+        "descendantsRemain": false
+      }
+    }
+  ],
+  "originalUnchanged": true,
+  "profilesChanged": false,
+  "ownerAcceptance": "Pending in Centaur Install"
+}

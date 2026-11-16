@@ -1,0 +1,188 @@
+{
+  "sourceRevision": "0ddbd19205dd845cbd097b63b9f0564f60cc8445",
+  "verifiedAt": "2026-11-16 04:29:00 UTC",
+  "workflows": [
+    {
+      "id": 43803326626,
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43803326626",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 133088342216,
+          "name": "GTK4 product and preserved service regressions ARM64",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Python, bundle contract and workflow",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build retained service and run core, network and Iroh regressions",
+              "conclusion": "success"
+            },
+            {
+              "name": "Cache service only after its regressions pass",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build GTK4 development frontend",
+              "conclusion": "success"
+            },
+            {
+              "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save native screenshots, reports and limitations",
+              "conclusion": "success"
+            },
+            {
+              "name": "Publish GTK4 development preview after successful checks",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise Settings update against the published signed package",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save updater screenshots and transaction evidence",
+              "conclusion": "success"
+            },
+            {
+              "name": "Advertise the verified in-app update",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 43803326579,
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43803326579",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 133088341968,
+          "name": "GTK4 viewport ARM64",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Python, process isolation and workflow",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build isolated GTK4 experiment only",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise separate app in a disposable display",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save experiment evidence and limitations",
+              "conclusion": "success"
+            },
+            {
+              "name": "Publish isolated test package after automated checks",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14197692472,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:3c606d8f0249db1594f37fbef803145191d72b93afef19ee7f7f717875723c3a"
+    },
+    {
+      "id": 14197154399,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:ed1e0b981c456c1f4c214e2c15920d495f046d493109a25a19a8e607d0cd8e44"
+    },
+    {
+      "id": 14197129195,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:3adbd0d515bfbe8b513c06150d99fe8f9d0f37cdb05f3360bad373993670785e"
+    }
+  ],
+  "feed": {
+    "url": "https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview",
+    "matchesSignedDistributionManifest": true
+  },
+  "automatedAcceptanceOnly": true,
+  "ownerAcceptance": "Pending in Centaur Install; installed owner profile preserved",
+  "landlineImport": {
+    "branch": "linux-nix",
+    "commit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+    "linuxSourceContext": true,
+    "artifactFile": "integration/agent-request.txt"
+  },
+  "temporaryTransferServerStopped": true
+}

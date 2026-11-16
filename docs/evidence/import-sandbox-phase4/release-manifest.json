@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "0ddbd19205dd845cbd097b63b9f0564f60cc8445",
+  "system": "aarch64-linux",
+  "version": "Centaur GTK4 0.4.0-preview+0ddbd19",
+  "storePath": "/nix/store/mlvig7qxgpp91ymqjf4wqk1rllr3y9x5-centaur-gtk4-preview-0.4.0-preview",
+  "packageAttribute": "gtk4-preview",
+  "installable": "github:mattatgit/Centaur/0ddbd19205dd845cbd097b63b9f0564f60cc8445#gtk4-preview",
+  "cacheUrl": "https://mattatgit-centaur.cachix.org",
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ],
+  "closurePathCount": 613,
+  "verifiedSignedClosureDownload": true,
+  "publishedAt": "2026-11-16T04:27:08.268415+00:00",
+  "updateProtocol": 1,
+  "branch": "codex/gtk4-migration",
+  "sourceTimestamp": 1794802711
+}
