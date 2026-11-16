@@ -107,9 +107,11 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     until(lambda:len(state().get('importDialog',{}).get('branches',[]))>1,'Branch menu did not populate')
     other=next(name for name in state()['importDialog']['branches'] if name!=default)
     click(state,window,'import-branch-option-'+other)
-    assert state()['importDialog']['branchLabel']==other
-    click(state,window,'import-branch'); click(state,window,'import-branch-option-'+default)
-    assert state()['importDialog']['branchLabel']==default
+    until(lambda:state()['importDialog']['branchLabel']==other,'Manual branch selection did not reach the UI report')
+    click(state,window,'import-branch')
+    until(lambda:default in state().get('importDialog',{}).get('branches',[]),'Branch menu did not reopen')
+    click(state,window,'import-branch-option-'+default)
+    until(lambda:state()['importDialog']['branchLabel']==default,'Default branch selection did not reach the UI report')
     click(state,window,'import-submit')
     until(lambda:state()['project'].get('name')=='GitHub example' and state()['project'].get('import',{}).get('status')=='awaitingAnswer','Public GitHub source import did not finish',timeout=110)
     project=state()['project']; info=project['import']
