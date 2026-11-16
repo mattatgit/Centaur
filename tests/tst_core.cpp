@@ -63,10 +63,16 @@ private slots:
         QVERIFY2(!id.isEmpty(),qPrintable(error)); QVERIFY(!QFileInfo::exists(workspace.projectPath(id)+"/App.gtk.json"));
         auto state=workspace.load(id);
         state["import"]=QJsonObject{{"status","fetching"},{"previewReady",false}};
-        state["importLocal"]=QJsonObject{{"source",QJsonObject{{"type","folder"},{"location",directory.path()+"/private-source"}}}};
+        state["importLocal"]=QJsonObject{{"source",QJsonObject{{"type","folder"},{"location",directory.path()+"/private-source"}}},
+            {"networkRemaining",0},{"pending",QJsonObject{{"reservedNetwork",6}}},
+            {"diagnostics",QJsonObject{{"actions",QJsonArray{QJsonObject{{"operation","list"},{"ok",true}}}}}}};
         QVERIFY(workspace.save(id,state));
         Session host(directory.path()); QSignalSpy snapshots(&host,&Session::snapshot); host.start();
         QCOMPARE(workspace.load(id)["import"].toObject()["status"].toString(),QString("interrupted"));
+        const auto recovered=workspace.load(id)["importLocal"].toObject();
+        QVERIFY(!recovered.contains("pending")); QCOMPARE(recovered["networkRemaining"].toInt(),0);
+        QCOMPARE(recovered["diagnostics"].toObject()["actions"].toArray().size(),1);
+        QCOMPARE(recovered["diagnostics"].toObject()["failure"].toObject()["code"].toString(),QString("interrupted"));
         QVERIFY(!snapshots.isEmpty());
         const auto published=snapshots.last().first().toJsonObject()["states"].toArray().first().toObject();
         QVERIFY(!published.contains("importLocal"));
@@ -142,7 +148,7 @@ private slots:
         QTRY_VERIFY(!controller.projectId().isEmpty());
         const auto id=controller.projectId();
         QTRY_VERIFY(controller.updateBlocked());
-        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("failed"));
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer"));
         QVERIFY(!controller.project().contains("importLocal"));
         QVERIFY(!QJsonDocument::fromVariant(controller.project()).toJson().contains("Could not resolve host"));
         Workspace debugWorkspace(controller.dataRoot());
@@ -165,6 +171,83 @@ private slots:
         QTRY_VERIFY(!controller.agentBusy());
         QCOMPARE(controller.project()["messages"].toList().last().toMap()["text"].toString(),QString("I’ll start with the home screen."));
         QCOMPARE(controller.projects().size(),1);
+    }
+    void importFailuresReachAgentAndRetryUsesSavedSourceWithOneSharedBudget() {
+        QTemporaryDir directory;
+        const auto shell=QStandardPaths::findExecutable("sh");
+        const auto helper=directory.path()+"/helper",agent=directory.path()+"/agent",calls=directory.path()+"/calls",capture=directory.path()+"/capture";
+        const QJsonObject failure{{"ok",false},{"networkAttempts",3},{"diagnostic",QJsonObject{{"category","dns"},{"detail","PRIVATE HELPER OUTPUT"},{"exitCode",128}}}};
+        QVERIFY(Workspace::writeFile(helper,("#!"+shell+"\ncat >>'"+calls+"'\nprintf '\\n' >>'"+calls+"'\ncat <<'REPLY'\n").toUtf8()
+            +QJsonDocument(failure).toJson(QJsonDocument::Compact)+"\nREPLY\n"));
+        QVERIFY(QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        QVERIFY(writeAgentReply(agent,{{"kind","retry"},{"operation","acquire"},{"message","Try the same source."}},
+            ("for arg; do case \"$arg\" in @*) cat \"${arg#@}\" >>'"+capture+"';; esac; done\n").toUtf8()));
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
+        auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
+        AgentOverride override(agent);
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        controller.importGtkProject({{"name","Retry source"},{"source",QJsonObject{{"type","github"},{"location","https://github.com/example/app/tree/linux-nix"},{"branch","linux-nix"}}}});
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer"));
+        QTRY_VERIFY(!controller.agentBusy());
+        Workspace workspace(controller.dataRoot()); const auto id=controller.projectId(); auto state=workspace.load(id);
+        const auto local=state["importLocal"].toObject(); QCOMPARE(local["networkRemaining"].toInt(),0); QCOMPARE(local["automaticRetries"].toInt(),1);
+        QCOMPARE(local["source"].toObject()["branch"].toString(),QString("linux-nix"));
+        QCOMPARE(local["diagnostics"].toObject()["failure"].toObject()["category"].toString(),QString("dns"));
+        QFile requests(calls); QVERIFY(requests.open(QIODevice::ReadOnly)); const auto operations=requests.readAll();
+        QCOMPARE(operations.count("\"mode\":\"acquire\""),2); QCOMPARE(operations.count("\"branch\":\"linux-nix\""),2);
+        QVERIFY(operations.contains("\"networkBudget\":6")); QVERIFY(operations.contains("\"networkBudget\":3"));
+        QFile prompts(capture); QVERIFY(prompts.open(QIODevice::ReadOnly)); const auto context=prompts.readAll();
+        QVERIFY(context.contains("\"category\":\"dns\"")); QVERIFY(context.contains("\"sourceAvailable\":false"));
+        QVERIFY(!context.contains("PRIVATE HELPER OUTPUT")); QVERIFY(!controller.project().contains("importLocal"));
+        QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","The connection needs attention."}}));
+        QVERIFY(controller.sendMessage("What needs attention?")); // Existing composer; no mention.
+        QTRY_VERIFY(!controller.agentBusy());
+        QCOMPARE(controller.projectId(),id); QCOMPARE(controller.projects().size(),1);
+    }
+    void importInspectionResultsContinueAndDuplicateRequestsStop() {
+        QTemporaryDir directory;
+        const auto shell=QStandardPaths::findExecutable("sh");
+        const auto helper=directory.path()+"/helper",agent=directory.path()+"/agent";
+        const QJsonObject copied{{"ok",true},{"framework","Unknown"},{"paths",QJsonArray{"apps/manifest.unknown"}},
+            {"files",QJsonObject()},{"fileCount",1},{"networkAttempts",0}};
+        const QJsonObject inspected{{"ok",true},{"toolResult",QJsonObject{{"ok",true},{"operation","list"},
+            {"data",QJsonObject{{"entries",QJsonArray{QJsonObject{{"path","apps"},{"type","directory"}}}}}}}}};
+        QVERIFY(Workspace::writeFile(helper,("#!"+shell+"\nrequest=$(cat)\ncase \"$request\" in *'\"mode\":\"acquire\"'*)\ncat <<'REPLY'\n").toUtf8()
+            +QJsonDocument(copied).toJson(QJsonDocument::Compact)+"\nREPLY\n;; *)\ncat <<'REPLY'\n"
+            +QJsonDocument(inspected).toJson(QJsonDocument::Compact)+"\nREPLY\n;; esac\n"));
+        QVERIFY(QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
+        auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
+        AgentOverride override(agent);
+        QVERIFY(writeAgentReply(agent,{{"kind","inspect"},{"message","Inspect the layout."},{"tool",QJsonObject{{"operation","list"},{"path",""}}}}));
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        controller.importGtkProject({{"name","Unknown source"},{"source",QJsonObject{{"type","folder"},{"location",directory.path()}}}});
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("awaitingAnswer")); QTRY_VERIFY(!controller.agentBusy());
+        Workspace workspace(controller.dataRoot()); auto state=workspace.load(controller.projectId()); const auto local=state["importLocal"].toObject();
+        QCOMPARE(local["toolCount"].toInt(),1); QCOMPARE(local["diagnostics"].toObject()["results"].toArray().size(),1);
+        QVERIFY(local["sourceAvailable"].toBool()); QVERIFY(!controller.project().contains("importLocal"));
+        QVERIFY(controller.project()["messages"].toList().last().toMap()["text"].toString().contains("inspection limit"));
+    }
+    void cancellingImportDiscardsLateAcquisition() {
+        QTemporaryDir directory;
+        const auto shell=QStandardPaths::findExecutable("sh"),helper=directory.path()+"/helper",agent=directory.path()+"/agent";
+        QVERIFY(Workspace::writeFile(helper,("#!"+shell+"\ntrap '' TERM\ncat >/dev/null\nsleep 0.4\nprintf '%s\\n' '{\"ok\":true,\"fileCount\":1,\"candidate\":false,\"networkAttempts\":0}'\n").toUtf8()));
+        QVERIFY(QFile::setPermissions(helper,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        QVERIFY(writeAgentReply(agent,{{"kind","question"},{"message","Late work must not reach me."}}));
+        const auto previous=qgetenv("CENTAUR_GTK_IMPORT_TOOL"); qputenv("CENTAUR_GTK_IMPORT_TOOL",helper.toUtf8());
+        auto cleanup=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_IMPORT_TOOL"); else qputenv("CENTAUR_GTK_IMPORT_TOOL",previous); });
+        AgentOverride override(agent);
+        Controller controller(directory.path()+"/data"); controller.start(); controller.setAuthor("Matt");
+        controller.importGtkProject({{"name","Stopped copy"},{"source",QJsonObject{{"type","folder"},{"location",directory.path()}}}});
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("fetching"));
+        controller.cancelAgent();
+        QTRY_COMPARE(controller.project()["import"].toMap()["status"].toString(),QString("interrupted"));
+        QTRY_VERIFY(!controller.updateBlocked());
+        QCOMPARE(controller.project()["import"].toMap()["status"].toString(),QString("interrupted"));
+        Workspace workspace(controller.dataRoot()); const auto local=workspace.load(controller.projectId())["importLocal"].toObject();
+        QVERIFY(!local.contains("pending")); QVERIFY(!local["sourceAvailable"].toBool());
+        for (const auto &message:controller.project()["messages"].toList())
+            QVERIFY(message.toMap()["text"].toString()!="Late work must not reach me.");
     }
     void gtkProjectsKeepTheirFormatHistoryAndAgentPolicy() {
         QTemporaryDir dir;

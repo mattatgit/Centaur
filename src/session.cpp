@@ -165,7 +165,18 @@ void Session::start(bool background) {
             const auto id = project.toMap()["id"].toString();
             auto state = m_workspace.load(id);
             auto imported = state.value("import").toObject();
+            auto importLocal=state["importLocal"].toObject();
+            if (!imported.isEmpty() && !importLocal.contains("sourceAvailable")) {
+                const auto source=m_workspace.projectPath(id)+"/.centaur/import/"+imported["storage"].toString()+"/source";
+                importLocal["sourceAvailable"]=QFileInfo(source).isDir() && !QFileInfo(source).isSymLink();
+                state["importLocal"]=importLocal; persist(id,state);
+            }
             if (imported["status"] == "fetching" || imported["status"] == "inspecting") {
+                importLocal.remove("pending");
+                auto diagnostics=importLocal["diagnostics"].toObject();
+                diagnostics["failure"]=QJsonObject{{"schemaVersion",1},{"category","interrupted"},{"code","interrupted"},
+                    {"retryable",false},{"sourceAvailable",importLocal["sourceAvailable"]}};
+                importLocal["diagnostics"]=diagnostics; state["importLocal"]=importLocal;
                 imported["status"] = "interrupted"; state["import"] = imported;
                 addMessage(state,state["agentName"].toString(),"The source import was interrupted. Retry when you’re ready; the original is untouched.","system");
                 persist(id,state);
@@ -373,7 +384,8 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         if (correctImportBranch(id,state,text,author)) return;
         const auto imported = state.value("import").toObject();
         const bool importAnswer = !imported.isEmpty() && !imported["previewReady"].toBool()
-            && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating");
+            && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating"
+                || imported["status"] == "failed" || imported["status"] == "interrupted");
         const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
         // Ordinary conversation can continue while the agent works. Explicit
         // directions and sketches still invalidate stale work/agreements.
@@ -383,6 +395,8 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         if (addressed) {
             if (!imported.isEmpty()) {
                 auto info=imported; info["inspectionRounds"]=0;
+                auto local=state["importLocal"].toObject(); local.remove("seenTools"); local["failureRounds"]=0;
+                local["toolCount"]=0; state["importLocal"]=local;
                 if (importAnswer) info["status"]="investigating";
                 state["import"]=info;
             }
@@ -485,6 +499,9 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         }
         if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
         state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
+        auto local=state["importLocal"].toObject(); local.remove("pending"); state["importLocal"]=local;
+        auto imported=state["import"].toObject();
+        if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="interrupted"; state["import"]=imported; }
         addMessage(state, state["agentName"].toString(), author + " stopped the agent. Pending requests were cleared.", "system");
         persist(id, state);
         QTimer::singleShot(0, this, &Session::nextRequest);
@@ -501,7 +518,7 @@ void Session::finishAgent(const QJsonObject &reply) {
     auto state = m_workspace.load(id);
     bool automatic = false;
     state.remove("activeRequest");
-    const bool sourceTool=reply["kind"]=="inspect" || reply["kind"]=="artifact";
+    const bool sourceTool=reply["kind"]=="inspect" || reply["kind"]=="retry" || reply["kind"]=="artifact";
     if (!state.value("import").toObject().isEmpty() && (sourceTool || !state.value("import").toObject()["previewReady"].toBool())
         && state["epoch"].toInt() == m_agentEpoch) {
         auto info=state["import"].toObject();
@@ -511,17 +528,7 @@ void Session::finishAgent(const QJsonObject &reply) {
             addMessage(state,state["agentName"].toString(),reply["message"].toString()+" Please resolve these directions together before I prepare the adaptation.","agent");
             persist(id,state); publish(id); return;
         }
-        if (kind=="inspect") {
-            info["requestAuthor"]=requester;
-            const int rounds=info["inspectionRounds"].toInt()+1; info["inspectionRounds"]=rounds;
-            if (rounds>8) {
-                info["status"]="awaitingAnswer"; state["import"]=info;
-                addMessage(state,state["agentName"].toString(),"Which part of the imported app should we focus on first?","agent");
-                persist(id,state); publish(id); return;
-            }
-            info["status"]="inspecting"; state["import"]=info; persist(id,state); publish(id);
-            importJob(id,"read",{{"paths",reply["paths"]},{"scope",reply["scope"].toString("source")},{"output",info["output"]}}); return;
-        }
+        if (kind=="inspect" || kind=="retry") { importTool(id,state,reply,requester); return; }
         info["status"]="awaitingAnswer"; state["import"]=info;
         addMessage(state,state["agentName"].toString(),reply["message"].toString(),"agent");
         persist(id,state); publish(id);
@@ -642,6 +649,16 @@ void Session::nextRequest() {
         request.remove("importLocal");
         if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
         if (!state.value("import").toObject().isEmpty()) request["adaptationInspection"] = state.value("importLocal").toObject()["adaptation"];
+        if (!state.value("import").toObject().isEmpty()) {
+            const auto local=state["importLocal"].toObject(); auto diagnostics=local["diagnostics"].toObject();
+            const auto failure=diagnostics["failure"].toObject();
+            diagnostics["sourceAvailable"]=local["sourceAvailable"].toBool();
+            diagnostics["capabilities"]=QJsonObject{{"terminal",false},{"inspection",true},
+                {"retryAcquire",state["import"].toObject()["sourceType"]=="github" && !local["sourceAvailable"].toBool() && failure["retryable"].toBool()
+                    && local["networkRemaining"].toInt()>0 && local["automaticRetries"].toInt()<1
+                    && !state["import"].toObject()["previewReady"].toBool()}};
+            request["importDiagnostics"]=diagnostics;
+        }
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
         request["requestComment"] = m_activeRequest["comment"];
         request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);

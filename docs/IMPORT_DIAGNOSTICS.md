@@ -5,6 +5,11 @@ The owner's Architecture + Design handoff establishes the product direction;
 the transport, sandbox and schemas below are engineering recommendations, not
 implemented capabilities. No new runtime or release accompanies this review.
 
+The owner authorised Phase 2 on 16 November 2026. Its implementation and evidence
+are recorded in the dated [current-state entry](CURRENT.md#phase-2-import-diagnostics--16-november-2026);
+the review below retains its original Phase 1 scope. Commands, sandboxing and
+repairs remain later phases.
+
 ## Recommendation
 
 Extend the existing authoritative host with a typed import tool broker. Keep

@@ -12,6 +12,54 @@ shipped. Installed OMP/sandbox capabilities remain unverified while the UTM
 display is inactive. The last observed installation is `dbadb0c`; the separate
 published `aa64982` update awaits confirmation in **Centaur Install**.
 
+## Phase 2 import diagnostics — 16 November 2026
+
+Implementation in progress on `codex/gtk4-migration`, following explicit owner
+authorisation. OMP's built-in tools/extensions remain disabled. The coordinator
+accepts typed inspection requests and uses a separate Python broker for bounded,
+read-only listing, line-range reads and literal search. Recorded source facts
+and structured failures are supplied privately to the agent, including failures
+before a source copy exists. Original source, adaptations and accepted previews
+remain separate; no terminal/build/install capability is added.
+
+All file operations share a secret/path policy and open through directory
+descriptors without following symlinks. Operations omit special files and bound
+entries, scan bytes, result size and time. Results identify truncation and
+omissions; directory cursors detect changes. Acquisition uses the same policy
+and descriptor access for local source copying. Source files are treated as data.
+Local Git preservation copies only bounded object/ref data into host-created
+bare metadata; it does not run Git against source-controlled configuration.
+External alternates are not followed, and unavailable history is reported
+separately from the working source's availability.
+
+The host binds worker completions to the project attempt and operation ID,
+rejects stale agent results, retains observations/actions privately, and routes
+questions through normal chat. Interrupted work keeps diagnostic state. The
+network allowance is reserved before starting acquisition and survives a host
+restart. A transient acquisition failure may receive one agent-directed retry
+of the host's saved source, within six total network attempts; ordinary worker
+retries count toward that same allowance. Nontransient failures and exhausted
+budgets cannot be retried automatically. Manual source retry remains an explicit
+user action preserving project/conversation identity and earlier attempts.
+
+Inspection has eight rounds per conversational step, duplicate-request rejection,
+and bounded retained results. An explicit human response starts a new inspection
+step, without resetting acquisition retry counters. Failed preparation operations
+also have a bounded failure-investigation chain. Raw helper stderr, host paths
+and credential-helper details remain outside shared chat and model context.
+
+Verification so far: all 83 Python checks passed on the actual ARM64 NixOS UTM VM,
+and its retained service Nix build passed with core/network/Iroh checks enabled.
+New coverage includes pagination beyond the initial inventory, unfamiliar/multiple
+app fixtures, hostile build instructions treated as data, secrets, traversal,
+symlink replacement, special files, output/time/entry limits, original-file
+hashes, model-facing failures, same-source retry budgets, inspection continuation,
+duplicate requests and interrupted-state preservation. Live OMP investigation and
+final distribution verification remain pending. Installation and hands-on
+acceptance stay in **Centaur Install**; no new build is published yet.
+The subsequent local-history hardening and cancellation regression also await
+the next VM run after the console became unavailable.
+
 ## Review baseline
 
 Documentation review snapshot: `f2f72577b90edf23c8266b15a1a07905e017c066`, declaring v0.3.0, on `codex/native-prototype` as inspected on 28 October 2026. The handover's verified v0.2.0 build `09c573d` is an earlier baseline.

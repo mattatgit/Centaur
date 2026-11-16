@@ -45,7 +45,9 @@ private:
     bool importCommand(const QJsonObject &command, QIODevice *sender);
     bool correctImportBranch(const QString &id, QJsonObject &state, const QString &text, const QString &author);
     void importJob(const QString &id, const QString &mode, QJsonObject payload = {});
-    void importResult(const QString &id, const QString &mode, const QJsonObject &result, int epoch = -1);
+    void importResult(const QString &id, const QString &mode, const QJsonObject &result, int epoch = -1,
+                      const QString &attempt = {}, const QString &operationId = {});
+    void importTool(const QString &id, QJsonObject state, const QJsonObject &reply, const QString &author);
     void queueImport(QJsonObject &state, const QString &text, const QString &author);
     QHash<QString, QProcess *> m_imports;
     QJsonObject m_activeRequest;

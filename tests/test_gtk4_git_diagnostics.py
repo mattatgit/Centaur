@@ -16,6 +16,7 @@ import source_import as imports
 
 class GitDiagnosticsTests(unittest.TestCase):
     def setUp(self):
+        imports._network_used=0; imports._network_budget=6
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root=Path(self.temp.name); self.plan=self.root/'plan.json'
         script=self.root/'git'
@@ -107,6 +108,14 @@ time.sleep(action.get('delay',0)); raise SystemExit(action.get('code',0))
         with self.assertRaises(imports.ImportError) as raised: imports.git(['archive'],consume=consume)
         self.assertEqual(raised.exception.diagnostic['operation'],'archive')
         self.assertIn('not a valid object',raised.exception.diagnostic['detail'])
+
+    def test_network_budget_spans_operations_and_caps_new_worker_allowance(self):
+        imports._network_budget=2
+        self.plan_actions({'code':128,'stderr':'Could not resolve host: github.com'})
+        with self.assertRaises(imports.ImportError): self.remote()
+        self.assertEqual(len(self.calls()),2); self.assertEqual(imports._network_used,2)
+        with self.assertRaises(imports.ImportError): self.remote()
+        self.assertEqual(len(self.calls()),2)
 
 
 if __name__=='__main__': unittest.main()
