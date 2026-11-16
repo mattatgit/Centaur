@@ -1,0 +1,14 @@
+{
+  "baseSourceRevision": "7e3e353cadfda1c318222acc085ef1b86958042a",
+  "proofArchiveSha256": "caec7cc6f8c3cd57a1c26b16dad4ba2593614d5d370dd169d9f01f80f3d02954",
+  "archiveFilesMatchCheckout": true,
+  "installedPythonFilesMatchCheckout": true,
+  "files": {
+    "packaging/import-isolation-probe.nix": "59c63cb2d54a85524452add9a9928f68b1594da252ace99f15f93c5e21db187e",
+    "scripts/import-isolation/check.py": "b11936fb1d78d1e4a040983d8772e9b8b4075efb6645dbead8d83fc1a8a434a2",
+    "scripts/import-isolation/inner.py": "8159e7b13bc8dc23fc7cf8a1dc225a55929d2044567b52f8069d87d703de1aa6",
+    "scripts/import-isolation/supervisor.py": "24358385282656c07b00c5b670cdee024d6f0f864890a4a904b7479246022c30",
+    "scripts/import-isolation/filter.c": "99a676475fde60133a929b1f37d41e062b2fda95519f9c3dac5a261dd6bf36c6"
+  },
+  "pinnedInputsFlakeLockSha256": "8e192483c86119ec85f18de03f95d0c2a6bb2413c01013f95150c282cd697b5d"
+}

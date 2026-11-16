@@ -9,9 +9,9 @@ host-owned inspection loop with typed broker operations and structured recovery,
 then proving ARM64 isolation before enabling commands. That Phase 1 increment
 changed documentation only; the Phase 2 implementation is recorded below.
 At review time the UTM display was inactive, so installed OMP/sandbox
-capabilities were unverified. The last observed installation is `dbadb0c`;
-the separate published `aa64982` update has no owner confirmation in
-**Centaur Install**.
+capabilities were unverified. At that point the last observed installation was
+`dbadb0c`, and the separate published `aa64982` update had no owner confirmation
+in **Centaur Install**. Later acceptance and Phase 3 evidence are recorded below.
 
 ## Phase 2 import diagnostics — 16 November 2026
 
@@ -81,6 +81,38 @@ publication. The public feed exactly matched the signed distribution manifest.
 The owner's VM was not updated during testing, and the temporary server is
 stopped. Installation instructions and hands-on acceptance stay in
 **Centaur Install**; automated results do not establish owner acceptance.
+
+## Phase 3 import isolation proof — 16 November 2026
+
+The owner authorised ARM64 NixOS UTM isolation/resource verification before
+enabling diagnostic commands. A separate pinned engineering package passed all
+18 checks on the actual VM as an ordinary user. It combines mandatory Bubblewrap
+namespaces, a native seccomp allowlist, individual read-only runtime closure
+mounts, a read-only fixture, bounded tmpfs scratch and effective systemd user
+cgroup controls. Measured limits were 128 MiB/no swap, 32 tasks, 25% of one CPU,
+8 MiB aggregate scratch, 1 MiB/file, 32 KiB retained output and eight seconds.
+Exhaustion/throttling, credential/socket/descriptor denial, unknown commands,
+unavailable boundaries and daemon cleanup after cancellation, timeout and client
+death passed. Original fixture hashes were unchanged.
+
+[Policy, measurements and integration gate](IMPORT_ISOLATION.md) and
+[raw VM evidence](evidence/import-isolation-phase3/) describe the exact scope.
+This adds a standalone proof package and does not register diagnostic commands,
+change preview permissions or update the installed app/profile. Production
+fixed-command lifecycle integration and preparation/repair policy remain work
+for later enablement. No new product build/feed was published for this proof.
+The final 18-check run includes an explicit pipe handshake proving the detached
+child has installed SIGTERM ignore before cancellation/deadline tests, and
+atomic publication of the supervisor status record. Its source hashes match
+the checkout and transferred archive. The temporary transfer server is stopped.
+
+**Centaur Install** has now confirmed installed `0.4.0-preview+e8d627c` and the
+owner reported a basically functional, rough GTK4 adaptation of Landline's UI.
+That provisional acceptance does not establish a complete Rust/egui port or
+underlying Iroh/audio functionality. Existing projects, conversations, OMP
+configuration/credentials, identities and the separate Qt installation were
+preserved during this verification. Installation and hands-on acceptance
+continue in **Centaur Install**.
 
 ## Review baseline
 

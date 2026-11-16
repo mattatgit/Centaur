@@ -14,6 +14,10 @@ The 16 November 2026 [import diagnostic agent review](IMPORT_DIAGNOSTICS.md)
 records the owner's next import direction, current OMP capabilities and a proposed
 host-owned broker with staged isolation gates. It is an architecture review, not
 an implemented command/repair service or a change to preview permissions.
+The [Phase 3 isolation proof](IMPORT_ISOLATION.md) now records a measured ARM64
+UTM candidate using Bubblewrap, seccomp and effective systemd cgroup controls.
+Its separate engineering package is not connected to the product's tool broker;
+fixed-command lifecycle integration remains an enablement gate.
 
 ## Platform and visual design direction
 

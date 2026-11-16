@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "architecture": "aarch64",
+  "kernel": "6.18.57",
+  "uid": 1000,
+  "package": "/nix/store/kkcjxzan650qpgsk8ighckay8512n9q8-centaur-import-isolation-proof-1",
+  "versions": {
+    "bubblewrap": "0.13.1",
+    "seccomp": "2.6.1"
+  },
+  "policySha256": "f2a02eb484336a464c6716555757868bf3395f4088d7e874a764d67aae8a43eb",
+  "installedSourceSha256": {
+    "check.py": "b11936fb1d78d1e4a040983d8772e9b8b4075efb6645dbead8d83fc1a8a434a2",
+    "inner.py": "8159e7b13bc8dc23fc7cf8a1dc225a55929d2044567b52f8069d87d703de1aa6",
+    "supervisor.py": "24358385282656c07b00c5b670cdee024d6f0f864890a4a904b7479246022c30"
+  },
+  "runtimeClosurePaths": 51,
+  "commandInterfaceEnabled": false,
+  "checks": [
+    {
+      "name": "filesystem-credentials-environment-fds-network-namespaces-seccomp",
+      "passed": true,
+      "effectiveLimits": {
+        "memory.max": "134217728",
+        "memory.swap.max": "0",
+        "memory.oom.group": "1",
+        "pids.max": "32",
+        "cpu.max": "25000 100000",
+        "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0",
+        "cpu.stat": "usage_usec 24987\nuser_usec 15118\nsystem_usec 9868\nnice_usec 0\ncore_sched.force_idle_usec 0\nnr_periods 1\nnr_throttled 1\nthrottled_usec 29115\nnr_bursts 0\nburst_usec 0",
+        "cgroup.events": "populated 1\nfrozen 0"
+      },
+      "isolation": true,
+      "namespaces": {
+        "mnt": "mnt:[4026532396]",
+        "pid": "pid:[4026532403]",
+        "user": "user:[4026532576]",
+        "net": "net:[4026532460]",
+        "ipc": "ipc:[4026532401]",
+        "uts": "uts:[4026532398]",
+        "cgroup": "cgroup:[4026532404]"
+      },
+      "capabilities": 0,
+      "noNewPrivileges": true,
+      "seccomp": true,
+      "inheritedDescriptors": 3
+    },
+    {
+      "name": "unknown-command-refused",
+      "passed": true,
+      "refused": true
+    },
+    {
+      "name": "version-python",
+      "passed": true,
+      "observation": "Python 3.14.10",
+      "elapsed": 0.16
+    },
+    {
+      "name": "version-git",
+      "passed": true,
+      "observation": "git version 2.56.0",
+      "elapsed": 0.084
+    },
+    {
+      "name": "version-gcc",
+      "passed": true,
+      "observation": "gcc (GCC) 16.2.0\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+      "elapsed": 0.092
+    },
+    {
+      "name": "scratch",
+      "passed": true,
+      "observation": "{\"scratchBytesWritten\": 8388608, \"aggregateQuota\": true}",
+      "elapsed": 0.199
+    },
+    {
+      "name": "file-limit",
+      "passed": true,
+      "observation": "{\"fileBytes\": 1048576}",
+      "elapsed": 0.239
+    },
+    {
+      "name": "pids",
+      "passed": true,
+      "observation": "{\"forkedChildren\": 29, \"processLimit\": true}",
+      "elapsed": 0.242
+    },
+    {
+      "name": "memory-exhaustion",
+      "passed": true,
+      "oomKills": 0,
+      "unitState": "ActiveState=failed\nResult=oom-kill\nExecMainCode=2\nExecMainStatus=9\n"
+    },
+    {
+      "name": "effective-cpu-quota",
+      "passed": true,
+      "cpuUsec": 1299543,
+      "throttledPeriods": 51,
+      "elapsed": 5.276
+    },
+    {
+      "name": "bounded-output",
+      "passed": true,
+      "retainedBytes": 32768,
+      "elapsed": 0.117
+    },
+    {
+      "name": "wall-time-and-daemon-cleanup",
+      "passed": true,
+      "elapsed": 8.223,
+      "reason": "completed",
+      "unitState": "ActiveState=failed\nResult=timeout\nExecMainCode=2\nExecMainStatus=15\n",
+      "daemonReadinessHandshake": {
+        "descendantReady": true,
+        "doubleForked": true,
+        "newSession": true,
+        "ignoresSigterm": true
+      },
+      "descendantsRemain": false
+    },
+    {
+      "name": "cancel-process-tree",
+      "passed": true,
+      "elapsed": 0.284,
+      "reason": "cancelled",
+      "unitState": "ActiveState=inactive\nResult=success\nExecMainCode=0\nExecMainStatus=0\n",
+      "daemonReadinessHandshake": {
+        "descendantReady": true,
+        "doubleForked": true,
+        "newSession": true,
+        "ignoresSigterm": true
+      },
+      "descendantsRemain": false
+    },
+    {
+      "name": "controller-death-runtime-cleanup",
+      "passed": true,
+      "elapsed": 8.167,
+      "reason": "abandoned-controller",
+      "unitState": "ActiveState=failed\nResult=timeout\nExecMainCode=2\nExecMainStatus=15\n",
+      "daemonReadinessHandshake": {
+        "descendantReady": true,
+        "doubleForked": true,
+        "newSession": true,
+        "ignoresSigterm": true
+      },
+      "descendantsRemain": false
+    },
+    {
+      "name": "fail-closed-missing-bwrap",
+      "passed": true,
+      "refused": true
+    },
+    {
+      "name": "fail-closed-mismatched-limits",
+      "passed": true,
+      "refused": true
+    },
+    {
+      "name": "fail-closed-invalid-filter",
+      "passed": true,
+      "refused": true
+    },
+    {
+      "name": "fail-closed-missing-manager",
+      "passed": true,
+      "refused": true
+    }
+  ],
+  "passed": true,
+  "originalHashesUnchanged": true
+}
