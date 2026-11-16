@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/mattatgit/landline",
+  "sourceUrl": "https://github.com/mattatgit/landline/tree/linux-nix",
+  "branch": "linux-nix",
+  "commit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+  "directory": "",
+  "framework": "Nix / Rust",
+  "fileCount": 48,
+  "omitted": 0
+}

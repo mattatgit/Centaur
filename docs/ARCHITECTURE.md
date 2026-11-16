@@ -347,7 +347,32 @@ branch. The currently failed attempt had no successful source copy to inspect;
 that older result has not been reconstructed from its original snapshot.
 This temporary acquisition did not run Landline or OMP, change the installed
 Centaur build, or modify existing projects, conversations, identities, OMP
-configuration/credentials or Qt. Signed publication and native host/updater
-checks are still required for a release; installation and real-agent acceptance
-remain in **Centaur Install**.
+configuration/credentials or Qt. Installation and real-agent acceptance remain
+in **Centaur Install**.
+
+Verified release: **0.4.0-preview+aa64982**, immutable source
+`aa649829a2fcbcf7caeaffc6be7565c93fd47973`, store
+`/nix/store/ackkw951jzzadalcl1akvcwq4zw102rj-centaur-gtk4-preview-0.4.0-preview`.
+The [ARM64 product/import/updater workflow](https://github.com/mattatgit/Centaur/actions/runs/43778352531)
+and [standalone embedding workflow](https://github.com/mattatgit/Centaur/actions/runs/43778352541)
+passed. All 579 closure paths were downloaded into an empty store with builders
+disabled and normal signature verification. The public update feed was read back
+and exactly matched the signed distribution manifest. Native acquisition verified
+the Landline ref and Linux file context; actual profile switch/restart,
+project/chat/preferences/identity preservation, separate Qt preservation and
+busy-host maintenance guards passed.
+
+The first final-source native run caught an assertion reading the previous
+branch label before the asynchronous UI report updated. Its retained artifact
+shows the requested branch selected after that read. The assertions now wait
+for the exact selected label and reopened menu, retaining both manual-selection
+checks. The full rerun above passed before publication; product selection code
+was unchanged by that test fix.
+
+[Release evidence](evidence/gtk4-landline-aa64982) retains the native/updater
+summaries, verified import provenance and matching signed manifest. Native
+artifact: `14187103486`; updater: `14187193337`; distribution: `14186929816`.
+These automated checks use a fixture agent. The original macOS-only response
+and actual OMP interpretation still require the separate hands-on acceptance in
+Centaur Install; no terminal/profile replacement is needed for that handoff.
 
