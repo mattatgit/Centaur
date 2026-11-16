@@ -10,6 +10,7 @@ Centaur is a native workshop for building apps together through conversation and
 | [Requirements](REQUIREMENTS.md) | Required outcomes and their implementation status. |
 | [Decisions and open questions](DECISIONS.md) | Agreed direction, recorded choices, proposals and unresolved issues. |
 | [Architecture](ARCHITECTURE.md) | Runtime boundaries, collaboration, deployment and assets. |
+| [Import diagnostic agent review](IMPORT_DIAGNOSTICS.md) | Current OMP/import capabilities, proposed broker, isolation gates and incremental delivery. |
 | [Design systems](DESIGN_SYSTEMS.md) | The three layers, separation from app logic and proposed experiment. |
 | [Current state](CURRENT.md) | Implemented behaviour, historical validation and next evidence needed. |
 | [Development conventions](DEVELOPMENT.md) | How to make, validate and document changes. |

@@ -20,6 +20,7 @@ This register separates established direction from implementation choices and ex
 | D12 | Both Centaur and generated applications will use GTK4, replacing Qt/QML on a separate migration branch. | Owner agreement, 5 November 2026. Supersedes D01. Preserve the Qt branch; evaluate Casilda before approving a backend. Keep the Landline VM test independent. |
 | D13 | Run automated application builds and publication for ARM64 Linux only for now. | Owner update, 2 November 2026. Test on the Mac mini's UTM VM and remotely with the client; Air testing is paused. Confirm the client's architecture before adding another target. |
 | D14 | Canvas zoom must be independent of app dimensions and survive graphics/toolkit changes. | Owner's Architecture + Design discussion, reaffirmed 2 November 2026. Default 100%; provide 50/75/100/125/150%, aligned input/annotations and navigation for oversized previews. Fit to canvas is agreed as of 5 November 2026. |
+| D15 | Extend the OMP agent with general import diagnosis, progressing from read-only inspection to isolated diagnostics and controlled repairs. | Owner's Architecture + Design handoff, 16 November 2026. Keep deterministic acquisition and host authority, protect originals/credentials, and retain conversational collaboration. [Broker/transport/isolation recommendations](IMPORT_DIAGNOSTICS.md) remain to be implemented and validated. |
 
 The migration sequence and dependency acceptance gate are recorded in [GTK4 migration](GTK4_MIGRATION.md). Casilda remains experimental.
 

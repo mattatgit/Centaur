@@ -1,5 +1,17 @@
 # Current state
 
+## Import diagnostic agent review — 16 November 2026
+
+The owner's Architecture + Design handoff establishes general import diagnosis,
+isolated diagnostics and controlled repairs as the next import direction.
+[Phase 1 review](IMPORT_DIAGNOSTICS.md) recommends extending the existing
+host-owned inspection loop with typed broker operations and structured recovery,
+then proving ARM64 isolation before enabling commands. This increment changes
+documentation only; no diagnostic broker, sandbox or repair capability has
+shipped. Installed OMP/sandbox capabilities remain unverified while the UTM
+display is inactive. The last observed installation is `dbadb0c`; the separate
+published `aa64982` update awaits confirmation in **Centaur Install**.
+
 ## Review baseline
 
 Documentation review snapshot: `f2f72577b90edf23c8266b15a1a07905e017c066`, declaring v0.3.0, on `codex/native-prototype` as inspected on 28 October 2026. The handover's verified v0.2.0 build `09c573d` is an earlier baseline.

@@ -10,6 +10,11 @@ App changes update the existing project. Git checkpoints preserve source history
 
 See [Current state](CURRENT.md) for implemented behaviour, deliberate boundaries and validation evidence.
 
+The 16 November 2026 [import diagnostic agent review](IMPORT_DIAGNOSTICS.md)
+records the owner's next import direction, current OMP capabilities and a proposed
+host-owned broker with staged isolation gates. It is an architecture review, not
+an implemented command/repair service or a change to preview permissions.
+
 ## Platform and visual design direction
 
 Updated direction, 2 November 2026: the client's developer plans to replace the Qt work with GTK4, including changes to how native apps appear in the canvas. This supersedes the earlier handover's decision to retain Qt. The source and prepared Landline VM test still use C++17/Qt Quick and Qt Wayland Compositor; the working production implementation remains Qt. The separate GTK4 branch now has a development frontend and GTK app-generation path, with acceptance evidence tracked separately. The owner agreed on 5 November 2026 that both Centaur and generated apps will use GTK4 on a separate branch, evaluating Casilda first. The replacement's compositor, surface integration and migration boundaries remain experimental; see [GTK4 migration](GTK4_MIGRATION.md). Centaur's own interface and generated-app design systems remain separate concerns. The current Dialogue-derived shell is a prototype reference, and Centaur's final visual identity remains open.

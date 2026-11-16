@@ -55,6 +55,17 @@ The existing architecture records these agreed, unimplemented stages.
 
 Centaur's own cached authoring package is not evidence that generated-app deployment exists. Shared application data, authentication and backend services need separate requirements.
 
+## Import diagnosis and recovery
+
+Owner's Architecture + Design handoff, 16 November 2026. Agreed direction;
+the broader diagnostic agent is planned. See the [architecture review](IMPORT_DIAGNOSTICS.md).
+
+| ID | Required outcome | Status and verification needed |
+| --- | --- | --- |
+| R20 | Investigate unfamiliar GitHub and selected local sources through read-only inspection and structured failures, including failures before copying. | Existing bounded file inspection is partial. Add directory/search operations, persisted diagnostic state and bounded recovery; demonstrate real-agent reasoning on varied projects. |
+| R21 | Isolate diagnostic execution and preparation from originals, credentials and unrelated files; keep host-enforced permissions. | Planned. Prove ARM64 NixOS isolation and resource limits before commands; use separate preparation copies and scoped approval for higher-risk work. |
+| R22 | Preserve conversational imports, source provenance, project identity, collaboration, validation and recoverable work during diagnosis/retry. | Extend the authoritative host and composer; retain settings, budgets and observations after restart. Guest-local files require explicit selected-source availability, never host path assumptions. |
+
 ## Existing limits
 
 Generated QML is trusted native code with no sandbox. Invitations and project credentials control authoring access; they do not make arbitrary generated code safe. Offline sending/drawing, automatic host migration, individual member removal, arbitrary assets/compiled app distribution and synchronised runtime app data are outside the current implementation.
