@@ -17,6 +17,15 @@ updaters still accept signed releases; `sourceBranch: main` and the immutable
 revision identify new source. Cache signatures, publication checks and update
 recovery remain required. Installation/acceptance stay in Centaur Install.
 
+Both main workflows passed: [product/update](https://github.com/mattatgit/Centaur/actions/runs/43806726257)
+and [embedding](https://github.com/mattatgit/Centaur/actions/runs/43806726218).
+The signed checkpoint build is `0.4.0-preview+7c18d30`; all 613 closure paths
+passed empty-store signature checks, native integration and the Settings update
+transaction passed, and the public feed exactly matched the downloaded signed
+manifest. [Checkpoint evidence](evidence/main-checkpoint-2026-11-16.json)
+records the source, tags, preserved branches and checks. No owner profile was
+changed for this repository checkpoint.
+
 The next planned work is a proper UI pass. This checkpoint does not start that
 redesign or claim full Landline Rust/egui/Iroh/audio integration. The separate Qt
 installation, existing projects/conversations, identities and OMP configuration

@@ -1,0 +1,225 @@
+{
+  "date": "2026-11-16",
+  "purpose": "GTK4 main checkpoint before the UI pass",
+  "defaultBranch": "main",
+  "sourceRevision": "7c18d30a99579cbd0cdef3c5de874fccb1838b3f",
+  "checkpointTag": "checkpoint/pre-ui-2026-11-16",
+  "phase4Baseline": {
+    "revision": "7127a25592de9b8876a171233a3c1f4e72f84f98",
+    "tag": "checkpoint/phase4-sandbox-2026-11-16",
+    "verifiedRuntimeSource": "0ddbd19205dd845cbd097b63b9f0564f60cc8445"
+  },
+  "preservedBranches": {
+    "codex/gtk4-migration": "7127a25592de9b8876a171233a3c1f4e72f84f98",
+    "codex/native-prototype": "3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450"
+  },
+  "defaultBranchVerifiedBy": "GitHub settings success message and git ls-remote --symref origin HEAD",
+  "applicationSandboxPackagingAndTestsUnchangedFrom": "0ddbd19205dd845cbd097b63b9f0564f60cc8445",
+  "workflows": [
+    {
+      "id": 43806726257,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43806726257",
+      "sourceRevision": "7c18d30a99579cbd0cdef3c5de874fccb1838b3f"
+    },
+    {
+      "id": 43806726218,
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43806726218",
+      "sourceRevision": "7c18d30a99579cbd0cdef3c5de874fccb1838b3f"
+    }
+  ],
+  "jobs": [
+    {
+      "id": 43806726257,
+      "jobs": [
+        {
+          "id": 133099097943,
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Python, bundle contract and workflow",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build retained service and run core, network and Iroh regressions",
+              "conclusion": "success"
+            },
+            {
+              "name": "Cache service only after its regressions pass",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build GTK4 development frontend",
+              "conclusion": "success"
+            },
+            {
+              "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save native screenshots, reports and limitations",
+              "conclusion": "success"
+            },
+            {
+              "name": "Publish GTK4 development preview after successful checks",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise Settings update against the published signed package",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save updater screenshots and transaction evidence",
+              "conclusion": "success"
+            },
+            {
+              "name": "Advertise the verified in-app update",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 43806726218,
+      "jobs": [
+        {
+          "id": 133099098160,
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "conclusion": "success"
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Check Python, process isolation and workflow",
+              "conclusion": "success"
+            },
+            {
+              "name": "Build isolated GTK4 experiment only",
+              "conclusion": "success"
+            },
+            {
+              "name": "Exercise separate app in a disposable display",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save experiment evidence and limitations",
+              "conclusion": "success"
+            },
+            {
+              "name": "Publish isolated test package after automated checks",
+              "conclusion": "success"
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "conclusion": "success"
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "conclusion": "success"
+            },
+            {
+              "name": "Complete job",
+              "conclusion": "success"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "distributionArtifact": {
+    "id": 14198263444,
+    "name": "gtk4-product-distribution-aarch64-linux",
+    "size_in_bytes": 19500,
+    "url": "https://api.github.com/repos/mattatgit/Centaur/actions/artifacts/14198263444",
+    "archive_download_url": "https://api.github.com/repos/mattatgit/Centaur/actions/artifacts/14198263444/zip",
+    "expired": false,
+    "created_at": "2026-11-16T04:57:55Z",
+    "expires_at": "2027-02-14T04:53:02Z",
+    "updated_at": "2026-11-16T04:57:55Z",
+    "digest": "sha256:386c8ed4124f7dd389cde6332e6ce2564de425e1a22d6e000ed956f4350fbfa4",
+    "workflow_run": {
+      "id": 43806726257,
+      "repository_id": 1429048148,
+      "head_repository_id": 1429048148,
+      "head_branch": "main",
+      "head_sha": "7c18d30a99579cbd0cdef3c5de874fccb1838b3f"
+    }
+  },
+  "manifest": {
+    "schemaVersion": 1,
+    "sourceRevision": "7c18d30a99579cbd0cdef3c5de874fccb1838b3f",
+    "system": "aarch64-linux",
+    "version": "Centaur GTK4 0.4.0-preview+7c18d30",
+    "storePath": "/nix/store/8j6jl4agsv0zpn9chwz51jp039hf26x8-centaur-gtk4-preview-0.4.0-preview",
+    "packageAttribute": "gtk4-preview",
+    "installable": "github:mattatgit/Centaur/7c18d30a99579cbd0cdef3c5de874fccb1838b3f#gtk4-preview",
+    "cacheUrl": "https://mattatgit-centaur.cachix.org",
+    "publicSigningKeys": [
+      "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+    ],
+    "closurePathCount": 613,
+    "verifiedSignedClosureDownload": true,
+    "publishedAt": "2026-11-16T04:57:53.932660+00:00",
+    "updateProtocol": 1,
+    "branch": "codex/gtk4-migration",
+    "sourceBranch": "main",
+    "sourceTimestamp": 1794804768
+  },
+  "feedMatchesDownloadedSignedManifest": true,
+  "uiPassStarted": false,
+  "ownerDataProfilesAndQtChanged": false,
+  "acceptanceChat": "Centaur Install"
+}
