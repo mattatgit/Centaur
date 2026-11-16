@@ -1,0 +1,40 @@
+[
+  {
+    "ok": true,
+    "environment": "aarch64 NixOS UTM",
+    "agentModel": "openai-codex/gpt-6.1-sol",
+    "operations": [
+      "list",
+      "search",
+      "read"
+    ],
+    "messages": [
+      "I\u2019ll make a separate copy and take a look. Your original project stays untouched.",
+      "The source is copied. I\u2019m checking how it\u2019s organised.",
+      "I found two applications:\n\u2022 Lantern Desk \u2014 displays a list of notes. Its manifest requires MoonRuntime 99 and says it is not supplied.\n\u2022 Quiet Relay \u2014 copies notes between queues. Its manifest lists only the standard library as a requirement.\n\nNeither manifest identifies a known framework. Which application would you like to work on?"
+    ],
+    "originalUnchanged": true,
+    "projectCodeExecuted": false,
+    "terminalEnabled": false
+  },
+  {
+    "ok": true,
+    "environment": "aarch64 NixOS UTM",
+    "agentModel": "openai-codex/gpt-6.1-sol",
+    "scenario": "recovery",
+    "faultInjectedAcquisition": true,
+    "operations": [
+      "read"
+    ],
+    "messages": [
+      "I\u2019ll make a separate copy and take a look. Your original project stays untouched.",
+      "I couldn\u2019t finish that source operation. I\u2019m checking what happened.",
+      "I\u2019ll try copying that same source once more.",
+      "I found the \u201cselected\u201d branch. I\u2019ll use that source.",
+      "I found two applications:\n\u2022 Lantern Desk displays a list of notes. It requires MoonRuntime 99, which its manifest says is not supplied.\n\u2022 Quiet Relay copies notes between queues. It lists only the standard library as a requirement.\n\nThe inspected files don\u2019t identify a recognizable app framework. Which application would you like to work on?"
+    ],
+    "originalUnchanged": true,
+    "projectCodeExecuted": false,
+    "terminalEnabled": false
+  }
+]

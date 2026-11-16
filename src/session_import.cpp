@@ -227,7 +227,11 @@ void Session::importResult(const QString &id, const QString &mode, const QJsonOb
     auto state = m_workspace.load(id); if (state.isEmpty()) return;
     auto info = state["import"].toObject(); auto local = state["importLocal"].toObject();
     if ((!attempt.isEmpty() && info["storage"].toString()!=attempt)
-        || (!operationId.isEmpty() && local["pending"].toObject()["operationId"].toString()!=operationId)) return;
+        || (!operationId.isEmpty() && local["pending"].toObject()["operationId"].toString()!=operationId)) {
+        // The worker has left m_imports even when its result is discarded.
+        // Release the published busy/update gate and let other work proceed.
+        publish(id); QTimer::singleShot(0,this,&Session::nextRequest); return;
+    }
     const auto pending=local["pending"].toObject(); local.remove("pending");
     // Acquisition establishes a snapshot independently of later chat. Keep its
     // result only for the same attempt, then reason against the latest epoch.

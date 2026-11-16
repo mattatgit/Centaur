@@ -58,13 +58,15 @@ Centaur's own cached authoring package is not evidence that generated-app deploy
 ## Import diagnosis and recovery
 
 Owner's Architecture + Design handoff, 16 November 2026. Agreed direction;
-the broader diagnostic agent is planned. See the [architecture review](IMPORT_DIAGNOSTICS.md).
+read-only inspection/recovery is implemented on the development branch; isolated
+commands and repairs remain planned. See the [architecture review](IMPORT_DIAGNOSTICS.md)
+and dated [implementation evidence](CURRENT.md#phase-2-import-diagnostics--16-november-2026).
 
 | ID | Required outcome | Status and verification needed |
 | --- | --- | --- |
-| R20 | Investigate unfamiliar GitHub and selected local sources through read-only inspection and structured failures, including failures before copying. | Existing bounded file inspection is partial. Add directory/search operations, persisted diagnostic state and bounded recovery; demonstrate real-agent reasoning on varied projects. |
+| R20 | Investigate unfamiliar GitHub and selected local sources through read-only inspection and structured failures, including failures before copying. | Phase 2 adds a read-only broker, persisted diagnostics and bounded recovery. ARM64 UTM checks cover varied fixtures; live OMP demonstrated unfamiliar app/dependency diagnosis. Broader hands-on acceptance remains in Centaur Install. |
 | R21 | Isolate diagnostic execution and preparation from originals, credentials and unrelated files; keep host-enforced permissions. | Planned. Prove ARM64 NixOS isolation and resource limits before commands; use separate preparation copies and scoped approval for higher-risk work. |
-| R22 | Preserve conversational imports, source provenance, project identity, collaboration, validation and recoverable work during diagnosis/retry. | Extend the authoritative host and composer; retain settings, budgets and observations after restart. Guest-local files require explicit selected-source availability, never host path assumptions. |
+| R22 | Preserve conversational imports, source provenance, project identity, collaboration, validation and recoverable work during diagnosis/retry. | Phase 2 extends the authoritative host/composer and persists settings, retry budgets and observations. Deterministic checks cover identity, restart, cancellation and private context; retained coordination/network suites pass. Guest-local files still require a separately designed selected-source transfer. |
 
 ## Existing limits
 

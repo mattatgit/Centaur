@@ -493,7 +493,10 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         state["archived"] = true;
         if (persist(id, state) && m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
     } else if (type == "cancel") {
-        if (m_imports.contains(id)) m_imports.value(id)->terminate();
+        if (m_imports.contains(id)) {
+            auto *process=m_imports.value(id); process->terminate();
+            QTimer::singleShot(2000,process,[process] { if (process->state()!=QProcess::NotRunning) process->kill(); });
+        }
         if (m_agentProject == id && m_agent.busy()) {
             m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear();
         }

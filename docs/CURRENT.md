@@ -14,7 +14,7 @@ published `aa64982` update awaits confirmation in **Centaur Install**.
 
 ## Phase 2 import diagnostics — 16 November 2026
 
-Implementation in progress on `codex/gtk4-migration`, following explicit owner
+Implemented on `codex/gtk4-migration`, following explicit owner
 authorisation. OMP's built-in tools/extensions remain disabled. The coordinator
 accepts typed inspection requests and uses a separate Python broker for bounded,
 read-only listing, line-range reads and literal search. Recorded source facts
@@ -48,17 +48,29 @@ step, without resetting acquisition retry counters. Failed preparation operation
 also have a bounded failure-investigation chain. Raw helper stderr, host paths
 and credential-helper details remain outside shared chat and model context.
 
-Verification so far: all 83 Python checks passed on the actual ARM64 NixOS UTM VM,
-and its retained service Nix build passed with core/network/Iroh checks enabled.
-New coverage includes pagination beyond the initial inventory, unfamiliar/multiple
-app fixtures, hostile build instructions treated as data, secrets, traversal,
-symlink replacement, special files, output/time/entry limits, original-file
-hashes, model-facing failures, same-source retry budgets, inspection continuation,
-duplicate requests and interrupted-state preservation. Live OMP investigation and
-final distribution verification remain pending. Installation and hands-on
-acceptance stay in **Centaur Install**; no new build is published yet.
-The subsequent local-history hardening and cancellation regression also await
-the next VM run after the console became unavailable.
+All 84 Python checks passed on the actual ARM64 NixOS UTM VM, followed by a
+successful retained service Nix build with core/network/Iroh checks enabled.
+Coverage includes pagination beyond the initial inventory, unfamiliar/multiple
+app fixtures, hostile build instructions treated as data, local Git configuration
+and alternates, secrets, traversal, symlink replacement, special files, limits,
+original-file hashes, model-facing failures, same-source budgets, continuations,
+duplicate requests, restart and cancellation. The cancellation regression exposed
+a stale published busy gate after discarding a late worker result; the final VM
+run passed after adding the gate refresh and bounded cancellation cleanup.
+
+Live OMP (`openai-codex/gpt-6.1-sol`) separately passed two disposable scenarios:
+inspection used list/search/read to identify two unfamiliar applications and a
+missing runtime, then asked which app to work on. Recovery received a synthetic
+DNS failure before any source existed, requested the permitted retry, retained
+the exact saved URL/ref and shared budget, and investigated the resulting source.
+The recovery acquisition was fault-injected test data, not a claim of a real
+GitHub network outage. Both checks proved original-file hashes unchanged, no
+project-code execution, no accepted preview created and terminal/extensions
+still disabled. [VM evidence and file hashes](evidence/import-diagnostics-phase2/)
+separate these results from hands-on acceptance.
+
+Signed distribution verification remains pending; no new build is published yet.
+Installation instructions and hands-on acceptance stay in **Centaur Install**.
 
 ## Review baseline
 

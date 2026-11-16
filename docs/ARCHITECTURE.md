@@ -256,9 +256,15 @@ helper; Centaur accepts no credentials embedded in URLs and never asks for token
 in chat. Interactive sign-in belongs outside the import workflow.
 
 The agent receives an inventory and bounded text excerpts, not arbitrary
-filesystem or shell access. Its structured `inspect` response requests up to 12
-relative source files per round; there are eight rounds per conversational step,
-24 KB per file, 96 KB per read and 160 KB retained context per source/output scope.
+filesystem or shell access. Its structured `inspect` response uses a host-owned
+broker for paginated directory listing, line-range reads, literal search,
+recorded source facts and structured diagnostics. Legacy requests for up to 12
+relative files remain supported. There are eight rounds per conversational step,
+24 KB per file, 96 KB per result and 160 KB retained recent tool results. File
+access uses directory descriptors without following links, including local copy
+and history preservation; original Git configuration is never executed. Listing,
+reads and search share the private-file policy. Cursors detect changed listings;
+time, entry, scan and output limits produce explicit bounded results.
 The latest adaptation has its own inventory and text excerpts. `inspect` with
 `scope: "adaptation"` reads that saved output; the default reads original source.
 Later edits therefore use actual generated files and create a new output version
@@ -268,6 +274,16 @@ filter is defensive detection rather than a guarantee that arbitrary source can
 contain no secrets. Local source locators and inspection context are excluded
 from collaboration snapshots. Debug events stay in
 `.centaur/import-debug.jsonl`; shared chat contains concise findings and questions.
+
+The private model context also contains typed acquisition failures when no source
+exists. It excludes raw stderr and host locators. The model may request one
+same-source retry after a transient failure; the coordinator reserves and
+persists a shared allowance of six network attempts, counting internal Git
+retries. Restart does not replenish that allowance. Other failures require new
+information or an explicit source retry through the existing controls. Late
+worker results cannot revive a cancelled attempt, and the busy/update gate is
+refreshed even when the result is discarded. OMP still runs with tools and
+extensions disabled; this adds no shell, builds or dependency installation.
 
 The original source framework and the intended adaptation are distinct. Import
 instructions and ordinary chat answers determine the adaptation; the agent must

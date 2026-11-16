@@ -29,6 +29,7 @@ def main():
     parser.add_argument('--services',type=Path,required=True)
     parser.add_argument('--output',type=Path,required=True)
     parser.add_argument('--omp',default=shutil.which('omp') or '/home/matt/.local/bin/omp')
+    parser.add_argument('--scenario',choices=('inspection','recovery'),default='inspection')
     args=parser.parse_args()
     assert platform.system()=='Linux' and platform.machine()=='aarch64'
     assert 'ID=nixos' in Path('/etc/os-release').read_text()
@@ -45,6 +46,19 @@ def main():
     before=hashes(); source_modules=Path(__file__).resolve().parents[1]/'gtk4/embedding'
     worker=folder/'import-worker'
     worker.write_text('#!'+sys.executable+'\nimport sys\nsys.path.insert(0,'+repr(str(source_modules))+')\nfrom source_import import main\nraise SystemExit(main())\n'); worker.chmod(0o700)
+    calls=folder/'acquire-calls.jsonl'
+    if args.scenario=='recovery':
+        # Fault injection belongs only to this disposable harness. Production
+        # acquisition still receives the host's original URL/ref unchanged.
+        worker.write_text('#!'+sys.executable+'\n'+
+            'import io,json,sys\nfrom pathlib import Path\nsys.path.insert(0,'+repr(str(source_modules))+')\n'+
+            'from source_import import main,acquire\nr=json.load(sys.stdin)\ncalls=Path('+repr(str(calls))+')\n'+
+            'if r["mode"]=="acquire":\n first=not calls.exists()\n with calls.open("a") as out: out.write(json.dumps(r["source"])+"\\n")\n'+
+            ' if first:\n  print(json.dumps({"ok":False,"networkAttempts":3,"diagnostic":{"category":"dns","operation":"clone","exitCode":128,"detail":"PRIVATE HELPER DETAIL"}}))\n  raise SystemExit(1)\n'+
+            ' result=acquire(Path(r["root"]),{"type":"folder","location":'+repr(str(source))+'})\n'+
+            ' result.update(repository="https://github.com/centaur-test/fixture",sourceUrl=r["source"]["location"],branch="selected",commit="b"*40,directory="")\n'+
+            ' print(json.dumps({"ok":True,"networkAttempts":0,**result}))\nelse:\n sys.stdin=io.StringIO(json.dumps(r))\n raise SystemExit(main())\n')
+        worker.chmod(0o700)
     invocations=folder/'omp-arguments.jsonl'; adapter=folder/'omp-adapter'
     adapter.write_text('#!'+sys.executable+'\nimport os,sys,json\nwith open('+repr(str(invocations))+',"a") as out: out.write(json.dumps(sys.argv[1:])+"\\n")\nos.execv('+repr(args.omp)+',['+repr(args.omp)+',*sys.argv[1:]])\n'); adapter.chmod(0o700)
     data=folder/'data'; env=dict(os.environ,CENTAUR_AGENT=str(adapter),CENTAUR_GTK_IMPORT_TOOL=str(worker),
@@ -69,20 +83,32 @@ def main():
         summary={}
         try:
             wait_for(lambda:state.get('snapshotReady'),30); send('author',name='Diagnostic test')
-            send('importProject',name='Unfamiliar tools',source={'type':'folder','location':str(source)},
-                instructions="Investigate the unfamiliar manifests and identify both applications and any missing prerequisite. Use directory listing and literal search for 'requires' to check the source. Do not run, prepare or convert anything. Ask which application we want to work on.")
+            selected={'type':'folder','location':str(source)} if args.scenario=='inspection' else {
+                'type':'github','location':'https://github.com/centaur-test/fixture/tree/selected','branch':'selected'}
+            instructions="Investigate the unfamiliar manifests and identify both applications and any missing prerequisite. "
+            instructions+=("Use directory listing and literal search for 'requires' to check the source. " if args.scenario=='inspection' else
+                           "If copying hits a temporary connection problem, use permitted recovery, then inspect the source. ")
+            send('importProject',name='Unfamiliar tools',source=selected,
+                instructions=instructions+"Do not run, prepare or convert anything. Ask which application we want to work on.")
             wait_for(lambda:state.get('project',{}).get('import',{}).get('status')=='awaitingAnswer' and not state.get('busy'),900)
             project=state['project']; saved=json.loads((data/'projects'/project['id']/'.centaur/state.json').read_text())
             local=saved['importLocal']; observations=local['diagnostics'].get('results',[])
             messages=[m['text'] for m in project['messages'] if m.get('kind')=='agent']
             text='\n'.join(messages).lower()
             assert 'lantern' in text and 'relay' in text and ('moonruntime' in text or 'runtime' in text),messages
-            assert {'list','search'} <= {r['operation'] for r in observations},observations
+            if args.scenario=='inspection':
+                assert {'list','search'} <= {r['operation'] for r in observations},observations
+            else:
+                assert local['automaticRetries']==1 and local['networkRemaining']==3,local
+                assert [json.loads(line) for line in calls.read_text().splitlines()]==[selected,selected]
+                assert [a['ok'] for a in local['diagnostics']['actions'] if a['operation']=='acquire']==[False,True]
+                assert 'PRIVATE HELPER DETAIL' not in json.dumps(project)
             assert all('--no-tools' in json.loads(line) and '--no-extensions' in json.loads(line) for line in invocations.read_text().splitlines())
             assert not marker.exists() and hashes()==before
             assert not (data/'projects'/project['id']/'App.gtk.json').exists()
             assert not errors,errors
             summary={'ok':True,'environment':'aarch64 NixOS UTM','agentModel':state.get('agentModel'),
+                     'scenario':args.scenario,'faultInjectedAcquisition':args.scenario=='recovery',
                      'operations':[r['operation'] for r in observations], 'messages':messages,
                      'originalUnchanged':True,'projectCodeExecuted':False,'terminalEnabled':False}
         except Exception:
