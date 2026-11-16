@@ -1,0 +1,26 @@
+{
+  "checks": [
+    "native-decorated-close-button-geometry-pointer-states-and-window-management",
+    "native-project-create-and-embedded-gtk-app",
+    "qt-reference-workspace-layout-typography-assets-and-8px-controls",
+    "two-independent-profiles-invite-join-and-attributed-chat",
+    "build-mode-keeps-chat-visible-and-drawing-undo-synchronise",
+    "cross-app-draw-and-temporary-connected-comment-at-six-zooms-with-placement-focus-send-sync-and-undo",
+    "guest-agent-request-native-validation-and-live-update-without-approval-or-duplicates",
+    "canvas-image-attached-from-guest-includes-outside-ink-without-chat-or-controls",
+    "invalid-css-leaves-current-source-and-both-previews-intact",
+    "only-genuine-conflict-waits-for-both-affected-authors",
+    "exact-history-restore-propagates-to-both-profiles",
+    "project-navigation-stops-preview-and-reopens-same-project",
+    "responsive-project-grid-original-menu-rename-and-cancelled-delete",
+    "figma-import-modal-and-credential-url-validation",
+    "local-managed-copy-name-persistence-no-starter-and-explicit-native-run",
+    "controlled-source-inspection-after-preview-without-restarting-app",
+    "unsupported-source-preserved-normal-chat-clarification-css-js-output-and-versioned-edits-with-inspection",
+    "public-github-history-optional-prompt-and-private-locator-not-published",
+    "landline-linux-nix-url-preselection-verified-commit-and-linux-agent-context",
+    "clean-frontend-child-and-test-host-shutdown"
+  ],
+  "production_approved": false,
+  "passed": true
+}

@@ -6,11 +6,12 @@ The owner's Architecture + Design handoff establishes general import diagnosis,
 isolated diagnostics and controlled repairs as the next import direction.
 [Phase 1 review](IMPORT_DIAGNOSTICS.md) recommends extending the existing
 host-owned inspection loop with typed broker operations and structured recovery,
-then proving ARM64 isolation before enabling commands. This increment changes
-documentation only; no diagnostic broker, sandbox or repair capability has
-shipped. Installed OMP/sandbox capabilities remain unverified while the UTM
-display is inactive. The last observed installation is `dbadb0c`; the separate
-published `aa64982` update awaits confirmation in **Centaur Install**.
+then proving ARM64 isolation before enabling commands. That Phase 1 increment
+changed documentation only; the Phase 2 implementation is recorded below.
+At review time the UTM display was inactive, so installed OMP/sandbox
+capabilities were unverified. The last observed installation is `dbadb0c`;
+the separate published `aa64982` update has no owner confirmation in
+**Centaur Install**.
 
 ## Phase 2 import diagnostics — 16 November 2026
 
@@ -69,8 +70,17 @@ project-code execution, no accepted preview created and terminal/extensions
 still disabled. [VM evidence and file hashes](evidence/import-diagnostics-phase2/)
 separate these results from hands-on acceptance.
 
-Signed distribution verification remains pending; no new build is published yet.
-Installation instructions and hands-on acceptance stay in **Centaur Install**.
+Published **0.4.0-preview+e8d627c** through the existing tested, signed Cachix
+workflow. The [product/service/import/updater run](https://github.com/mattatgit/Centaur/actions/runs/43793539315)
+and [standalone embedding run](https://github.com/mattatgit/Centaur/actions/runs/43793539331)
+passed. Native import verification again selected Landline `linux-nix` at
+`205fc1185335dc1c85b359af7673f6e5d7653222`, with `LandlineNix` source in the agent
+context. All 579 closure paths passed the empty-store signed download check;
+Settings update and profile/data/Qt preservation checks passed before feed
+publication. The public feed exactly matched the signed distribution manifest.
+The owner's VM was not updated during testing, and the temporary server is
+stopped. Installation instructions and hands-on acceptance stay in
+**Centaur Install**; automated results do not establish owner acceptance.
 
 ## Review baseline
 

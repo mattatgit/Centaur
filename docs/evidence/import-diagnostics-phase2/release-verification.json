@@ -1,0 +1,114 @@
+{
+  "sourceRevision": "e8d627cbdd02d5c1bec17cb589a34e8c21b206fd",
+  "verifiedAt": "2026-11-16 02:50:14 UTC",
+  "workflows": [
+    {
+      "id": 43793539315,
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43793539315",
+      "conclusion": "success",
+      "jobId": 133057130722,
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cachix/install-nix-action@v31",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+          "conclusion": "success"
+        },
+        {
+          "name": "Check Python, bundle contract and workflow",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build retained service and run core, network and Iroh regressions",
+          "conclusion": "success"
+        },
+        {
+          "name": "Cache service only after its regressions pass",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build GTK4 development frontend",
+          "conclusion": "success"
+        },
+        {
+          "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+          "conclusion": "success"
+        },
+        {
+          "name": "Save native screenshots, reports and limitations",
+          "conclusion": "success"
+        },
+        {
+          "name": "Publish GTK4 development preview after successful checks",
+          "conclusion": "success"
+        },
+        {
+          "name": "Save signed-cache metadata",
+          "conclusion": "success"
+        },
+        {
+          "name": "Exercise Settings update against the published signed package",
+          "conclusion": "success"
+        },
+        {
+          "name": "Save updater screenshots and transaction evidence",
+          "conclusion": "success"
+        },
+        {
+          "name": "Advertise the verified in-app update",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 43793539331,
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/43793539331",
+      "conclusion": "success"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14194240794,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:60690b8436369605bb54518b10930c27aca45ba8da6143fb283fd96764d43227"
+    },
+    {
+      "id": 14194061564,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:91a0a5beda36b0d4342d14d4478c05374b5404f778d8a34dd02945cb1d33ff2c"
+    },
+    {
+      "id": 14193601301,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:594c811dca5b9a23eeffcfd2aa434bfeb588cf6fb3256a22ef41933c1bfe1068"
+    }
+  ],
+  "feed": {
+    "url": "https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview",
+    "matchesSignedDistributionManifest": true
+  },
+  "automatedAcceptanceOnly": true,
+  "ownerAcceptance": "Pending in Centaur Install"
+}
