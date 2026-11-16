@@ -2,7 +2,7 @@ name: GTK4 embedding experiment
 
 on:
   push:
-    branches: [codex/gtk4-migration]
+    branches: [main]
     paths:
       - 'gtk4/**'
       - 'assets/branding/**'
@@ -73,7 +73,7 @@ jobs:
       - name: Publish isolated test package after automated checks
         if: >-
           success() && github.repository == 'mattatgit/Centaur' &&
-          github.ref == 'refs/heads/codex/gtk4-migration' &&
+          github.ref == 'refs/heads/main' &&
           vars.CENTAUR_CACHIX_CACHE != ''
         env:
           CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}

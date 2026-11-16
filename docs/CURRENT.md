@@ -1,5 +1,28 @@
 # Current state
 
+## Main checkpoint before the UI pass — 16 November 2026
+
+The owner selected the GTK4 direction as the project's main line. GitHub's
+default branch and this checkout now use `main`, created from `7127a25` with
+all existing history. The annotated tag
+`checkpoint/phase4-sandbox-2026-11-16` preserves that verified Phase 4 state.
+The main-branch setup is checkpointed as `checkpoint/pre-ui-2026-11-16`.
+The earlier GTK4 and Qt branches remain intact.
+
+This promotion changes workflow gates, source metadata and documentation;
+application code and the verified sandbox policy are unchanged. GTK4 product
+and embedding workflows now follow `main`. Protocol-1 manifests retain the
+historical `branch: codex/gtk4-migration` channel identifier so installed
+updaters still accept signed releases; `sourceBranch: main` and the immutable
+revision identify new source. Cache signatures, publication checks and update
+recovery remain required. Installation/acceptance stay in Centaur Install.
+
+The next planned work is a proper UI pass. This checkpoint does not start that
+redesign or claim full Landline Rust/egui/Iroh/audio integration. The separate Qt
+installation, existing projects/conversations, identities and OMP configuration
+remain preserved. The following dated entries retain their original branch and
+release context.
+
 ## Phase 4 sandbox broker integration — 16 November 2026
 
 The owner authorised connecting the verified boundary to the import broker,

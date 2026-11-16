@@ -50,7 +50,9 @@ launch environment. The Air and macOS are outside this implementation.
 
 ## Installation boundary
 
-- Branch: `codex/gtk4-migration`.
+- Development/default branch: `main`. Protocol-1 manifests retain the historical
+  `branch: codex/gtk4-migration` update-stream identifier for installed-client
+  compatibility; new publications also record `sourceBranch: main`.
 - Package: `gtk4-preview`; executable: `centaur-gtk4`.
 - Dedicated profile: `~/.local/state/nix/profiles/centaur-gtk4`.
 - Existing GTK data directory is passed through exactly as launched; the
@@ -74,7 +76,10 @@ failure and belongs in Centaur Install's one-time setup guidance.
 The existing CI publisher uploads the complete signed closure to
 `https://mattatgit-centaur.cachix.org`, downloads it into an empty store and
 verifies every signature. GTK metadata additionally identifies update protocol
-1, the GTK branch and the source commit timestamp.
+1, the stable GTK update-stream identifier and the source commit timestamp.
+Publication is gated to `main`; `sourceBranch` records that source branch. The
+historical protocol-1 `branch` value is retained so already-installed clients
+continue to discover updates without a channel-transition installation.
 
 After ordinary unit/service/native checks, signed publication and the real
 in-app update acceptance test succeed, CI atomically updates the JSON body of

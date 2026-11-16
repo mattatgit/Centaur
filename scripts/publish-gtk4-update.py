@@ -13,6 +13,8 @@ import urllib.request
 
 REPO='mattatgit/Centaur'
 TAG='gtk4-preview'
+# Protocol 1 clients pin this historical label as their GTK update stream.
+# It remains stable when the repository's development branch changes to main.
 
 
 def publish(manifest,request):
@@ -37,8 +39,8 @@ def publish(manifest,request):
 
 
 def main():
-    if os.environ.get('GITHUB_REPOSITORY')!=REPO or os.environ.get('GITHUB_REF')!='refs/heads/codex/gtk4-migration':
-        raise SystemExit('Update publication is restricted to the GTK4 development branch.')
+    if os.environ.get('GITHUB_REPOSITORY')!=REPO or os.environ.get('GITHUB_REF')!='refs/heads/main':
+        raise SystemExit('Update publication is restricted to main.')
     manifest=json.loads(Path(sys.argv[1]).read_text())
     if manifest['sourceRevision']!=os.environ.get('GITHUB_SHA'): raise SystemExit('Source revision mismatch.')
     token=os.environ['GH_TOKEN']

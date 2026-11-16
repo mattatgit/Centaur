@@ -2,7 +2,7 @@ name: GTK4 Centaur integration
 
 on:
   push:
-    branches: [codex/gtk4-migration]
+    branches: [main]
     paths:
       - 'src/**'
       - 'gtk4/**'
@@ -89,7 +89,7 @@ jobs:
       - name: Publish GTK4 development preview after successful checks
         if: >-
           success() && github.repository == 'mattatgit/Centaur' &&
-          github.ref == 'refs/heads/codex/gtk4-migration' &&
+          github.ref == 'refs/heads/main' &&
           vars.CENTAUR_CACHIX_CACHE != ''
         env:
           CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
@@ -130,7 +130,7 @@ jobs:
       - name: Advertise the verified in-app update
         if: >-
           success() && github.repository == 'mattatgit/Centaur' &&
-          github.ref == 'refs/heads/codex/gtk4-migration' &&
+          github.ref == 'refs/heads/main' &&
           vars.CENTAUR_CACHIX_CACHE != ''
         env:
           GH_TOKEN: ${{ github.token }}

@@ -104,7 +104,9 @@ manifest = {
 }
 if package_attribute == 'gtk4-preview':
     import subprocess
-    manifest.update(updateProtocol=1, branch='codex/gtk4-migration',
+    # Keep protocol-1's historical channel label so installed clients can update.
+    # The immutable revision and sourceBranch identify the actual main source.
+    manifest.update(updateProtocol=1, branch='codex/gtk4-migration', sourceBranch='main',
                     sourceTimestamp=int(subprocess.check_output(['git','show','-s','--format=%ct',revision],text=True)))
 (folder / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 key_list = ' '.join(json.dumps(key) for key in cache['publicSigningKeys'])
