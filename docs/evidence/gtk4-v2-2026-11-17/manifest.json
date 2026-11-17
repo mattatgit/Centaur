@@ -32,6 +32,7 @@
   "files": {
     "import-provenance.json": "eb869a502f6a5dc764dcd01a9bb86424c08009f5ae08cf20e181f75f63e9376e",
     "native-chrome-animation.json": "26510b0b868a0ec7bed7e1b9c60f5c646270c80a477812afefcf25e45a3a7dd8",
+    "release-verification.json": "09e0028e4f9ebfa89dca6c67bd32ee26b6cb3cac8f6f7dd79303ba498398f155",
     "ui-agent-working.png": "44d327ac82adabb3b41db14724c21b6616cb1db878081a49a34100169216911b",
     "ui-settings-avatar-uploaded.png": "f393f0ae7722d8dd84c35a8efa9431ad99a8c6c3ef550856bc60aa91480ee096",
     "release-a6c4894-native.json": "137a55907b57e63aef4985e536d18a358f1b2da77ae65f087ce40e043bf2c23f",
@@ -42,9 +43,12 @@
     "ui-new-project.png": "68b72fceb91dc00023bfca17d6868d00dbc549c72784c0c369892288a1dc11bc",
     "embedding-summary.json": "c5a18e1ec7f2ae20d916a42c9db700c94221fb3b895b4b03fa2e050da422a7d4",
     "ui-projects-empty.png": "8be7e5d8acfa3e5a46256d810951168b8daeeab1481e6ba6e1393a7fb1ce845f",
+    "vm-final-package-verification.json": "6d5b601d694b8c8d7848f52bb33ce0685521849e00dff473562dc568778f77ec",
     "release-a6c4894-updater.json": "3a56cf9921afae57e9a633343781e1748f244fffa759fa73f49bdc828dce0fb7",
     "vm-signed-updater-summary.json": "16a6fdccdbb21265e828026bf78f62236081a1bed0d26fd54b2a7ff8a0c5e0bb",
     "native-summary.json": "99e43818348fdf5dae88cc005653cbd7a6e584cedb00d5985c498a83f35bac40",
+    "release-manifest.json": "1a011870291be8d4b796904e2ef067f055d92c096399c06913c709fb440d9453",
+    "release-updater-summary.json": "3a56cf9921afae57e9a633343781e1748f244fffa759fa73f49bdc828dce0fb7",
     "native-product-source-sha256.json": "5b22846f92a0321cb6e0337f4fa99fc7f986faa9dfe2a314f863da8fbc851cf7",
     "release-a6c4894-manifest.json": "6d881469c511bd1b106d3380b132ade92c62700380113080ee2621421f4400a8",
     "gtk4-workspace.png": "f699721a6bcd22433d9840a8b070398ae19aa159d92daff5c5ad93b1506e1ba9",
@@ -70,5 +74,8 @@
     "checkerFix": "Read final atomic progress status after the transfer thread joins; no production runtime changes.",
     "normalNetworking": true,
     "ownerProfileChanged": false
-  }
+  },
+  "finalPublishedSource": "9680f97902ed359974dfbe13736fc72d83109ca2",
+  "finalPublishedVersion": "0.4.0-preview+9680f97",
+  "finalReleaseVerification": "release-verification.json"
 }
