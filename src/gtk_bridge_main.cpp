@@ -35,6 +35,8 @@ int main(int argc, char **argv) {
             {"updateBlocked", controller.updateBlocked()}, {"updateHeld", controller.updateHeld()},
             {"snapshotReady", controller.snapshotReady()},
             {"agentModel", controller.agentModel()}, {"agentExecutable", controller.agentExecutable()},
+            {"defaultAgentName", controller.defaultAgentName()}, {"selectedModel", controller.selectedModel()},
+            {"preferencesSaved", controller.preferencesSaved()},
             {"importSource",controller.importSource()},
             {"invitation", controller.invitationCode()}, {"inviting", controller.inviting()}, {"localAddress", controller.localAddress()},
             {"joinStatus", controller.joinStatus()}, {"joining", controller.joining()},
@@ -56,12 +58,14 @@ int main(int argc, char **argv) {
             const auto command = QJsonDocument::fromJson(buffer.left(end)).object(); buffer.remove(0, end+1);
             const auto type = command["type"].toString();
             const auto id = command["projectId"].toString();
+            bool settingsValid = true;
             if (type == "create") controller.createGtkProject(command["name"].toString(), command["description"].toString());
             else if (type == "importProject") controller.importGtkProject(command);
             else if (type == "retryImport" || type == "runImport") controller.importAction(type,command["source"].toObject());
             else if (type == "open") controller.openProject(id);
             else if (type == "close") controller.closeProject();
             else if (type == "author") controller.setAuthor(command["name"].toString());
+            else if (type == "agentDefaults") settingsValid = controller.setAgentDefaults(command);
             else if (type == "message") { if (controller.sendMessage(command["text"].toString(), command["image"].toString(), command["imageRevision"].toInt(), command["comment"].toObject())) output({{"type", "sent"}, {"text", command["text"]}}); }
             else if (type == "rename") controller.renameProject(id, command["name"].toString());
             else if (type == "delete") controller.deleteProject(id);
@@ -73,12 +77,17 @@ int main(int argc, char **argv) {
             else if (type == "leave") controller.leaveProject(id);
             else if (type == "accept") controller.acceptProposal();
             else if (type == "cancel") controller.cancelAgent();
-            else if (type == "agentName") controller.renameAgent(command["name"].toString());
+            else if (type == "agentName") {
+                if (id.isEmpty()) controller.renameAgent(command["name"].toString());
+                else controller.renameProjectAgent(id, command["name"].toString());
+            }
             else if (type == "annotation") controller.addAnnotation(command["annotation"].toObject().toVariantMap());
             else if (type == "undo") controller.undoAnnotation();
             else if (type == "grid") { controller.setGridEnabled(command["enabled"].toBool()); controller.setGridSize(command["size"].toInt(8)); controller.setGridOpacity(command["opacity"].toInt(50)); if (command.contains("color")) controller.setGridColor(QColor(command["color"].toString())); }
             else if (type == "snapshot") snapshot();
             else output({{"type", "error"}, {"message", "Unknown frontend command."}});
+            if ((type == "author" || type == "agentDefaults" || type == "grid") && command.contains("requestId"))
+                output({{"type", "settingsSaved"}, {"requestId", command["requestId"]}, {"success", settingsValid && controller.preferencesSaved()}});
         }
     });
     controller.start(true);

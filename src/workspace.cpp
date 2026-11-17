@@ -8,6 +8,7 @@
 #include <QUuid>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSettings>
 #include <algorithm>
 
 static bool git(const QString &path, const QStringList &args, QString *error, QByteArray *output = nullptr) {
@@ -62,9 +63,16 @@ QVariantList Workspace::projects() const {
     for (const auto &id : QDir(m_root + "/projects").entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
         const auto state = load(id);
         if (state.isEmpty() || state["archived"].toBool()) continue;
+        const auto imported=state["import"].toObject();
+        auto appType=state["appFormat"].toString()=="gtk4-v1" ? QString("GTK4 App") : QString("Qt App");
+        if (!imported.isEmpty() && !imported["previewReady"].toBool()) {
+            appType=imported["target"].toString()=="css-js" ? QString("CSS/JS adaptation")
+                : imported["framework"].toString("Imported project");
+            if (appType=="GTK4") appType="GTK4 App";
+        }
         result.append(QVariantMap{{"id", id}, {"name", state["name"].toString()},
             {"description", state["description"].toString()}, {"updated", state["updated"].toString()},
-            {"revision", state["revision"].toInt()}, {"path", projectPath(id)}});
+            {"revision", state["revision"].toInt()}, {"path", projectPath(id)}, {"appFormat", state["appFormat"].toString("qml-v1")}, {"appType", appType}, {"agentName", state["agentName"].toString("centaur")}});
     }
     std::sort(result.begin(), result.end(), [](const QVariant &a, const QVariant &b) {
         return a.toMap()["updated"].toString() > b.toMap()["updated"].toString();
@@ -105,8 +113,10 @@ QString Workspace::createProject(const QString &name, const QString &description
         QDir(path).removeRecursively();
         return {};
     }
+    const QSettings preferences(m_root + "/preferences.ini", QSettings::IniFormat);
+    const auto agentName = preferences.value("agent/name", "centaur").toString();
     QJsonObject state{{"id", id}, {"name", name.trimmed()}, {"description", description.trimmed()},
-        {"updated", now()}, {"revision", 1}, {"epoch", 0}, {"agentName", "centaur"},
+        {"updated", now()}, {"revision", 1}, {"epoch", 0}, {"agentName", agentName},
         {"messages", QJsonArray()}, {"annotations", QJsonArray()}, {"decisions", QJsonArray()},
         {"contributors", QJsonArray()}, {"proposal", QJsonObject()}};
     if (gtk) state["appFormat"] = format;

@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QRegularExpression>
 
 Controller::Controller(QString root, QObject *parent) : QObject(parent),
     m_preferences(root + "/preferences.ini", QSettings::IniFormat), m_session(root) {
@@ -137,6 +138,16 @@ void Controller::setAuthor(const QString &author) {
     m_author = author.trimmed().left(50); savePreferences(); emit changed();
 }
 
+bool Controller::setAgentDefaults(const QJsonObject &settings) {
+    if (settings.contains("agentName")) {
+        const auto name = settings["agentName"].toString().trimmed().remove('@').left(30);
+        if (name.isEmpty() || name.contains(QRegularExpression("\\s"))) { emit error("Use a single agent name without spaces."); return false; }
+        m_preferences.setValue("agent/name", name);
+    }
+    if (settings.contains("model")) m_preferences.setValue("agent/model", settings["model"].toString().left(300));
+    savePreferences(); emit preferencesChanged(); return preferencesSaved();
+}
+
 void Controller::savePreferences() {
     m_preferences.setValue("author", m_author);
     m_preferences.setValue("grid/enabled", m_gridEnabled);
@@ -186,7 +197,7 @@ void Controller::refresh() {
         if (state.isEmpty() || shared->removed()) continue;
         state["remote"] = true; state["connectionStatus"] = shared->status();
         m_states.insert(shared->id(), state);
-        m_projects.append(QVariantMap{{"id", shared->id()}, {"name", state["name"].toString()}, {"description", state["description"].toString()}, {"remote", true}, {"connected", shared->connected()}});
+        m_projects.append(QVariantMap{{"id", shared->id()}, {"name", state["name"].toString()}, {"description", state["description"].toString()}, {"appFormat", state["appFormat"].toString()}, {"updated", state["updated"].toString()}, {"remote", true}, {"connected", shared->connected()}});
     }
     m_agentAvailable = m_localSnapshot["agentAvailable"].toBool();
     m_agentExecutable = m_localSnapshot["agentExecutable"].toString();
@@ -252,6 +263,7 @@ void Controller::acceptProposal() {
     command({{"type", "accept"}, {"proposalId", m_states[m_projectId]["proposal"].toObject()["id"]}});
 }
 void Controller::renameAgent(const QString &name) { command({{"type", "agentName"}, {"name", name}}); }
+void Controller::renameProjectAgent(const QString &id, const QString &name) { route(id, {{"type", "agentName"}, {"name", name}}); }
 void Controller::cancelAgent() { command({{"type", "cancel"}}); }
 
 void Controller::startPreview() {

@@ -16,6 +16,7 @@ public:
     void ask(const QString &projectPath, const QJsonObject &state, const QString &source,
              const QString &imagePath = {});
     void cancel();
+    void setModel(const QString &model) { m_selectedModel = model; }
     static QJsonObject parseReply(const QByteArray &text, QString *error);
 signals:
     void idle();
@@ -34,5 +35,6 @@ private:
     QByteArray m_textOutput;
     QByteArray m_replyOutput;
     QString m_reportedModel;
+    QString m_selectedModel;
     bool m_structuredOutput = false;
 };

@@ -1,0 +1,89 @@
+{
+  "compositor": "disposable Sway; GNOME visual acceptance pending",
+  "checks": [
+    "original-v2-32px-artwork-integrated-80px-header-native-close-action",
+    "original-svg-both-frames-one-second-native-timing-and-reduced-motion",
+    "native-rounded-bottom-corners-and-clipped-content",
+    "native-pointer-hover-pressed-and-no-underlying-circular-fill",
+    "eight-outer-target-points-activate-native-close",
+    "disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible",
+    "native-titlebar-drag-compositor-resize-tile-fullscreen-and-restore",
+    "inactive-and-unscoped-native-window-unchanged",
+    "native-close-destroys-window"
+  ],
+  "baseline": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "styled": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "pointerOffset": [
+    0.0,
+    0.0
+  ],
+  "tiledState": 21952
+}

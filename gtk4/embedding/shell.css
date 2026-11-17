@@ -1,173 +1,171 @@
-/* Qt Theme/FlatButton/ChatPanel metrics; component geometry rounded to 8px. */
-window { background: #f8f8f8; color: #171717; font-family: Inter; font-size: 14px; }
-/* Keep GTK's default decorations/states; match only Centaur's titlebar fill. */
-window.centaur-window > headerbar.titlebar,
-window.centaur-window:backdrop > headerbar.titlebar {
-    background-color: #f8f8f8;
-    background-image: none;
-}
-window.centaur-window.csd { border-radius: 8px; }
-window.centaur-window.csd > .centaur-content { border-radius: 0 0 8px 8px; }
-window.centaur-window.csd.maximized,
-window.centaur-window.csd.fullscreen,
-window.centaur-window.csd.tiled,
-window.centaur-window.csd.tiled-top,
-window.centaur-window.csd.tiled-bottom,
-window.centaur-window.csd.tiled-left,
-window.centaur-window.csd.tiled-right,
-window.centaur-window.maximized > .centaur-content,
-window.centaur-window.fullscreen > .centaur-content,
-window.centaur-window.tiled > .centaur-content,
-window.centaur-window.tiled-top > .centaur-content,
-window.centaur-window.tiled-bottom > .centaur-content,
-window.centaur-window.tiled-left > .centaur-content,
-window.centaur-window.tiled-right > .centaur-content { border-radius: 0; }
-/* The native control remains a GtkButton with window.close and its original
- * symbolic image. GTK's theme paints the circle on that image, not the button. */
-window.centaur-window > headerbar.titlebar windowcontrols.end {
-    margin-right: 0;
-}
-window.centaur-window > headerbar.titlebar windowcontrols button.close {
-    min-width: 24px;
-    min-height: 24px;
-    padding: 4px;
-    margin: -1px 0;
-    background: transparent;
-    background-image: none;
-    border: 0;
-    border-radius: 0;
-    box-shadow: none;
-    transform: translate(0, 1px);
-}
-window.centaur-window > headerbar.titlebar windowcontrols button.close > image {
-    min-width: 24px;
-    min-height: 24px;
-    padding: 0;
-    margin: 0;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    background-image: none;
-    box-shadow: none;
-}
-window.centaur-window > headerbar.titlebar windowcontrols button.close:hover:not(:disabled) > image,
-window.centaur-window > headerbar.titlebar windowcontrols button.close:focus-visible:not(:disabled) > image {
-    background: #ebebeb;
-}
-window.centaur-window > headerbar.titlebar windowcontrols button.close:active:not(:disabled) > image {
-    background: #dedede;
-}
+/* Centaur UI V2.0 — native GTK widgets, original Figma artwork. */
+window { background: #f8f8f8; color: #171717; font-family: 'Inter Tight'; font-size: 14px; }
+window.centaur-window.csd { border-radius: 12px; }
+.centaur-content { border-radius: 0 0 12px 12px; }
+.integrated-header { border-radius: 12px 12px 0 0; }
+window.centaur-window.maximized .centaur-content, window.centaur-window.fullscreen .centaur-content,
+window.centaur-window.tiled .centaur-content, window.centaur-window.maximized .integrated-header,
+window.centaur-window.fullscreen .integrated-header, window.centaur-window.tiled .integrated-header { border-radius: 0; }
+window.centaur-window.maximized, window.centaur-window.fullscreen { border-radius: 0; }
+.integrated-header, .topbar { background: #f8f8f8; min-height: 80px; border: 0; padding: 0; box-shadow: none; }
+.topbar.modal-open { background: #cbcbcb; }
+.centaur-window windowcontrols { margin: 0; padding: 0; }
+.centaur-window windowcontrols button.close { min-width: 32px; min-height: 32px; margin: 0; padding: 0; border-radius: 0; background: transparent; }
+.window-close-art { background: #ebebeb; border-radius: 8px; }
+.send-arrow { transform: rotate(90deg); }
 button { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; background-image: none; box-shadow: none; color: inherit; }
 button:hover { background: #ebebeb; }
 button:disabled { opacity: .45; }
-button:focus-visible, entry:focus-within, dropdown:focus-visible { outline: 2px solid #138ed5; outline-offset: 2px; }
-.flat-button { padding: 0 8px; min-height: 32px; transition: transform 100ms ease-out, background-color 100ms ease-out; }
-.flat-button:hover { transform: scale(1.05); }
-.button-label { font-family: Inter; font-size: 12px; font-weight: 600; }
+button:focus-visible, dropdown:focus-visible { outline: 1px solid #9ea39e; outline-offset: -2px; }
+entry, entry:focus-within, entry > text, entry > text:focus,
+textview, textview:focus-within, textview text, textview text:focus {
+    outline: none; outline-offset: 0; box-shadow: none; border: 0; background-image: none;
+}
+entry { background: #f8f8f8; border-radius: 12px; min-height: 40px; padding: 0 16px; font-size: 12px; }
+entry:disabled { opacity: .45; }
+textview, textview text { background: transparent; color: #171717; padding: 0; }
+.flat-button { padding: 0 10px; min-height: 32px; }
+.button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; }
 .flat-button.tone-soft { background: #ebebeb; }
-.flat-button.tone-soft:hover { background: #ebebeb; }
-.flat-button.tone-outline { background: transparent; box-shadow: inset 0 0 0 1px #d3d7ce; }
-.flat-button.tone-outline:hover { background: #f3f3f3; }
+.flat-button.tone-soft:hover { background: #e3e3e3; }
+.flat-button.tone-outline { background: #ebebeb; }
 .flat-button.tone-plain { background: transparent; }
-.flat-button.tone-plain:hover { background: transparent; }
+.flat-button.tone-plain:hover { background: #f3f3f3; }
 .flat-button.tone-dark { background: #171717; color: white; padding: 0 16px; }
-.flat-button.tone-dark:hover { background: #171717; }
-/* Match Figma 20:785's rendered positions: caption x=12, arrow x=51.
- * The 39px caption and unchanged 24px SVG leave 5px inside the 80px frame. */
-.project-create > button { min-height: 32px; padding: 0 5px 0 12px; border-radius: 8px; background: #171717; color: white; }
-.project-create > button:hover, .project-create > button:checked { background: #171717; }
-.project-create .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; line-height: 16px; }
+.flat-button.tone-dark:hover { background: #303030; }
+.flat-button.tone-lime { background: #171717; color: white; padding: 0 16px; }
+.flat-button.icon-only { padding: 0; min-width: 0; }
+.flat-button.brand { padding: 0; min-width: 32px; }
+.flat-button.brand:hover { background: transparent; }
 .project-create-split { background: #171717; border-radius: 8px; color: white; }
-.project-create-split .project-create-main { padding: 0 0 0 12px; border-radius: 8px 0 0 8px; }
-.project-create-main > box { margin: 0; }
-.project-create-split .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 600; line-height: 16px; }
-.project-create-arrow > button { padding: 0 5px 0 0; min-height: 32px; border-radius: 0 8px 8px 0; background: #171717; color: white; }
-.project-create-split button:hover, .project-create-split button:checked { background: #303030; transform: none; }
-.flat-button.tone-lime { background: #ccff00; padding: 0 16px; }
-.flat-button.tone-lime:hover { background: #ccff00; }
-.flat-button.selected { background: #138ed5; color: white; }
-.flat-button.icon-only { padding: 0; min-width: 32px; }
-
-.flat-button.brand { padding: 0; min-width: 32px; color: #171717; }
-.flat-button.brand:hover { background: transparent; transform: scale(1.1); }
-.topbar { min-height: 80px; }
+.project-create-split .project-create-main { padding: 0 0 0 16px; border-radius: 8px 0 0 8px; }
+.project-create-arrow > button { min-height: 32px; padding: 0; border-radius: 0 8px 8px 0; background: #171717; color: white; }
+.project-create-split button:hover, .project-create-split button:checked { background: #171717; }
+.project-create-arrow .svg.open { transform: scaleY(-1); }
 .sidebar { background: #f8f8f8; padding: 0; border: 0; box-shadow: none; }
-.flat-button.navigation { padding: 0 8px; min-height: 40px; color: #9ea39e; }
+.flat-button.navigation { padding: 0; min-height: 32px; color: #9ea39e; }
 .navigation .button-label, .nav-label { font-size: 14px; font-weight: 600; }
-.flat-button.navigation:hover { transform: none; color: #6b6b6b; background: transparent; }
-.flat-button.navigation.selected { color: #171717; background: #f3f3f3; }
-.flat-button.profile { padding: 0 16px 0 24px; min-height: 88px; }
-.flat-button.profile:hover { transform: none; background: #f3f3f3; }
-.profile-avatar { background: #669e68; color: #102010; border-radius: 8px; font-family: Inter; font-size: 12px; font-weight: 700; }
+.flat-button.navigation:hover, .flat-button.navigation.selected { color: #171717; background: #f3f3f3; }
+.flat-button.profile { padding: 0 24px 0 32px; min-height: 88px; }
+.profile-avatar { background: #fafafa; border-radius: 10px; }
 .sidebar.compact .flat-button.profile { padding: 0 16px; }
-.breadcrumb { font-family: Inter; font-size: 12px; font-weight: 600; }
-.section-title { font-family: Inter; font-size: 16px; font-weight: 600; }
-.mode-switch { background: white; border-radius: 16px; padding: 8px; }
-.flat-button.mode-button { color: #9ea39e; }
-.flat-button.mode-button:hover { transform: none; color: #6b6b6b; background: transparent; }
-.flat-button.mode-button.selected { background: #323232; color: white; }
+.breadcrumb { font-size: 12px; font-weight: 600; }
+.section-title { font-size: 14px; font-weight: 600; min-height: 24px; }
+.mode-switch { background: #f8f8f8; border-radius: 8px; padding: 0; }
+.mode-button .button-label { font-weight: 500; }
+.flat-button.mode-button { min-height: 24px; padding: 0 8px; color: #9ea39e; }
+.flat-button.mode-button.selected { background: #ebebeb; color: #171717; }
 .panel, .chat, .canvas-panel { background: white; border-radius: 16px; }
+.canvas-bar { padding: 0 16px; }
+.canvas-bar > * { margin-top: 16px; margin-bottom: 15px; }
 paned > separator { min-width: 8px; min-height: 0; padding: 0; margin: 0; background: transparent; border: 0; box-shadow: none; }
 paned > separator:hover { background: #e7e9e5; }
-separator { min-height: 1px; min-width: 1px; background: #e7e9e5; }
+separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .muted { color: #9ea39e; }
-.small { font-family: Inter; font-size: 12px; }
-.chat-heading { font-family: 'Inter Tight'; font-size: 14pt; font-weight: 600; }
-.chat-status { font-family: Inter; font-size: 10.5pt; }
-.chat-name { font-family: Inter; font-size: 14px; font-weight: 600; line-height: 18px; }
-.chat-time { font-family: Inter; font-size: 11px; font-weight: 600; }
+.small { font-size: 12px; }
+.chat-heading { font-size: 14px; font-weight: 600; }
+.chat-status { font-size: 12px; }
+.chat-name { font-size: 14px; font-weight: 600; line-height: 18px; }
+.chat-time { font-family: Inter; font-size: 10px; }
 .chat-comment { font-family: Inter; font-size: 14px; font-weight: 400; line-height: 18px; }
-.version { font-family: Inter; font-size: 8.5pt; }
-.update-version, .update-version:hover, .update-version:focus-visible { color: #9ea39e; padding: 0; min-height: 24px; background: transparent; outline: none; }
+.chat-card { padding: 16px 24px 16px 16px; border-radius: 12px; background: #fafafa; }
+.chat-card.human { background: #eef8fe; }
+.version { font-family: Inter; font-size: 10px; }
+.update-version, .update-version:hover { color: #9ea39e; padding: 0; min-height: 24px; background: transparent; }
 .update-caption { padding: 0 8px; min-height: 24px; border-radius: 8px; }
 .update-version.action .update-caption { color: #171717; background: #ebebeb; }
-.update-version:focus-visible .update-caption { outline: 2px solid #138ed5; outline-offset: -2px; }
+.update-version:focus-visible .update-caption { outline: 1px solid #9ea39e; outline-offset: -2px; }
 .update-badge { min-width: 8px; min-height: 8px; border-radius: 999px; background: #ccff00; }
-.message, .composer-placeholder { font-family: 'Inter Tight'; font-size: 12.5pt; font-weight: 400; }
-.avatar { border-radius: 8px; background: #ff625a; color: white; font-family: Inter; font-size: 14px; font-weight: 600; }
+.message, .composer-placeholder { font-family: Inter; font-size: 16px; font-weight: 400; }
+.avatar { border-radius: 8px; background: #ff6157; color: white; font-size: 13px; font-weight: 600; }
 .avatar.agent { background: #171717; }
-.avatar.agent > .svg { margin: 0 8px; }
-.chat-scrollbar { padding: 0 8px; margin: 0; min-width: 8px; background: transparent; }
+.chat-scrollbar { padding: 0 4px; margin: 0; min-width: 8px; background: transparent; }
 .chat-scrollbar > range, .chat-scrollbar trough { min-width: 8px; padding: 0; margin: 0; border: 0; background: transparent; }
 .chat-scrollbar slider { min-width: 8px; padding: 0; margin: 0; border: 0; }
 .chat-scrollbar:disabled slider { background: transparent; }
-.empty-heading { font-family: 'Inter Tight'; font-size: 18pt; font-weight: 600; }
-.empty-description { font-family: Inter; font-size: 12pt; }
-.empty-project { background: #f8f8f8; box-shadow: inset 0 0 0 1px #e7e9e5; border-radius: 16px; padding: 32px; }
-.project-card { background: #f8f8f8; border-radius: 16px; padding: 24px; box-shadow: inset 0 0 0 1px transparent; }
-.project-card:hover { background: #f8f8f8; box-shadow: inset 0 0 0 1px #d3d7ce; }
-.project-card:focus-visible { outline: 2px solid #138ed5; outline-offset: 2px; }
-.project-badge { background: #171717; color: #ccff00; border-radius: 16px; font-family: 'Inter Tight'; font-size: 23pt; font-weight: 600; }
-.project-title { font-family: 'Inter Tight'; font-size: 14pt; font-weight: 600; }
-.project-description { font-family: Inter; font-size: 11pt; }
-.project-meta { font-family: Inter; font-size: 10pt; }
-.meatball { min-height: 32px; min-width: 32px; padding: 0; border-radius: 8px; }
-.meatball > button { min-height: 32px; min-width: 32px; padding: 0; }
+.empty-heading { font-size: 24px; font-weight: 600; }
+.empty-description { font-size: 14px; }
+.empty-project { background: #f8f8f8; border-radius: 16px; padding: 32px; }
+.project-card { background: #f8f8f8; border-radius: 16px; padding: 0; }
+.project-card:hover { background: #f3f3f3; }
+.project-thumbnail { background: #272727; }
+.project-title { font-size: 14px; font-weight: 600; }
+.project-meta { font-size: 12px; }
+.meatball > button { min-width: 32px; min-height: 32px; padding: 0; }
 .meatball > button:hover, .meatball > button:checked { background: #ebebeb; }
-popover > contents { background: white; border: 1px solid #e7e9e5; border-radius: 16px; padding: 8px; box-shadow: 0 8px 24px alpha(black,.12); }
-popover.project-menu > contents { min-width: 160px; }
-popover.project-menu .flat-button { padding: 0 16px; min-height: 40px; }
+popover > contents { background: white; border: 0; border-radius: 8px; padding: 8px; box-shadow: 0 0 20px alpha(black,.08); }
+popover.project-menu .flat-button { padding: 0 8px; min-height: 24px; }
 popover.project-menu .button-label { font-size: 12px; font-weight: 400; }
-popover.project-menu .flat-button > box { margin: 0; }
+popover.project-menu .flat-button:hover, popover.project-menu .flat-button:focus-visible { background: #f8f8f8; }
+popover.create-project-menu > contents { min-width: 96px; }
 .tools { background: white; border-radius: 12px; padding: 8px; box-shadow: 0 0 20px alpha(black,.08); }
-.tools .canvas-tool { padding: 0; min-width: 32px; min-height: 32px; background: transparent; color: #171717; }
-.tools .canvas-tool:hover { transform: none; background: #f3f3f3; }
-.tools .canvas-tool.selected, .tools .canvas-tool.selected:hover { background: #138ed5; color: white; }
-.flat-button.grid-toggle { min-width: 24px; min-height: 24px; background: #f8f8f8; }
-.flat-button.grid-toggle.selected { background: #20a8f0; color: white; }
-.composer { background: #f8f8f8; border: 0; border-radius: 16px; box-shadow: inset 0 0 0 1px #e7e9e5; }
-.composer.focus { box-shadow: inset 0 0 0 1px #bdc7b6; }
-textview, textview text { background: transparent; color: #171717; padding: 0; }
+.tools .canvas-tool { padding: 0; min-width: 32px; min-height: 32px; background: transparent; }
+.tools .canvas-tool:hover { background: #f3f3f3; }
+.tools .canvas-tool.selected { background: #138ed5; color: white; }
+.flat-button.grid-toggle.selected { background: #eef8fe; }
+.composer, .composer.focus { background: #fafafa; border: 0; border-radius: 12px; box-shadow: inset 0 0 0 .5px #ebebeb; }
+.composer .button-label { font-family: Inter; font-size: 14px; font-weight: 600; color: #6b6b6b; }
+.composer .tone-plain { padding: 0 8px; }
 .composer-placeholder { color: #9ea39e; }
-.busy { background: #f8f8f8; border-radius: 8px; padding: 8px; }
-.proposal { background: #f3f7e8; border-radius: 16px; padding: 16px; }
+.busy { padding: 16px; background: #fafafa; border-radius: 12px; }
+.proposal { background: #f3f7e8; border-radius: 12px; padding: 16px; }
 .error { color: #ad3232; }
 .toast { background: white; padding: 16px; border-radius: 16px; box-shadow: 0 8px 24px alpha(black,.12); }
 .modal-shade { background: alpha(black,.18); }
-window.dialog { background: transparent; }
-.dialog-card { background: white; border-radius: 16px; padding: 24px; }
-.dialog-title { font-family: Inter; font-size: 16px; font-weight: 600; }
-.dialog-card.import-dialog { padding: 16px 24px; box-shadow: 0 0 25px alpha(black,.1); }
+.dialog-card { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 0 25px alpha(black,.1); }
+.dialog-title { font-size: 16px; font-weight: 600; }
+.dialog-card.v2-form { padding: 0; }
+.dialog-card.import-dialog { padding: 16px 24px; }
+.delete-dialog { padding: 0; border-radius: 24px; box-shadow: 0 0 20px alpha(black,.08); }
+.delete-hero { background: #ffefee; }
+.delete-description { font-size: 14px; line-height: 18px; color: #6b6b6b; }
+.delete-dialog .delete-confirm { background: #ff6157; }
+.invite-code { padding-right: 64px; }
+.text-field { background: #f8f8f8; border-radius: 12px; padding: 12px 16px; }
+.stepper { background: white; border: 0; border-radius: 8px; }
+.stepper entry { padding: 0; min-width: 0; min-height: 24px; background: transparent; }
+.stepper .stepper-arrow { padding: 0; min-height: 24px; background: transparent; }
+.switch { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.switch:hover, .switch:checked { background: transparent; }
+dropdown > button { padding: 0 8px; min-height: 32px; background: #f8f8f8; border-radius: 8px; }
+dropdown.zoom > button { min-height: 24px; background: #ebebeb; }
+.canvas-bar .flat-button { background: #f8f8f8; min-height: 24px; }
+menubutton.zoom > button { min-height: 24px; padding: 0; border: 0; background: #ebebeb; }
+popover.zoom-menu > contents { min-width: 72px; padding: 8px; }
+.zoom-option { min-height: 24px; padding: 0; }
+.zoom-option:hover, .zoom-option:focus-visible { background: #f8f8f8; }
+dropdown.zoom { font-size: 12px; }
+dropdown.zoom arrow { -gtk-icon-source: url('assets/v2/9e2c5.svg'); min-width: 24px; min-height: 24px; }
+dropdown popover row { padding: 8px; border-radius: 8px; }
+dropdown popover row:selected { background: #ebebeb; color: #171717; }
+scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8px; background: alpha(#9ea39e,.4); }
+.settings-row { background: #fafafa; border-radius: 12px; padding: 8px 16px; min-height: 32px; }
+.settings-row .small { font-size: 12px; }
+.settings-name { min-height: 48px; }
+.settings-row entry { min-height: 24px; padding: 0 8px; background: #ebebeb; border-radius: 8px; }
+.settings-row .colour-button { min-height: 24px; padding: 0 8px; background: #ebebeb; }
+.avatar-picker { background: #fafafa; border-radius: 12px; }
+.avatar-upload { background: alpha(#323232,.4); border-radius: 12px; color: white; font-size: 12px; padding: 12px; }
+.provider-card { background: #f8f8f8; border-radius: 12px; padding: 8px; min-height: 32px; }
+.provider-card.connected { background: #f1faf8; }
+.provider-card .provider-label { font-size: 14px; }
+.provider-card .provider-label { font-weight: 500; }
+.provider-action .button-label { font-weight: 500; }
+.provider-card dropdown > button { min-height: 32px; background: transparent; }
+.provider-card .provider-action { min-height: 32px; padding: 0 8px; }
+.provider-dot { transform: translate(2px,-2px); }
+.provider-arrow { transform: scaleY(-1); }
+.flat-button.settings-refresh { min-height: 24px; }
+.settings-folder-row { background: #f8f8f8; border-radius: 12px; padding: 0 8px 0 16px; min-height: 48px; }
+.colour-button .button-label { font-weight: 500; }
+.provider-card:not(.connected) .provider-action { opacity: 0; background: #171717; color: white; }
+.provider-card:hover .provider-action, .provider-card:focus-within .provider-action { opacity: 1; }
+.saved-status { background: #f1faf8; color: #17b239; border-radius: 8px; padding: 0 8px; min-height: 32px; }
+.saved-status.pending { background: transparent; color: #9ea39e; }
+.saved-status.failed { background: #fff0ed; color: #ad3232; }
+.import-waiting { background: #fafafa; border-radius: 16px; }
+.waiting-title { font-size: 14px; font-weight: 600; line-height: 18px; }
+.working-mark { background: white; border-radius: 8px; }
 .import-title { font-family: 'Inter Tight'; font-size: 16px; font-weight: 600; }
 .import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; line-height: 12px; }
 .import-dialog .import-field { min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: #f8f8f8; font-family: 'Inter Tight'; font-size: 12px; font-weight: 500; }
@@ -196,33 +194,7 @@ popover.import-branch-menu > contents { min-width: 344px; padding: 8px; border: 
 .branch-option { min-height: 24px; padding: 0 0 0 8px; border-radius: 8px; font-family: 'Inter Tight'; font-size: 12px; font-weight: 400; }
 .branch-option:hover, .branch-option:focus-visible { background: #f8f8f8; outline: none; }
 .import-branch-search { min-height: 32px; padding: 0 8px; border: 0; background: #f8f8f8; margin-bottom: 8px; font-family: 'Inter Tight'; font-size: 12px; }
-.danger { color: #ad3232; }
-entry { background: white; background-image: none; border: 1px solid #c6c6c6; border-radius: 8px; box-shadow: none; min-height: 22px; padding: 8px 16px; font-size: 14px; }
-entry:disabled { opacity: .45; }
-.text-field { background: white; border: 1px solid #c6c6c6; border-radius: 8px; padding: 16px; }
-.stepper { background: #f8f8f8; border: 0; border-radius: 8px; }
-.stepper entry { border: 0; padding: 0; min-width: 0; min-height: 40px; background: transparent; }
-.stepper .stepper-arrow { padding: 0; min-height: 40px; font-size: 16px; background: transparent; }
-.switch { padding: 0; border: 0; background: transparent; box-shadow: none; }
-.switch:hover, .switch:checked { background: transparent; }
-dropdown > button { padding: 0 8px; min-height: 40px; background: #f8f8f8; border-radius: 8px; }
-dropdown.zoom > button { min-height: 32px; background: #ebebeb; }
-dropdown.zoom { font-family: Inter; font-size: 12px; }
-dropdown popover row { padding: 8px; border-radius: 8px; }
-dropdown popover row:selected { background: #ebebeb; color: #171717; }
-scrolledwindow > scrollbar { background: transparent; }
-scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8px; background: alpha(#9ea39e,.4); }
 
-.new-project-dialog { padding: 32px; }
-.new-project-field { font-family: Inter; font-size: 12pt; }
-.new-project-description { background: #f8f8f8; border-radius: 8px; padding: 16px; }
-.colour-label { font-family: Inter; font-size: 11px; font-weight: 400; }
-.meatball { color: #9ea39e; }
-popover.project-menu .flat-button:hover { background: #ebebeb; transform: none; }
-popover.create-project-menu > contents { min-width: 104px; padding: 8px; border: 0; border-radius: 8px; background: white; box-shadow: 0 0 20px alpha(black,.08); }
-popover.create-project-menu .flat-button { min-height: 24px; padding: 0 8px; border-radius: 8px; }
-popover.create-project-menu .button-label { font-family: 'Inter Tight'; font-size: 12px; font-weight: 400; line-height: 16px; }
-popover.create-project-menu .flat-button:hover,
-popover.create-project-menu .flat-button:focus-visible { background: #f8f8f8; transform: none; }
-.new-project-description label { font-family: Inter; font-size: 12pt; }
-.flat-button.colour-button, .flat-button.colour-button:hover { background: #f8f8f8; }
+.dialog-card.v2-form.import-dialog { padding: 0; }
+.v2-form .import-field { min-height: 40px; padding: 0 16px; border: 0; border-radius: 12px; background: #f8f8f8; font-size: 12px; }
+.v2-form .modal-footer .tone-dark { padding: 0 10px; }

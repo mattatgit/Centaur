@@ -67,6 +67,8 @@ if [[ ${CENTAUR_GTK4_UPDATER:-0} == 1 ]]; then
 elif [[ ${CENTAUR_GTK4_PRODUCT:-0} == 1 ]]; then
     "$package/bin/centaur-gtk4-check" "$reports/embedding"
     "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
+elif [[ ${CENTAUR_GTK4_PRODUCT_ONLY:-0} == 1 ]]; then
+    "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
 else
     "$package/bin/centaur-gtk4-check" "$reports"
 fi

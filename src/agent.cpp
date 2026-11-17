@@ -338,7 +338,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
     }
     prompt = prompt.arg(QString::fromUtf8(QJsonDocument(state).toJson(QJsonDocument::Compact)), source);
     QStringList args{"-p", "--mode", "json", "--no-session", "--no-skills", "--no-rules", "--no-tools", "--no-title", "--no-extensions", "--no-lsp"};
-    const auto model = qEnvironmentVariable("CENTAUR_MODEL");
+    const auto model = m_selectedModel.isEmpty() ? qEnvironmentVariable("CENTAUR_MODEL") : m_selectedModel;
     if (!model.isEmpty()) args << "--model" << model;
     if (!imagePath.isEmpty()) args << ("@" + imagePath);
     // Large conversations/sketch geometry exceed Linux's per-argument limit.

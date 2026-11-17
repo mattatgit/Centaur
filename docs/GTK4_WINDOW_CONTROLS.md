@@ -1,5 +1,9 @@
 # GTK4 native close control
 
+> The current V2 interface integrates native window controls into its 80px
+> header. See [Centaur UI V2](GTK4_V2_UI.md); earlier titlebar details below
+> describe historical builds.
+
 The 10 November 2026 refinement uses scoped CSS in `gtk4/embedding/shell.css`.
 Centaur still lets `GtkWindow` create its normal native headerbar. The close
 button keeps GTK's `window.close` action, symbolic X, accessible identity and

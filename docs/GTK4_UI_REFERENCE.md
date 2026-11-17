@@ -1,5 +1,8 @@
 # GTK4 interface reference
 
+> **Current design:** [Centaur UI V2](GTK4_V2_UI.md) supersedes the historical
+> metrics below. The earlier entries are retained as implementation/release history.
+
 The preserved Qt frontend is the visual and interaction reference for the GTK4
 development preview. Reference source is `codex/native-prototype` at
 `3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450`, particularly `qml/Theme.qml`,

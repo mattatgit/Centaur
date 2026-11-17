@@ -13,15 +13,14 @@ def suggested_name(value):
 
 
 def show_import(owner, retry=False):
-    dialog,card=owner.dialog('Import a project',408)
-    owner.clear(card); card.add_css_class('import-dialog'); card.set_spacing(0); card.set_overflow(Gtk.Overflow.VISIBLE)
-    title=label('Import a project','import-title'); title.set_size_request(-1,36); card.append(title)
-    divider=Gtk.Separator(); divider.set_margin_top(12); card.append(divider)
+    from v2_ui import form_card
+    dialog,card,footer=form_card(owner,'Import a project')
+    owner.targets['dialog-card'].add_css_class('import-dialog'); card.set_spacing(0)
     def field(caption,widget,top=22):
-        group=box(True,6); group.set_margin_top(top)
+        group=box(True,6); group.set_margin_top(0 if caption=='Name' else top)
         cap=label(caption,'import-caption'); cap.set_size_request(-1,12); group.append(cap); group.append(widget); card.append(group)
         return group
-    name=Gtk.Entry(placeholder_text='Give the Centaur project a name',max_length=100,width_chars=1,css_classes=['import-field'])
+    name=Gtk.Entry(placeholder_text='Give the project a name',max_length=100,width_chars=1,css_classes=['import-field'])
     name.set_size_request(-1,40); field('Name',name,13)
     source_box=Gtk.Overlay(css_classes=['import-source']); source_box.set_size_request(-1,40)
     source=Gtk.Entry(placeholder_text='Choose a folder or enter a Github repo URL',width_chars=1,css_classes=['import-field','import-source-entry'])
@@ -67,6 +66,7 @@ def show_import(owner, retry=False):
     search.connect('changed',rebuild)
     def discovered(value,result):
         if not dialog.get_visible() or source.get_text().strip()!=value: return False
+        owner.import_discovery_failure=result.get('failure')
         selected['resolved']=result if result.get('ok') else None
         selected['branch']=result.get('branch') if result.get('ok') else None
         branch_button.set_sensitive(bool(result.get('ok')))
@@ -80,6 +80,7 @@ def show_import(owner, retry=False):
         lookup.start(value,remembered,lambda result:GLib.idle_add(discovered,value,result)); return False
     def suggest(*unused):
         value=source.get_text().strip(); lookup.cancel()
+        owner.import_discovery_failure=None
         if selected['pending']: GLib.source_remove(selected['pending']); selected['pending']=0
         selected['resolved']=None; selected['branch']=None; error.set_visible(False)
         if selected['folder'] and value!=selected['folder']: selected['folder']=None
@@ -112,9 +113,7 @@ def show_import(owner, retry=False):
     placeholder.set_margin_start(16); placeholder.set_margin_top(12); placeholder.set_margin_end(16); prompt_box.add_overlay(placeholder)
     prompt.get_buffer().connect('changed',lambda b:placeholder.set_visible(b.get_char_count()==0))
     field('Prompt',prompt_box)
-    divider=Gtk.Separator(); divider.set_margin_top(24); card.append(divider)
     error=label('','import-error error',True); error.set_visible(False); error.set_margin_top(8); card.append(error)
-    footer=box(spacing=8); footer.set_margin_top(15); footer.set_halign(Gtk.Align.END); card.append(footer)
     def done():
         try:
             value=source.get_text().strip()
@@ -131,7 +130,7 @@ def show_import(owner, retry=False):
             if sent: owner.dismiss_dialog(dialog)
         except (ValueError,OSError) as exc: error.set_text(str(exc)); error.set_visible(True)
     cancel=button('Cancel',lambda:owner.dismiss_dialog(dialog),tone='plain',width=69); footer.append(cancel)
-    submit=button('Import',done,tone='dark',width=80); submit.set_sensitive(False); footer.append(submit)
+    submit=button('Begin Import',done,tone='dark',width=94); submit.set_sensitive(False); footer.append(submit)
     name.connect('changed',name_changed); source.connect('changed',suggest); source.connect('activate',lambda e:done() if submit.is_sensitive() else None)
     owner.targets.update({'import-name':name,'import-source':source,'import-choose':pick,'import-prompt':prompt,'import-submit':submit,'import-cancel':cancel,
                           'import-error':error,'import-branch':branch_button,'import-branch-label':branch_caption,'import-branch-search':search,'import-branch-options':choices,'import-branch-arrow':arrow})

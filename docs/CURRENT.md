@@ -1,5 +1,11 @@
 # Current state
 
+## Native V2 interface — 17 November 2026
+
+The [approved V2 interface](GTK4_V2_UI.md) is implemented on `main`, with a recoverable pre-change tag at `checkpoint/pre-v2-ui-2026-11-17`. It uses the original Figma exports and the owner's complete SVG animation without editing their bytes. Native integrated chrome, the left chat/right canvas layout, project screenshots and menus, Create/Import/Join/Invite/Delete forms and automatic Settings saving replace the prototype presentation. Provider/model settings use supported OMP RPC and Centaur-owned preferences; existing credentials, projects, conversations, collaboration identities, Qt installation and the verified sandbox remain intact. General model terminal access stays disabled.
+
+[ARM64 NixOS UTM evidence](evidence/gtk4-v2-2026-11-17/manifest.json) records all 92 Python tests including the actual packaged sandbox, all three service suites, the six-zoom embedding regressions and the complete native product/import flow. The native test verifies Stop/recovery, actual avatar persistence, dynamic model selection, numeric autosave, collaboration, comments/drawings, conflicts/restoration and real Landline `linux-nix` commit `205fc1185335dc1c85b359af7673f6e5d7653222` with Linux source context. The normal VM resolver intermittently failed outside Centaur; the successful functional import run used a disposable Git DNS fixture with normal real-GitHub HTTPS verification. That is test infrastructure, not a product DNS repair. The unmodified normal-network path remains gated by release CI; the VM's resolver issue and hands-on acceptance stay in Centaur Install.
+
 ## Main checkpoint before the UI pass — 16 November 2026
 
 The owner selected the GTK4 direction as the project's main line. GitHub's

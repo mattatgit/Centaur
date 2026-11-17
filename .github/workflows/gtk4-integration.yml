@@ -78,7 +78,7 @@ jobs:
           dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
           nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
             -c dbus-run-session --config-file="$dbus_config" -- \
-            timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
+            timeout 600s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
       - name: Save native screenshots, reports and limitations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

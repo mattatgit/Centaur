@@ -1,6 +1,7 @@
 """Hands-on-equivalent native import flow, in disposable CI project storage."""
 import json
 import subprocess
+import time
 from pathlib import Path
 from check import until, target
 from PIL import Image
@@ -16,7 +17,19 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
         for key,text in [('import-name',name),('import-source',str(source)),('import-prompt',prompt)]:
             if text: click(state,window,key); driver.type(text)
         if str(source).startswith('https://github.com/'):
-            until(lambda:state().get('importDialog',{}).get('canImport'),'GitHub branch discovery did not enable import',timeout=110)
+            # A real DNS/transport failure must not be mistaken for a broken
+            # branch selector. Retry the same URL once through native editing,
+            # only after the helper reports a typed retryable failure.
+            for attempt in range(2):
+                until(lambda:state().get('importDialog',{}).get('canImport') or state().get('importDialog',{}).get('failure'),
+                      'GitHub branch discovery did not finish',timeout=110)
+                info=state()['importDialog']
+                if info.get('canImport'): break
+                if attempt or not (info.get('failure') or {}).get('retryable'): break
+                print('Retrying native branch discovery after '+info['failure']['category'],flush=True)
+                click(state,window,'import-source'); driver.key('ctrl+a'); driver.type(str(source))
+                until(lambda:not state().get('importDialog',{}).get('failure'),'Branch retry did not start')
+            assert state()['importDialog']['canImport'],('GitHub branch discovery did not enable import',state()['importDialog'].get('failure'))
 
     count=len(state()['projects'])
     form('Friendly imported app','https://token@github.com/owner/private')
@@ -41,11 +54,13 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
         assert pixels.getpixel((x+1,y+h//2))==(248,248,248) and pixels.getpixel((x+w-2,y+h//2))==(248,248,248),'Input edges are clipped'
     click(state,window,'import-source')
     rect=driver.rect(window); x,y,w,h=target(state,'import-submit')
+    assert [w,h]==[94,32],('Figma import action dimensions',w,h)
     driver.ipc(f"seat seat0 cursor set {round(rect['x']+x+w-2)} {round(rect['y']+y+h/2)}"); driver.seat_command('motion 0 0')
+    time.sleep(.2)
     driver.screenshot(window,folder/'ui-import-button-hover.png',focus=False)
     with Image.open(folder/'ui-import-button-hover.png') as image:
         pixels=image.convert('RGB'); x,y,w,h=map(round,target(state,'import-submit'))
-        assert pixels.getpixel((x+w-1,y+h//2))==(23,23,23),'Import button right edge is clipped'
+        assert pixels.getpixel((x+w-1,y+h//2))==(48,48,48),'Import button hover/right edge is clipped'
         assert pixels.getpixel((x+w-1,y+1))==(255,255,255),'Import button right corner lost its radius on hover'
     click(state,window,'import-submit')
     until(lambda:state().get('page')=='workspace' and state().get('project',{}).get('name')=='Friendly imported app','Import did not enter workspace immediately')
@@ -116,7 +131,8 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     until(lambda:state()['project'].get('name')=='GitHub example' and state()['project'].get('import',{}).get('status')=='awaitingAnswer','Public GitHub source import did not finish',timeout=110)
     project=state()['project']; info=project['import']
     storage=root/'projects'/project['id']/'.centaur/import'/info['storage']
-    assert (storage/'source/README').is_file() and (storage/'history.git/HEAD').is_file()
+    diagnostics=json.loads(request_record.read_text().split('PROJECT AND CONVERSATION:\n',1)[1].split('\n\nCURRENT ',1)[0]).get('importDiagnostics',{})
+    assert (storage/'source/README').is_file() and (storage/'history.git/HEAD').is_file(), {k:diagnostics.get(k) for k in ('failure','sourceAvailable')}
     assert prompt in request_record.read_text() and project['name']=='GitHub example'
     assert 'importLocal' not in project
     driver.screenshot(window,folder/'ui-import-github.png',focus=False)

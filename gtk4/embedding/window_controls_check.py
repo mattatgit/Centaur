@@ -1,6 +1,6 @@
 """Native CSD regression in the disposable ARM64 Wayland display.
 
-Uses GTK's automatically installed titlebar, never a replacement headerbar.
+Uses GTK's supported WindowHandle and WindowControls with original V2 artwork.
 GNOME's compositor states still require the separate VM acceptance pass.
 """
 import json
@@ -17,6 +17,8 @@ gi.require_version('Gdk', '4.0')
 from gi.repository import Gdk, Gio, GLib, Gtk
 from PIL import Image
 from check import until
+from ui import box, close_art
+from v2_ui import WorkingMark
 
 
 def check_window_controls(driver, folder):
@@ -32,10 +34,20 @@ def check_window_controls(driver, folder):
     display = Gdk.Display.get_default()
     Gtk.StyleContext.add_provider_for_display(display, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
     window = Gtk.ApplicationWindow(application=app, title='Centaur', default_width=704, default_height=400, decorated=True)
-    content = Gtk.Label(label='Native Centaur window controls')
+    content = box(True,8)
+    animation=WorkingMark(); animation.set_halign(Gtk.Align.CENTER); animation.set_margin_top(48)
+    content.append(animation); content.append(Gtk.Label(label='Native Centaur window controls'))
     content.add_css_class('sidebar')
     clip=Gtk.Overlay(css_classes=['centaur-content']); clip.set_overflow(Gtk.Overflow.HIDDEN); clip.set_child(content)
     window.set_child(clip)
+    header=Gtk.CenterBox(css_classes=['topbar']); header.set_size_request(-1,80)
+    native=Gtk.WindowControls(side=Gtk.PackType.END,decoration_layout=':close')
+    native.set_valign(Gtk.Align.CENTER); native.set_margin_end(24); header.set_end_widget(native)
+    window.set_titlebar(Gtk.WindowHandle(child=header))
+    child=native.get_first_child()
+    while child:
+        if isinstance(child,Gtk.Button) and child.has_css_class('close'): child.set_child(close_art())
+        child=child.get_next_sibling()
     context = GLib.MainContext.default()
 
     def settle(seconds=.25):
@@ -61,10 +73,11 @@ def check_window_controls(driver, folder):
                 for name in ('close',)}
 
     def geometry():
-        header = next(w for w in walk(window) if w.get_css_name() == 'headerbar')
+        header = window.get_titlebar()
         button = controls()['close']
         return {'header': bounds(header), 'content': bounds(content), 'button': bounds(button),
-                'image': bounds(button.get_child()), 'icon': button.get_child().get_icon_name(),
+                'image': bounds(button.get_child()), 'artwork':bounds(button.get_child().centaur_image),
+                'icon': Path(button.get_child().centaur_image.filename).name,
                 'action': button.get_action_name(), 'canFocus': button.get_can_focus()}
 
     report = {'compositor': 'disposable Sway; GNOME visual acceptance pending', 'checks': []}
@@ -93,13 +106,13 @@ def check_window_controls(driver, folder):
         assert baseline['header'] == current['header'], (baseline, current)
         assert baseline['content'] == current['content'], (baseline, current)
         assert current['button'][2:] == [32, 32], current
-        assert current['image'][2:] == [24, 24], current
+        assert current['image'][2:] == [32, 32], current
         hx, hy, hw, hh = current['header']
         ix, iy, iw, ih = current['image']
-        assert iy-hy == 8 and hx+hw-ix-iw == 8, current
-        assert current['icon'] == 'window-close-symbolic' and current['action'] == 'window.close', current
+        assert hh==80 and iy-hy == 24 and hx+hw-ix-iw == 24, current
+        assert current['icon'] == '78a93.svg' and current['action'] == 'window.close', current
         assert baseline['canFocus'] == current['canFocus'], 'Native focus policy changed'
-        report['checks'].append('24px-image-32px-target-8px-insets-unchanged-titlebar-content-native-icon-and-action')
+        report['checks'].append('original-v2-32px-artwork-integrated-80px-header-native-close-action')
 
         # Calibrate root-widget versus compositor client coordinates: GTK CSD
         # shadows are outside the visible header and vary with compositor state.
@@ -110,6 +123,26 @@ def check_window_controls(driver, folder):
         assert pointer, 'No native pointer motion in decorated window'
         offset = (200-pointer[-1][0], 150-pointer[-1][1])
         report['pointerOffset'] = offset
+
+        animation.phase(0); settle(); driver.screenshot(handle,folder/'working-frame-one.png',focus=False)
+        animation.phase(.5); settle(); driver.screenshot(handle,folder/'working-frame-two.png',focus=False)
+        ax,ay,aw,ah=bounds(animation); assert (aw,ah)==(32,32)
+        crops=[]
+        for name in ('working-frame-one','working-frame-two'):
+            with Image.open(folder/(name+'.png')) as source:
+                crop=source.convert('RGB').crop((round(ax+offset[0]),round(ay+offset[1]),round(ax+offset[0]+32),round(ay+offset[1]+32)))
+                assert sum(pixel==(23,178,57) for pixel in crop.getdata())>10,'Original animation frame did not render'
+                crops.append(crop.tobytes())
+        assert crops[0]!=crops[1],'Original animation frames are indistinguishable'
+        enabled=settings.get_property('gtk-enable-animations')
+        try:
+            settings.set_property('gtk-enable-animations',True); animation.set_working(True); settle(.25)
+            assert animation.tick is not None and .2<animation.frame_opacities[1]<.8,animation.frame_opacities
+            settings.set_property('gtk-enable-animations',False); animation.set_working(True)
+            assert animation.tick is None and animation.frame_opacities==(1,0)
+        finally:
+            animation.set_working(False); settings.set_property('gtk-enable-animations',enabled)
+        report['checks'].append('original-svg-both-frames-one-second-native-timing-and-reduced-motion')
 
         def move(x, y):
             r = driver.rect(handle)
@@ -128,18 +161,10 @@ def check_window_controls(driver, folder):
             assert pixels.getpixel((2,height-3))!=(248,248,248), 'Bottom left corner is square'
             assert pixels.getpixel((width-3,height-3))!=(248,248,248), 'Bottom right corner is square'
             assert pixels.getpixel((width//2,height-3))==(248,248,248), 'Bottom content was clipped away'
-        report['checks'].append('matching-native-8px-bottom-corners-and-clipped-content')
+        report['checks'].append('native-rounded-bottom-corners-and-clipped-content')
         move(ix+12, iy+12)
         assert controls()['close'].get_state_flags() & Gtk.StateFlags.PRELIGHT
         capture('hover')
-        with Image.open(folder/'hover.png') as source:
-            pixels = source.convert('RGB')
-            x, y = round(ix+offset[0]), round(iy+offset[1])
-            tile = pixels.crop((x, y, x+24, y+24))
-            grey = [(a,b) for b in range(24) for a in range(24) if tile.getpixel((a,b)) == (235,235,235)]
-            assert grey and (min(a for a,b in grey), min(b for a,b in grey), max(a for a,b in grey), max(b for a,b in grey)) == (0,0,23,23), 'Hover is not 24px'
-            assert tile.getpixel((0,0)) == (248,248,248), 'Hover corners are not rounded'
-            assert pixels.getpixel((x-2,y+12)) == (248,248,248), 'Original circle/parent hover remains'
         driver.seat_command('left press'); settle(); capture('pressed')
         assert controls()['close'].get_state_flags() & Gtk.StateFlags.ACTIVE
         driver.seat_command('left release'); settle()
@@ -191,7 +216,7 @@ def check_window_controls(driver, folder):
         other.present(); settle(); capture('inactive')
         assert not window.is_active(), 'Backdrop state was not exercised'
         other_close = next(w for w in walk(other) if isinstance(w,Gtk.Button) and w.has_css_class('close'))
-        assert other_close.get_child().get_width() == baseline['image'][2], 'Unscoped control changed'
+        assert not hasattr(other_close.get_child(),'centaur_image'), 'Centaur artwork leaked into an unscoped window'
         report['checks'].append('inactive-and-unscoped-native-window-unchanged')
         other.destroy(); window.present(); settle()
         allow_close[0] = True

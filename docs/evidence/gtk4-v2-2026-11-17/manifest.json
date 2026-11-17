@@ -1,0 +1,48 @@
+{
+  "date": "2026-11-17",
+  "environment": "ARM64 NixOS under UTM; private Wayland/Sway display and disposable profiles",
+  "baseline": "cd45de767d0aba11991424555ca57e6c45c462fd",
+  "recoverableCheckpoint": "checkpoint/pre-v2-ui-2026-11-17",
+  "sourceArchiveSHA256": "c203c4ed219a8ce7082f65746486240f22c32aec92fb2e321142bb9e99ee455e",
+  "nativeChecks": 24,
+  "pythonTests": {
+    "count": 92,
+    "passed": 92,
+    "skipped": 0,
+    "includesActualPackagedSandbox": true
+  },
+  "serviceSuites": {
+    "core": "passed",
+    "network": "passed",
+    "iroh": "passed",
+    "serviceInputsUnchangedSinceFull4": true
+  },
+  "originalAssets": 64,
+  "suppliedAnimationSHA256": "b976ac19686b3c3c59d29291fb9a9a1bf7b43f74464270d6cbb2c3c68234f78c",
+  "ownerDataAndConfigurationChanged": false,
+  "generalModelTerminalEnabled": false,
+  "productionApproved": false,
+  "handsOnAcceptance": "Centaur Install (Installer chat)",
+  "networkLimit": {
+    "normalVmResolver": "Intermittent github.com DNS failures reproduced in Git, curl and getent outside Centaur",
+    "failureHandling": "Typed DNS failure, bounded retries, import disabled without verified source",
+    "successfulFunctionalRun": "Disposable XDG Git configuration used a current router DNS answer; real GitHub HTTPS hostname/certificate verification and actual branch/commit/source assertions retained",
+    "productOrOwnerDnsConfigurationChanged": false
+  },
+  "files": {
+    "import-provenance.json": "eb869a502f6a5dc764dcd01a9bb86424c08009f5ae08cf20e181f75f63e9376e",
+    "native-chrome-animation.json": "26510b0b868a0ec7bed7e1b9c60f5c646270c80a477812afefcf25e45a3a7dd8",
+    "ui-agent-working.png": "44d327ac82adabb3b41db14724c21b6616cb1db878081a49a34100169216911b",
+    "ui-settings-avatar-uploaded.png": "f393f0ae7722d8dd84c35a8efa9431ad99a8c6c3ef550856bc60aa91480ee096",
+    "ui-project-cards.png": "6e4a3c4234d1873ea77e01d456bf09cd9eb59530c0a99364ed8f210c8a403304",
+    "ui-settings.png": "b77faba89c9522b8768a60683611edb631213ca8b152f794667921219a123be3",
+    "tested-source-sha256.json": "5b22846f92a0321cb6e0337f4fa99fc7f986faa9dfe2a314f863da8fbc851cf7",
+    "ui-new-project.png": "68b72fceb91dc00023bfca17d6868d00dbc549c72784c0c369892288a1dc11bc",
+    "embedding-summary.json": "c5a18e1ec7f2ae20d916a42c9db700c94221fb3b895b4b03fa2e050da422a7d4",
+    "ui-projects-empty.png": "8be7e5d8acfa3e5a46256d810951168b8daeeab1481e6ba6e1393a7fb1ce845f",
+    "native-summary.json": "99e43818348fdf5dae88cc005653cbd7a6e584cedb00d5985c498a83f35bac40",
+    "gtk4-workspace.png": "f699721a6bcd22433d9840a8b070398ae19aa159d92daff5c5ad93b1506e1ba9",
+    "ui-delete-confirmation.png": "440836d7c11871766e09c0798bf048cc9035ca840efd54770bb1efbee26a35b3",
+    "ui-import-branch-selected.png": "79257ddae6640cb960662a081b82ee2d3ffa64413febc845ab9908e27ea415b3"
+  }
+}

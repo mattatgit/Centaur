@@ -47,6 +47,10 @@ public:
     QString projectId() const { return m_projectId; }
     QString author() const;
     void setAuthor(const QString &author);
+    bool setAgentDefaults(const QJsonObject &settings);
+    QString defaultAgentName() const { return m_preferences.value("agent/name", "centaur").toString(); }
+    QString selectedModel() const { return m_preferences.value("agent/model").toString(); }
+    bool preferencesSaved() const { return m_preferences.status() == QSettings::NoError; }
     bool agentAvailable() const;
     QString agentModel() const { return project().value("agentModel").toString(); }
     bool agentBusy() const;
@@ -101,6 +105,7 @@ public:
     Q_INVOKABLE void undoAnnotation();
     Q_INVOKABLE void acceptProposal();
     Q_INVOKABLE void renameAgent(const QString &name);
+    void renameProjectAgent(const QString &id, const QString &name);
     Q_INVOKABLE void cancelAgent();
     Q_INVOKABLE void startPreview();
     Q_INVOKABLE void stopPreview();

@@ -408,6 +408,65 @@ private slots:
         reopened.setGridOpacity(101); QCOMPARE(reopened.gridOpacity(), 100);
         reopened.setGridColor(QColor()); QCOMPARE(reopened.gridColor(), QColor("#aabbcc"));
     }
+    void gtkAgentDefaultsPersistWithoutChangingOmpConfiguration() {
+        QTemporaryDir dir;
+        Controller controller(dir.path());
+        QVERIFY(controller.setAgentDefaults({{"agentName", "atlas"}, {"model", "fixture/model-from-live-catalog"}}));
+        QVERIFY(controller.preferencesSaved());
+        Controller reopened(dir.path());
+        QCOMPARE(reopened.defaultAgentName(), QString("atlas"));
+        QCOMPARE(reopened.selectedModel(), QString("fixture/model-from-live-catalog"));
+        QVERIFY(!reopened.setAgentDefaults({{"agentName", "two names"}, {"model", "must-not-change"}}));
+        QCOMPARE(reopened.selectedModel(), QString("fixture/model-from-live-catalog"));
+        Workspace workspace(dir.path()); QString error;
+        const auto id=workspace.createProject("Configured agent", "", &error, "gtk4-v1");
+        QVERIFY2(!id.isEmpty(), qPrintable(error));
+        QCOMPARE(workspace.load(id)["agentName"].toString(), QString("atlas"));
+        QCOMPARE(workspace.projects().first().toMap()["appFormat"].toString(), QString("gtk4-v1"));
+        QTemporaryDir broken;
+        QVERIFY(QDir().mkpath(broken.path()+"/preferences.ini"));
+        Controller unwritable(broken.path());
+        QVERIFY(!unwritable.setAgentDefaults({{"agentName", "cannot-save"}}));
+        QVERIFY(!unwritable.preferencesSaved());
+    }
+    void gtkModelSelectionReachesTheExistingHostWithoutRestart() {
+        QTemporaryDir dir;
+        const auto agentPath=dir.path()+"/agent";
+        const auto arguments=dir.path()+"/arguments";
+        const auto setup=("printf '%s\\n' \"$@\" > '"+arguments+"'\n").toUtf8();
+        QVERIFY(writeAgentReply(agentPath, {{"kind","question"},{"message","Using the selected model."}},setup));
+        AgentOverride override(agentPath);
+        Controller host(dir.path()); host.start(); host.setAuthor("Matt");
+        host.createGtkProject("Model preference", "");
+        QVERIFY(!host.projectId().isEmpty());
+        QVERIFY(host.setAgentDefaults({{"model","fixture/first"}}));
+        QVERIFY(host.sendMessage("@centaur First request"));
+        QTRY_VERIFY(QFileInfo::exists(arguments));
+        QTRY_VERIFY(!host.agentBusy());
+        QFile first(arguments); QVERIFY(first.open(QIODevice::ReadOnly));
+        QVERIFY(first.readAll().contains("--model\nfixture/first\n")); first.close();
+        QVERIFY(QFile::remove(arguments));
+        QVERIFY(host.setAgentDefaults({{"model","fixture/second"}}));
+        QVERIFY(host.sendMessage("@centaur Second request"));
+        QTRY_VERIFY(QFileInfo::exists(arguments));
+        QTRY_VERIFY(!host.agentBusy());
+        QFile second(arguments); QVERIFY(second.open(QIODevice::ReadOnly));
+        const auto args=second.readAll();
+        QVERIFY(args.contains("--model\nfixture/second\n"));
+        QVERIFY(args.contains("--no-tools\n") && args.contains("--no-extensions\n"));
+    }
+    void agentNameEditsKeepTheirOriginalProjectAfterNavigation() {
+        QTemporaryDir dir;
+        Controller host(dir.path()); host.start(); host.setAuthor("Matt");
+        host.createGtkProject("Original project", ""); const auto original=host.projectId();
+        host.createGtkProject("Next project", ""); const auto next=host.projectId();
+        QVERIFY(!original.isEmpty() && !next.isEmpty() && original!=next);
+        host.renameProjectAgent(original,"atlas");
+        Workspace workspace(dir.path());
+        QTRY_COMPARE(workspace.load(original)["agentName"].toString(),QString("atlas"));
+        QCOMPARE(workspace.load(next)["agentName"].toString(),QString("centaur"));
+        QCOMPARE(host.projectId(),next);
+    }
     void gridAndOriginalSvgDoNotInterceptInput() {
         DesignGrid grid;
         grid.setSize(QSizeF(24, 24)); grid.setOrigin(QPointF(3, 5));

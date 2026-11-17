@@ -13,6 +13,7 @@ def command(*args):
 class Driver:
     def __init__(self):
         self.wayland = os.environ.get('CENTAUR_GTK4_TEST_BACKEND') == 'wayland'
+        self.native={}; self.offsets={}
 
     def nodes(self):
         def walk(node):
@@ -36,7 +37,28 @@ class Driver:
         assert all(r.get('success') for r in result), result
 
     def rect(self, window):
+        rect=dict(self.raw_rect(window))
+        if window in self.native:
+            state=self.native[window](); x,y=self.offsets[window]
+            rect.update(x=round(rect['x']+x),y=round(rect['y']+y),width=state['windowSize'][0],height=state['windowSize'][1])
+        return rect
+
+    def raw_rect(self,window):
         return next(n['rect'] for n in self.nodes() if n['id'] == window)
+
+    def track_native(self,window,state):
+        """Calibrate real CSD widget coordinates using observed native input.
+
+        GTK/compositor shadows differ by state; do not hardcode an inset or
+        disable production decorations merely to make UI tests pass.
+        """
+        from check import until
+        rect=self.raw_rect(window); previous=state().get('nativePointerSerial',0)
+        self.ipc(f'[con_id={window}] focus')
+        self.ipc(f"seat seat0 cursor set {rect['x']+200} {rect['y']+150}")
+        self.seat_command('motion 1 1')
+        until(lambda:state().get('nativePointerSerial',0)>previous,'Native pointer calibration did not arrive')
+        x,y=state()['nativePointer']; self.offsets[window]=(201-x,151-y); self.native[window]=state
 
     def click(self, window, x, y):
         if self.wayland:
@@ -118,6 +140,9 @@ class Driver:
 
     def resize(self, window, width, height):
         if self.wayland:
+            if window in self.native:
+                state=self.native[window](); rect=self.raw_rect(window)
+                width+=rect['width']-state['windowSize'][0]; height+=rect['height']-state['windowSize'][1]
             self.ipc(f'[con_id={window}] resize set width {width} px height {height} px')
         else:
             command('xdotool', 'windowsize', window, str(width), str(height))

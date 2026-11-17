@@ -13,12 +13,12 @@ gi.require_version('Rsvg', '2.0')
 gi.require_version('Graphene', '1.0')
 gi.require_version('Gsk', '4.0')
 gi.require_foreign('cairo')
-from gi.repository import Gdk, Graphene, Gsk, Gtk, Pango, Rsvg
+from gi.repository import Gdk, GLib, GObject, Graphene, Gsk, Gtk, Pango, Rsvg
 
 ASSETS = Path(os.environ.get('CENTAUR_GTK_ASSETS', Path(__file__).parent / 'assets'))
 SIDEBAR, COMPACT_SIDEBAR, HEADER = 216, 72, 80
 CHAT_WIDTH, CHAT_MIN, CHAT_MAX = 432, 368, 624
-TILE_HEIGHT, TILE_GAP, TILE_MIN = 256, 32, 264
+TILE_HEIGHT, TILE_GAP, TILE_MIN = 280, 32, 280
 
 
 def grid(value):
@@ -79,6 +79,55 @@ class Svg(Gtk.DrawingArea):
         cr.mask(mask)
 
 
+class OriginalSvg(Svg):
+    """Render a supplied Figma export without changing its paths or colours."""
+    def draw(self, area, cr, width, height):
+        rect = Rsvg.Rectangle(); rect.x = rect.y = 0
+        rect.width = width; rect.height = height if self.art_height is None else self.art_height
+        if hasattr(self,'art_rect'): rect.x,rect.y,rect.width,rect.height=self.art_rect
+        self.handles[self.filename].render_document(cr, rect)
+
+
+def original(filename, size=16):
+    return OriginalSvg('v2/' + filename, size)
+
+
+def close_art():
+    tile=Gtk.Overlay(css_classes=['window-close-art']); tile.set_size_request(32,32); tile.set_child(box())
+    mark=original('78a93.svg',16); mark.art_rect=(3,3,10.4855,10.4855)
+    tile.add_overlay(mark); tile.centaur_image=mark; tile.set_can_target(False)
+    return tile
+
+
+def send_art():
+    mark=original('0bc46.svg',16); mark.art_rect=(2.839,4.24802,10.682,7.86396)
+    mark.add_css_class('send-arrow'); return mark
+
+
+class Raster(Gtk.Widget):
+    """An original image in a measured slot, independent of PNG pixel size."""
+    def __init__(self,filename,size,cover=False):
+        super().__init__()
+        self.filename=str(filename); self.texture=Gdk.Texture.new_from_filename(self.filename); self.size=size; self.cover=cover
+        self.set_can_target(False)
+
+    def do_measure(self,orientation,for_size): return (self.size,self.size,-1,-1)
+
+    def do_snapshot(self,snapshot):
+        width,height=self.get_width(),self.get_height()
+        iw,ih=self.texture.get_width(),self.texture.get_height()
+        scale=(max if self.cover else min)(width/iw,height/ih)
+        snapshot.push_clip(Graphene.Rect().init(0,0,width,height))
+        snapshot.append_texture(self.texture,Graphene.Rect().init((width-iw*scale)/2,(height-ih*scale)/2,iw*scale,ih*scale))
+        snapshot.pop()
+
+
+def picture(filename, size, css=None, cover=False):
+    widget=Raster(filename,size,cover)
+    if css: widget.add_css_class(css)
+    return widget
+
+
 def selected(widget, value):
     (widget.add_css_class if value else widget.remove_css_class)('selected')
     if isinstance(widget, Gtk.ToggleButton): widget.set_active(value)
@@ -93,7 +142,7 @@ def button(text, callback, icon=None, css=None, *, tone='soft', width=None, heig
     row = box(spacing=8); row.set_halign(Gtk.Align.CENTER); row.set_valign(Gtk.Align.CENTER)
     widget.centaur_label = label(text, 'button-label')
     if icon:
-        image = Svg(icon, icon_size)
+        image = OriginalSvg(icon, icon_size) if icon.startswith('v2/') else Svg(icon, icon_size)
         row.append(image); widget.centaur_image = image; widget.centaur_icon = icon
         widget.connect('state-flags-changed', lambda b, previous: image.queue_draw())
     if text: row.append(widget.centaur_label)
@@ -107,6 +156,52 @@ def button(text, callback, icon=None, css=None, *, tone='soft', width=None, heig
 
 def button_text(widget, text):
     widget.centaur_label.set_text(text)
+
+
+class ZoomMenu(Gtk.MenuButton):
+    """Compact native zoom selector with the supplied arrow and selection tick."""
+    selected=GObject.Property(type=int,default=2,minimum=0,maximum=5)
+
+    def __init__(self,values):
+        super().__init__(css_classes=['zoom']); self.values=tuple(values); self.focus_index=2
+        self.set_size_request(72,24); self.set_tooltip_text('Preview zoom')
+        row=box(spacing=8); row.set_margin_start(8)
+        self.caption=label(values[2],'small'); self.caption.set_size_request(32,24)
+        self.caption.set_max_width_chars(4); self.caption.set_ellipsize(Pango.EllipsizeMode.END)
+        row.append(self.caption); row.append(original('9e2c5.svg',24)); self.set_child(row)
+        self.pop=Gtk.Popover(has_arrow=False,css_classes=['zoom-menu']); self.pop.set_halign(Gtk.Align.END); self.set_popover(self.pop)
+        items=box(True,0); self.pop.set_child(items); self.options=[]; self.ticks=[]
+        for index,value in enumerate(values):
+            action=Gtk.Button(css_classes=['zoom-option']); action.set_size_request(72,24)
+            content=Gtk.Overlay(); content.set_child(label(value,'small')); content.get_child().set_margin_start(8)
+            tick=original('5f184.svg',24); tick.set_halign(Gtk.Align.END); content.add_overlay(tick); self.ticks.append(tick)
+            action.set_child(content); action.connect('clicked',lambda b,i=index:self.choose(i)); items.append(action); self.options.append(action)
+        self.connect('notify::selected',lambda *unused:self.sync())
+        self.pop.connect('notify::visible',self.opened)
+        key=Gtk.EventControllerKey(propagation_phase=Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.key); self.pop.add_controller(key)
+        self.sync()
+
+    def get_selected(self): return self.props.selected
+    def set_selected(self,index): self.props.selected=max(0,min(5,int(index)))
+
+    def sync(self):
+        self.caption.set_text(self.values[self.get_selected()])
+        for index,tick in enumerate(self.ticks): tick.set_visible(index==self.get_selected())
+
+    def choose(self,index): self.set_selected(index); self.pop.popdown(); self.grab_focus()
+
+    def opened(self,*unused):
+        if self.pop.get_visible():
+            self.focus_index=self.get_selected(); GLib.idle_add(lambda:self.options[self.focus_index].grab_focus() and False)
+
+    def key(self,controller,keyval,keycode,state):
+        if keyval==Gdk.KEY_Home: self.focus_index=0
+        elif keyval==Gdk.KEY_End: self.focus_index=5
+        elif keyval in (Gdk.KEY_Down,Gdk.KEY_Up): self.focus_index=(self.focus_index+(1 if keyval==Gdk.KEY_Down else -1))%6
+        elif keyval in (Gdk.KEY_Return,Gdk.KEY_KP_Enter): self.choose(self.focus_index); return True
+        elif keyval==Gdk.KEY_Escape: self.pop.popdown(); return True
+        else: return False
+        self.options[self.focus_index].grab_focus(); return True
 
 
 def allocate(widget, width, height, x=0, y=0):
@@ -142,7 +237,7 @@ class ProjectGrid(Gtk.Widget):
 
     def do_size_allocate(self, width, height, baseline):
         count = columns(width)
-        card_width = max(8, math.floor((width - (count - 1) * TILE_GAP) / count / 8) * 8)
+        card_width = min(320, max(8, math.floor((width - (count - 1) * TILE_GAP) / count / 8) * 8))
         for index, card in enumerate(self.cards):
             allocate(card, card_width, TILE_HEIGHT, (index % count) * (card_width + TILE_GAP), (index // count) * (TILE_HEIGHT + TILE_GAP))
 
@@ -184,11 +279,11 @@ class Composer(Gtk.Widget):
         layout = self.editor.create_pango_layout(text or ' ')
         layout.set_width(max(1, (for_size if for_size >= 0 else 384) - 32) * Pango.SCALE)
         layout.set_wrap(Pango.WrapMode.WORD_CHAR)
-        height = min(184, max(104, math.ceil((layout.get_pixel_size()[1] + 64) / 8) * 8))
-        # The editor scrolls, so its minimum remains 104 even when the natural
+        height = min(184, max(128, math.ceil((layout.get_pixel_size()[1] + 64) / 8) * 8))
+        # The editor scrolls, so its minimum remains 128 even when the natural
         # text height grows. Claiming both as the minimum violates GTK's
         # height-for-width contract during typing/resizing.
-        return (104, height, -1, -1)
+        return (128, height, -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
         allocate(self.area, width - 32, height - 56, 16, 16)
@@ -246,6 +341,7 @@ class Modal:
         self.content=child
         self.limit=WidthLimit(child,self.width,centred=True); self.limit.set_valign(Gtk.Align.CENTER)
         self.limit.set_margin_start(16); self.limit.set_margin_end(16)
+        self.limit.set_margin_bottom(HEADER)
         self.root.add_overlay(self.limit)
 
     def key(self, controller, keyval, keycode, state):
@@ -269,6 +365,8 @@ class Modal:
 
     def present(self):
         self.owner.root_overlay.get_child().set_can_target(False)
+        self.owner.top.set_sensitive(False)
+        self.owner.top.add_css_class('modal-open')
         self.root.set_visible(True); self.content.child_focus(Gtk.DirectionType.TAB_FORWARD)
 
     def destroy(self):
@@ -277,6 +375,8 @@ class Modal:
         self.closed=True; self.root.set_visible(False); self.limit.release()
         self.owner.root_overlay.remove_overlay(self.root)
         self.owner.root_overlay.get_child().set_can_target(True)
+        self.owner.top.set_sensitive(True)
+        self.owner.top.remove_css_class('modal-open')
         if self.previous_focus and self.previous_focus.get_mapped(): self.previous_focus.grab_focus()
 
     def get_visible(self): return self.root.get_visible() and not self.closed

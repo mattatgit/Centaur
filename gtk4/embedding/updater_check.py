@@ -74,7 +74,8 @@ def maintenance(folder,env):
 def main():
     previous=Path(sys.argv[1]).resolve(); manifest=read(Path(sys.argv[2])); folder=Path(sys.argv[3]).resolve()
     folder.mkdir(parents=True,exist_ok=False)
-    driver=Driver(); home=folder/'home'; home.mkdir()
+    driver=Driver(); driver.ipc('output HEADLESS-1 mode 1920x1200')
+    home=folder/'home'; home.mkdir()
     env=dict(os.environ,HOME=str(home),XDG_STATE_HOME=str(home/'.local/state'),
              XDG_DATA_HOME=str(home/'.local/share'),XDG_CONFIG_HOME=str(home/'.config'))
     # The real updater is production code. Only the old CI fixture's generated
@@ -112,6 +113,9 @@ def main():
                 assert image.size==(size,size) and image.mode=='RGBA'
         summary['checks'].append('desktop-id-and-color-symbolic-icons-user-registration-renderer-preservation')
         window=driver.find_window('org.centaur.Gtk4',process.pid)
+        driver.track_native(window,state); driver.resize(window,1440,1024)
+        until(lambda:state().get('windowSize')==[1440,1024],'Update fixture did not allocate its native window')
+        driver.ipc(f'[con_id={window}] move position 0 px 0 px')
         def click(name):
             if name in ('create','join'): click('project-menu')
             x,y,w,h=target(state,name)
@@ -131,6 +135,8 @@ def main():
         until(lambda:control.data.get('invitation'),'Fixture collaboration identity was not created')
         time.sleep(.2); control.close(); control=None
         auth=home/'.config/omp/auth.json'; auth.parent.mkdir(parents=True,exist_ok=True); auth.write_text('opaque-test-credentials')
+        avatar=data/'profile-avatar'; Image.new('RGB',(80,80),(64,128,192)).save(avatar,format='PNG')
+        avatar_bytes=avatar.read_bytes()
         before={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file() and p.suffix in ('.json','.ini','.jsonl','.key','.pem')}
         # Availability must reach the workspace without visiting Settings.
         until(lambda:state().get('updater',{}).get('available'),'Background update check did not detect the published version')
@@ -194,7 +200,9 @@ def main():
         for name,content in before.items(): assert (data/name).read_bytes()==content,'Updater modified project/configuration '+name
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
         assert auth.read_text()=='opaque-test-credentials','Updater changed existing OMP credentials'
-        new_window=driver.find_window('org.centaur.Gtk4',new_pid); driver.screenshot(new_window,folder/'updated-app.png')
+        assert avatar.read_bytes()==avatar_bytes,'Updater changed the saved avatar'
+        new_window=driver.find_window('org.centaur.Gtk4',new_pid)
+        driver.track_native(new_window,state); driver.screenshot(new_window,folder/'updated-app.png')
         until(lambda:state()['updater']['footerLabel']=='v'+state()['updater']['version'],'Restart did not restore installed version')
         x,y,w,h=target(state,'update-version'); driver.click(new_window,round(x+w/2),round(y+h/2))
         until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')

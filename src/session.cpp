@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QThread>
 #include <QPointer>
+#include <QSettings>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 static QString runner(bool gtk = false) {
@@ -668,6 +669,11 @@ void Session::nextRequest() {
         request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
         const bool pendingImport=!state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool();
+        // Select through OMP's supported --model option. Centaur's choice is
+        // persisted in its own preferences; OMP credentials/config stay owned
+        // by OMP. Read per request so an already-running host sees UI changes.
+        const QSettings preferences(m_workspace.root() + "/preferences.ini", QSettings::IniFormat);
+        m_agent.setModel(preferences.value("agent/model").toString());
         m_agent.ask(m_workspace.projectPath(id), request, pendingImport ? QString() : m_workspace.source(id), image);
         publish(id); return;
     }
