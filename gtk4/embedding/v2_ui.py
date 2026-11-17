@@ -8,8 +8,15 @@ class WorkingMark(Gtk.DrawingArea):
         super().__init__(content_width=32,content_height=32,halign=Gtk.Align.START,valign=Gtk.Align.CENTER)
         self.filename=str(ASSETS/'v2/centaur_wait_animation.svg')
         self.handle=Rsvg.Handle.new_from_file(self.filename); self.tick=None
+        self.working=False; self.settings=Gtk.Settings.get_default(); self.settings_handler=None
+        # Since GTK 4.22 reduced motion is a separate accessibility preference.
+        # GNOME can disable toolkit transitions on virtual/slow displays while
+        # leaving that preference at NO_PREFERENCE. Do not mistake that
+        # performance policy for a request to suppress this activity indicator.
+        self.motion_property=('gtk-interface-reduced-motion' if self.settings.find_property('gtk-interface-reduced-motion') else 'gtk-enable-animations')
         self.add_css_class('working-mark')
         self.set_can_target(False); self.set_draw_func(self.draw); self.phase(0)
+        self.connect('map',self.mapped); self.connect('unmap',self.unmapped)
 
     def phase(self,phase):
         # librsvg draws the unchanged original document. Its static renderer
@@ -25,11 +32,26 @@ class WorkingMark(Gtk.DrawingArea):
         self.handle.render_document(cr,rect)
 
     def set_working(self,working):
-        animated=working and Gtk.Settings.get_default().get_property('gtk-enable-animations')
+        self.working=bool(working); self.sync_animation()
+
+    def mapped(self,*unused):
+        self.settings_handler=self.settings.connect('notify::'+self.motion_property,lambda *_:self.sync_animation())
+        self.sync_animation()
+
+    def unmapped(self,*unused):
+        if self.settings_handler is not None:
+            self.settings.disconnect(self.settings_handler); self.settings_handler=None
+        self.sync_animation()
+
+    def sync_animation(self):
+        preference=self.settings.get_property(self.motion_property)
+        reduced=(preference==Gtk.ReducedMotion.REDUCE if self.motion_property=='gtk-interface-reduced-motion' else not preference)
+        animated=self.working and self.get_mapped() and not reduced
         if animated and self.tick is None:
             self.epoch=GLib.get_monotonic_time(); self.tick=self.add_tick_callback(self.animate)
-        elif not animated and self.tick is not None:
-            self.remove_tick_callback(self.tick); self.tick=None; self.phase(0)
+        elif not animated:
+            if self.tick is not None: self.remove_tick_callback(self.tick); self.tick=None
+            if self.frame_opacities!=(1,0): self.phase(0)
 
     def animate(self,widget,clock):
         self.phase(((clock.get_frame_time()-self.epoch)%1000000)/1000000)

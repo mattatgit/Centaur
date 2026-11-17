@@ -36,7 +36,7 @@ class Host(Gtk.Application):
         toolbar.append(Gtk.Label(label='GTK4 embedding experiment', hexpand=True, xalign=0))
         self.zoom = Gtk.DropDown.new_from_strings(ZOOM_MODES)
         self.zoom.set_selected(2)
-        self.zoom.set_tooltip_text('Canvas zoom; app dimensions stay fixed. Middle-drag to pan oversized previews.')
+        self.zoom.update_property([Gtk.AccessibleProperty.LABEL,Gtk.AccessibleProperty.DESCRIPTION],['Canvas zoom','App dimensions stay fixed. Middle-drag to pan oversized previews.'])
         self.zoom.connect('notify::selected', lambda control, prop: self.canvas.set_zoom(ZOOM_MODES[control.get_selected()]))
         toolbar.append(self.zoom)
         centre = Gtk.Button(label='Centre')

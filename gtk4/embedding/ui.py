@@ -134,6 +134,15 @@ def selected(widget, value):
     if hasattr(widget, 'centaur_image'): widget.centaur_image.queue_draw()
 
 
+def accessible(widget, name, description=None):
+    """Expose control semantics without a native pointer tooltip."""
+    widget.update_property([Gtk.AccessibleProperty.LABEL],[name])
+    if description is not None:
+        widget.update_property([Gtk.AccessibleProperty.DESCRIPTION],[description])
+    widget.set_has_tooltip(False)
+    return widget
+
+
 def button(text, callback, icon=None, css=None, *, tone='soft', width=None, height=32, icon_size=16, toggle=False):
     widget = Gtk.ToggleButton() if toggle else Gtk.Button()
     widget.add_css_class('flat-button'); widget.add_css_class('tone-' + tone)
@@ -149,13 +158,14 @@ def button(text, callback, icon=None, css=None, *, tone='soft', width=None, heig
     else: widget.add_css_class('icon-only')
     widget.set_child(row)
     widget.set_size_request(width if width is not None else -1, height)
-    widget.set_tooltip_text(text or 'Project options')
+    accessible(widget,text or 'Project options')
     widget.connect('clicked', lambda b: callback())
     return widget
 
 
 def button_text(widget, text):
     widget.centaur_label.set_text(text)
+    accessible(widget,text)
 
 
 class ZoomMenu(Gtk.MenuButton):
@@ -164,7 +174,7 @@ class ZoomMenu(Gtk.MenuButton):
 
     def __init__(self,values):
         super().__init__(css_classes=['zoom']); self.values=tuple(values); self.focus_index=2
-        self.set_size_request(72,24); self.set_tooltip_text('Preview zoom')
+        self.set_size_request(72,24); accessible(self,'Preview zoom')
         row=box(spacing=8); row.set_margin_start(8)
         self.caption=label(values[2],'small'); self.caption.set_size_request(32,24)
         self.caption.set_max_width_chars(4); self.caption.set_ellipsize(Pango.EllipsizeMode.END)

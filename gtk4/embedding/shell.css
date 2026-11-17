@@ -152,14 +152,18 @@ scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8
 .provider-card .provider-label { font-weight: 500; }
 .provider-action .button-label { font-weight: 500; }
 .provider-card dropdown > button { min-height: 32px; background: transparent; }
-.provider-card .provider-action { min-height: 32px; padding: 0 8px; }
+.provider-card .provider-action { min-height: 32px; padding: 0 10px; border-radius: 8px; background: transparent; color: #323232; }
+.provider-card .provider-action:hover, .provider-card .provider-action:focus-visible { background: #ebebeb; color: #171717; }
+.provider-card.connected .provider-action:hover, .provider-card.connected .provider-action:focus-visible { background: #e0f2ee; }
+.provider-card .provider-model > button { min-height: 32px; padding: 0 8px 0 16px; border-radius: 8px; background: transparent; color: #323232; }
+.provider-card.connected .provider-model > button:hover, .provider-card.connected .provider-model > button:focus-visible { background: #e0f2ee; color: #171717; }
 .provider-dot { transform: translate(2px,-2px); }
 .provider-arrow { transform: scaleY(-1); }
 .flat-button.settings-refresh { min-height: 24px; }
 .settings-folder-row { background: #f8f8f8; border-radius: 12px; padding: 0 8px 0 16px; min-height: 48px; }
 .colour-button .button-label { font-weight: 500; }
-.provider-card:not(.connected) .provider-action { opacity: 0; background: #171717; color: white; }
-.provider-card:hover .provider-action, .provider-card:focus-within .provider-action { opacity: 1; }
+.provider-card:not(.connected) .provider-action .button-label { opacity: 0; }
+.provider-card:hover .provider-action .button-label, .provider-card:focus-within .provider-action .button-label { opacity: 1; }
 .saved-status { background: #f1faf8; color: #17b239; border-radius: 8px; padding: 0 8px; min-height: 32px; }
 .saved-status.pending { background: transparent; color: #9ea39e; }
 .saved-status.failed { background: #fff0ed; color: #ad3232; }

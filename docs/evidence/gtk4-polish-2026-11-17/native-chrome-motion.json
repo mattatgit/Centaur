@@ -1,0 +1,196 @@
+{
+  "compositor": "disposable Sway; GNOME visual acceptance pending",
+  "checks": [
+    "original-v2-32px-artwork-integrated-80px-header-native-close-action",
+    "original-svg-visible-clock-driven-frames-one-second-loop-reduced-motion-and-map-idle-transitions",
+    "native-rounded-bottom-corners-and-clipped-content",
+    "native-pointer-hover-pressed-and-no-underlying-circular-fill",
+    "eight-outer-target-points-activate-native-close",
+    "disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible",
+    "native-titlebar-drag-compositor-resize-tile-fullscreen-and-restore",
+    "inactive-and-unscoped-native-window-unchanged",
+    "native-close-destroys-window"
+  ],
+  "baseline": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "styled": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "pointerOffset": [
+    0.0,
+    0.0
+  ],
+  "clockPlayback": [
+    {
+      "seconds": 0.143,
+      "opacities": [
+        0.80019,
+        0.19981
+      ]
+    },
+    {
+      "seconds": 0.295,
+      "opacities": [
+        0.50778,
+        0.49222
+      ]
+    },
+    {
+      "seconds": 0.45,
+      "opacities": [
+        0.18558600000000003,
+        0.814414
+      ]
+    },
+    {
+      "seconds": 0.601,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.758,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.909,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.059,
+      "opacities": [
+        0.978538,
+        0.021462
+      ]
+    },
+    {
+      "seconds": 1.205,
+      "opacities": [
+        0.68241,
+        0.31759
+      ]
+    },
+    {
+      "seconds": 1.348,
+      "opacities": [
+        0.394586,
+        0.605414
+      ]
+    },
+    {
+      "seconds": 1.506,
+      "opacities": [
+        0.09982999999999997,
+        0.90017
+      ]
+    },
+    {
+      "seconds": 1.657,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.791,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.947,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 2.105,
+      "opacities": [
+        0.894996,
+        0.105004
+      ]
+    },
+    {
+      "seconds": 2.258,
+      "opacities": [
+        0.589364,
+        0.410636
+      ]
+    }
+  ],
+  "tiledState": 21952
+}

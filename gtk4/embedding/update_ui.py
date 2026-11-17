@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from gi.repository import GLib, Gtk
-from ui import box,button,button_text,label
+from ui import box,button,button_text,label,accessible
 from updater import (check_update,process_identity,profile_path,read_json,state_path,write_json)
 from download_progress import progress_message
 
@@ -40,7 +40,7 @@ class UpdateControls:
         owner=self.owner
         self.footer_button=Gtk.Button(css_classes=['update-version'],height_request=24,valign=Gtk.Align.CENTER)
         self.footer_button.set_cursor_from_name('pointer')
-        self.footer_button.set_tooltip_text('Update app · v'+owner.version())
+        accessible(self.footer_button,'Update app · v'+owner.version())
         row=box(spacing=8)
         # Reserve the largest caption's space, but paint only the natural-width
         # START-aligned label. The hit target and right-hand status never move.
@@ -101,8 +101,8 @@ class UpdateControls:
         self.badge.set_visible(bool(self.manifest) and not busy)
         message=self.status.get_text() if self.checking or busy or self.footer_feedback else ''
         if not message and time.monotonic()<self.footer_notice_until: message='Up to date'
-        self.footer_status.set_text(message); self.footer_status.set_tooltip_text(message or None)
-        self.footer_button.set_tooltip_text(('Update available · ' if self.manifest else 'Update app · ')+ 'v'+self.owner.version())
+        self.footer_status.set_text(message); accessible(self.footer_status,'Update status',message or '')
+        accessible(self.footer_button,('Update available · ' if self.manifest else 'Update app · ')+ 'v'+self.owner.version())
 
     def check(self,install=False):
         if self.checking or self.process or self.starting: return
@@ -129,7 +129,7 @@ class UpdateControls:
         self.footer_notice_until=0
         self.footer_feedback=bool(error)
         self.status.set_text(error or ('Update available · '+manifest['version'].removeprefix('Centaur GTK4 ') if manifest else 'You’re up to date.'))
-        self.button.set_tooltip_text('Update available' if manifest else 'Check for updates')
+        accessible(self.button,'Update available' if manifest else 'Check for updates')
         self.set_sensitive(True)
         # Disabling GtkButton clears keyboard focus. Restore the initiating
         # entry point only if the user has not focused another control meanwhile.

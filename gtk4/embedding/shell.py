@@ -29,7 +29,7 @@ from desktop import APP_ID, launch_settings, register as register_desktop
 from import_ui import show_import
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, original, picture, close_art, send_art, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal, ZoomMenu,
-                label, box, margins, button, button_text, selected)
+                label, box, margins, button, button_text, selected, accessible)
 
 
 class Centaur(Gtk.Application):
@@ -110,7 +110,7 @@ class Centaur(Gtk.Application):
         self.top = Gtk.CenterBox(); self.top.add_css_class('topbar'); self.top.set_size_request(-1,HEADER)
         self.top_start = box(spacing=8); self.top_start.set_margin_start(24); self.top_start.set_valign(Gtk.Align.CENTER)
         self.workspace_brand = button('',lambda:self.navigate('projects'),'v2/d9e08.svg','brand',tone='plain',width=32,icon_size=32)
-        self.workspace_brand.set_tooltip_text('Projects'); self.top_start.append(self.workspace_brand)
+        accessible(self.workspace_brand,'Projects'); self.top_start.append(self.workspace_brand)
         self.projects_crumb = button('Projects',lambda:self.navigate('projects'),tone='plain'); self.top_start.append(self.projects_crumb)
         self.breadcrumb_arrow = label('→','breadcrumb muted'); self.top_start.append(self.breadcrumb_arrow)
         self.breadcrumb = label('', 'breadcrumb'); self.breadcrumb.set_ellipsize(Pango.EllipsizeMode.END); self.top_start.append(self.breadcrumb)
@@ -129,7 +129,7 @@ class Centaur(Gtk.Application):
         create_caption=create_main.centaur_label
         create_caption.set_size_request(39,16); create_main.get_child().set_halign(Gtk.Align.START)
         arrow_menu=Gtk.MenuButton(css_classes=['project-create-arrow']); arrow_menu.set_size_request(32,32)
-        arrow_menu.set_tooltip_text('Create, import or join a project')
+        accessible(arrow_menu,'Create, import or join a project')
         chevron=original('dd02a.svg',24); arrow_menu.set_child(chevron); self.create_menu.append(arrow_menu)
         create_pop=Gtk.Popover(has_arrow=False,position=Gtk.PositionType.BOTTOM); create_pop.add_css_class('project-menu')
         create_pop.add_css_class('create-project-menu')
@@ -174,7 +174,7 @@ class Centaur(Gtk.Application):
             child=self.window_controls.get_first_child()
             while child:
                 if isinstance(child,Gtk.Button) and child.has_css_class('close'):
-                    child.set_child(close_art()); self.targets['window-close']=child
+                    child.set_child(close_art()); child.set_tooltip_text(None); accessible(child,'Close'); self.targets['window-close']=child
                 child=child.get_next_sibling()
             return False
         GLib.idle_add(style_controls)
@@ -238,9 +238,9 @@ class Centaur(Gtk.Application):
         self.canvas_bar.append(self.modes)
         spacer=box(); spacer.set_hexpand(True); self.canvas_bar.append(spacer)
         restart=button('',lambda:self.start_preview(force=True),'v2/1abf7.svg',tone='plain',width=24,height=24,icon_size=12)
-        restart.set_tooltip_text('Reload preview'); self.canvas_bar.append(restart); self.targets['reload']=restart
+        accessible(restart,'Reload preview'); self.canvas_bar.append(restart); self.targets['reload']=restart
         self.grid_button=button('',self.toggle_grid,'v2/36f8d.svg','grid-toggle',tone='plain',width=24,height=24,icon_size=12)
-        self.grid_button.set_tooltip_text('Show grid'); self.canvas_bar.append(self.grid_button); self.targets['grid']=self.grid_button
+        accessible(self.grid_button,'Show grid'); self.canvas_bar.append(self.grid_button); self.targets['grid']=self.grid_button
         self.zoom=ZoomMenu(ZOOM_MODES)
         self.zoom.connect('notify::selected',lambda c,p:self.zoom_changed()); self.canvas_bar.append(self.zoom); self.targets['zoom']=self.zoom
         self.preview_label=label('','small muted',True); self.preview_label.set_halign(Gtk.Align.CENTER); self.preview_label.set_valign(Gtk.Align.CENTER); self.preview_label.set_can_target(False)
@@ -251,13 +251,13 @@ class Centaur(Gtk.Application):
         self.tool_buttons={}
         for tool,title,icon in [('draw','Draw','v2/3f1c5.svg'),('comment','Comment','v2/e0a15.svg')]:
             item=button('',lambda t=tool:self.set_tool(t),icon,'canvas-tool',width=32)
-            item.set_tooltip_text(title); item.update_property([Gtk.AccessibleProperty.LABEL],[title])
+            accessible(item,title)
             if tool=='comment': item.centaur_image.art_height=15.2939
             self.tool_buttons[tool]=item; self.build_tools.append(item)
             self.targets['tool-'+tool]=item
             self.targets['tool-'+tool+'-icon']=item.centaur_image
         self.undo_button=button('',self.undo,'v2/00bcd.svg','canvas-tool',width=32)
-        self.undo_button.set_tooltip_text('Undo'); self.undo_button.update_property([Gtk.AccessibleProperty.LABEL],['Undo'])
+        accessible(self.undo_button,'Undo')
         self.build_tools.append(self.undo_button); self.targets['undo']=self.undo_button; self.targets['build-tools']=self.build_tools
         self.targets['undo-icon']=self.undo_button.centaur_image
         self.overlay.add_overlay(self.build_tools); self.canvas_column=box(True,0,'canvas-panel'); self.canvas_column.set_overflow(Gtk.Overflow.HIDDEN)
@@ -296,18 +296,13 @@ class Centaur(Gtk.Application):
         self.import_actions=box(spacing=8); chat.append(self.import_actions); self.import_actions.set_visible(False)
         self.import_run=button('Run preview',lambda:self.service.send('runImport')); self.import_actions.append(self.import_run)
         self.import_retry=button('Retry import',lambda:show_import(self,retry=True)); self.import_actions.append(self.import_retry)
-        def open_imported():
-            info=self.project.get('import') or {}; relative=info.get('output') or 'source'
-            path=self.root/'projects'/self.project['id']/'.centaur/import'/info.get('storage','')/relative
-            Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
-        self.import_open=button('Open source',open_imported,tone='plain'); self.import_actions.append(self.import_open)
-        self.targets.update({'import-run':self.import_run,'import-retry':self.import_retry,'import-open':self.import_open})
+        self.targets.update({'import-run':self.import_run,'import-retry':self.import_retry})
         self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False); self.editor.add_css_class('message'); self.targets['editor']=self.editor
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
         row=box(spacing=8); self.mention=button('@centaur',self.insert_mention,tone='plain'); row.append(self.mention)
         spacer=box(); spacer.set_hexpand(True); row.append(spacer)
         self.send_button=button('',self.send,css='send-button',tone='soft',width=32)
-        self.send_button.set_child(send_art()); self.send_button.set_tooltip_text('Send message'); row.append(self.send_button); self.targets['send']=self.send_button
+        self.send_button.set_child(send_art()); accessible(self.send_button,'Send message'); row.append(self.send_button); self.targets['send']=self.send_button
         self.composer=Composer(self.editor,row); chat.append(self.composer)
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
@@ -490,9 +485,7 @@ class Centaur(Gtk.Application):
             self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
             self.import_retry.set_visible(local and bool(imported) and phase not in ('fetching','inspecting','investigating') and not data.get('busy'))
             button_text(self.import_retry,'Retry import' if phase in ('failed','interrupted') else 'Change source')
-            self.import_open.set_visible(local and bool(imported.get('framework')))
-            button_text(self.import_open,'Open adaptation' if imported.get('output') else 'Open source')
-            self.import_actions.set_visible(any(w.get_visible() for w in (self.import_run,self.import_retry,self.import_open)))
+            self.import_actions.set_visible(any(w.get_visible() for w in (self.import_run,self.import_retry)))
             working=bool(imported) and not imported.get('previewReady')
             self.import_working.set_visible(working)
             self.import_working.update(phase)
@@ -575,7 +568,7 @@ class Centaur(Gtk.Application):
             edited=self.edited_time(project.get('updated'))
             meta=label(app_type+' · '+edited,'project-meta muted'); meta.set_ellipsize(Pango.EllipsizeMode.END); text.append(meta)
             content.append(text); open_button.set_child(content); card.set_child(open_button)
-            menu=Gtk.MenuButton(); menu.add_css_class('meatball'); menu.set_tooltip_text('Project options')
+            menu=Gtk.MenuButton(); menu.add_css_class('meatball'); accessible(menu,'Project options for '+project['name'])
             menu_icon=original('a7b49.svg',16); menu_icon.set_content_height(4)
             menu.set_child(menu_icon); menu.set_size_request(32,32); menu.set_halign(Gtk.Align.END); menu.set_valign(Gtk.Align.START)
             menu.set_margin_top(228); menu.set_margin_end(16)
@@ -583,6 +576,12 @@ class Centaur(Gtk.Application):
             def action(callback,popover=pop): popover.popdown(); callback()
             rename=button('Rename',lambda p=project,a=action:a(lambda:self.rename(p)),tone='plain',height=24)
             rename.get_child().set_halign(Gtk.Align.START); rename.set_sensitive(not project.get('remote',False)); actions.append(rename)
+            imported=project.get('import') or {}
+            if not project.get('remote') and imported.get('storage') and imported.get('framework'):
+                inspect=button('Open adaptation' if imported.get('output') else 'Open source',
+                    lambda p=project,a=action:a(lambda:self.open_imported(p)),tone='plain',height=24)
+                inspect.get_child().set_halign(Gtk.Align.START); actions.append(inspect)
+                self.targets['menu-source-'+project['id']]=inspect
             delete=button('Leave project' if project.get('remote') else 'Delete',lambda p=project,a=action:a(lambda:self.delete(p)),tone='plain',height=24)
             delete.get_child().set_halign(Gtk.Align.START); actions.append(delete)
             self.targets['menu-rename-'+project['id']]=rename; self.targets['menu-delete-'+project['id']]=delete
@@ -590,6 +589,14 @@ class Centaur(Gtk.Application):
             self.targets['open-'+project['id']]=open_button
             self.targets['menu-'+project['id']]=menu
             self.cards.append(card)
+
+    def open_imported(self,project):
+        info=project.get('import') or {}
+        base=(self.root/'projects'/project['id']/'.centaur/import').resolve()
+        path=(base/info['storage']/(info.get('output') or 'source')).resolve()
+        if not path.is_relative_to(base) or not path.is_dir():
+            self.notice('Source unavailable','The saved imported source could not be found.'); return
+        Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
 
     def refresh_messages(self):
         self.clear(self.messages)
@@ -1048,6 +1055,9 @@ class Centaur(Gtk.Application):
                   'surfaceOffset':list(self.window.get_surface_transform()),
                   'nativePointer':self.native_pointer,'nativePointerSerial':self.native_pointer_serial,
                   'windowChrome':{'decorated':self.window.get_decorated(),'headerHeight':self.top.get_height(),'closeAction':self.targets['window-close'].get_action_name() if 'window-close' in self.targets else None},
+                  'workingAnimation':{'mapped':self.working_mark.get_mapped(),'running':self.working_mark.tick is not None,
+                      'opacities':self.working_mark.frame_opacities,'motionProperty':self.working_mark.motion_property,
+                      'preference':int(self.working_mark.settings.get_property(self.working_mark.motion_property))},
                   'settings':{'pending':bool(self.settings.pending or self.settings.debounces or self.settings.agent_pending),'failed':self.settings.failed,'status':self.saved_caption.get_text()},
                   'grid':self.data.get('grid',{}),
                   'focus':self.window.get_focus().__gtype__.name if self.window.get_focus() else None,
@@ -1055,6 +1065,12 @@ class Centaur(Gtk.Application):
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
+            data['focusedTargets']=[name for name,widget in self.targets.items() if widget.has_focus()]
+            focus=self.window.get_focus()
+            if focus!=getattr(self,'report_focus',None):
+                self.report_focus=focus; self.report_focus_sequence=getattr(self,'report_focus_sequence',0)+1
+            data['focusSequence']=getattr(self,'report_focus_sequence',0)
+            data['tooltipWindows']=[type(w).__name__ for w in Gtk.Window.list_toplevels() if w.get_visible() and w.get_css_name()=='tooltip']
             data['layout']={'sidebarVisible':self.sidebar.get_visible(),'sidebarWidth':self.sidebar.get_width(),
                             'chatWidth':self.chat.get_width(),'tileColumns':__import__('ui').columns(self.cards.get_width()),'gridWidth':self.cards.get_width(),
                             'bodyFont':self.chat_body.get_pango_context().get_font_description().to_string() if hasattr(self,'chat_body') else None,
@@ -1062,7 +1078,9 @@ class Centaur(Gtk.Application):
                             'headerText':self.chat_status.get_text()}
             data['chatRows']=[]
             data['assetSlots']=[]
+            data['tooltipWidgets']=[]
             def asset_slots(widget):
+                if widget.get_has_tooltip(): data['tooltipWidgets'].append({'type':type(widget).__name__,'text':widget.get_tooltip_text()})
                 filename=getattr(widget,'filename',None)
                 if filename and widget.get_mapped() and Path(filename).is_relative_to(ASSETS):
                     ok,rect=self.window_bounds(widget)

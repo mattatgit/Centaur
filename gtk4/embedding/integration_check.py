@@ -13,6 +13,7 @@ from test_driver import Driver
 from ink_check import check_ink, assert_capture,place_agent_pointer
 from window_controls_check import check_window_controls
 from import_check import check_imports
+from polish_check import check_provider_hovers,check_working_pixels
 
 
 class Bridge:
@@ -38,6 +39,18 @@ class Checks(list):
 
 def main():
     folder=Path(sys.argv[1]).resolve(); folder.mkdir(parents=True,exist_ok=False)
+    for kind in ('CONFIG','DATA','CACHE'):
+        desktop=folder/('desktop-'+kind.lower()); desktop.mkdir(mode=0o700)
+        os.environ['XDG_'+kind+'_HOME']=str(desktop)
+    # Optional disposable test fixture for the UTM router's intermittent DNS
+    # failure. CI leaves this unset and uses normal DNS. TLS remains verified;
+    # neither product code nor owner Git/network settings receive an override.
+    github_ipv4=os.environ.get('CENTAUR_TEST_GITHUB_IPV4')
+    if github_ipv4:
+        import ipaddress
+        assert ipaddress.ip_address(github_ipv4).version==4
+        git_config=Path(os.environ['XDG_CONFIG_HOME'])/'git';git_config.mkdir(mode=0o700)
+        (git_config/'config').write_text('[http]\n\tcurloptResolve = github.com:443:'+github_ipv4+'\n')
     executable=Path(sys.argv[0]).resolve().parent/'centaur-gtk4'
     driver=Driver(); driver.ipc('output HEADLESS-1 mode 2560x1200'); processes=[]; roots=[]; control=None; child_pids=[]
     summary={'checks':Checks(),'production_approved':False}
@@ -85,6 +98,7 @@ def main():
         click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
         click(hs,hw,'nav-settings')
         until(lambda:'provider-models-openai-codex' in hs()['targets'],'Runtime provider catalogue did not reach Settings')
+        summary['checks'].append(check_provider_hovers(driver,folder,hs,hw))
         click(hs,hw,'provider-models-openai-codex')
         until(lambda:'model-option-openai-codex/runtime-two' in hs()['targets'],'Runtime models were not offered')
         click(hs,hw,'model-option-openai-codex/runtime-two')
@@ -175,7 +189,7 @@ def main():
         original_pid=hs()['childPid']
         message(hs,hw,'Hello from Matt')
         until(lambda:hs()['layout']['bodyFont']=='Inter 14px','Chat body did not use the redline Inter style')
-        assert hs()['targets']['chat-avatar'][2:]==[32,32]
+        assert target(hs,'chat-avatar')[2:]==[32,32]
         assert hs()['layout']['statusFont']=='Inter Tight 12px'
         assert hs()['childPid']==original_pid,'Ordinary chat restarted the app'
         control=Bridge(roots[0],env)
@@ -306,14 +320,17 @@ def main():
         message(hs,hw,'@centaur A request I want to stop')
         until(lambda:'stop-agent' in hs()['targets'],'Working request did not expose Stop')
         driver.screenshot(hw,folder/'ui-agent-working.png')
+        summary['checks'].append(check_working_pixels(driver,folder,hs,hw))
         click(hs,hw,'stop-agent')
         until(lambda:'stop-agent' not in hs()['targets'],'Stop did not return the request to idle')
+        assert not hs()['workingAnimation']['running'] and not hs()['workingAnimation']['mapped']
         assert hs()['project']['revision']==preserved_revision and json.loads(source.read_text())==original
         assert preserved_messages <= {m['id'] for m in hs()['project']['messages']}
         assert hs()['project']['id']==gs()['project']['id']==project_id
         reply_file.write_text(json.dumps({'kind':'question','message':'Ready for the next request.'}))
         message(hs,hw,'@centaur Continue after Stop')
         until(lambda:any(m.get('text')=='Ready for the next request.' for m in gs()['project']['messages']),'A new prompt after Stop did not complete')
+        until(lambda:not hs()['workingAnimation']['running'],'Completed request did not stop its working indicator')
         summary['checks'].append('stop-cancels-current-request-preserves-work-and-allows-immediate-next-prompt')
         old_child=hs()['childPid']
         click(hs,hw,'nav-projects')

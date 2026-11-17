@@ -1,0 +1,37 @@
+{
+  "platform": "aarch64 NixOS GNOME VM under UTM; disposable Sway for product automation",
+  "passed": true,
+  "nativeChecks": 27,
+  "pythonTests": 92,
+  "pythonSkips": 0,
+  "serviceSuites": [
+    "core",
+    "network",
+    "Iroh"
+  ],
+  "normalVmDnsFailureObserved": true,
+  "functionalImportNetwork": "Disposable test-only Git curloptResolve using router UDP answer; normal GitHub hostname and TLS certificate verification. CI uses normal DNS. Owner network/Git settings unchanged.",
+  "landline": {
+    "url": "https://github.com/mattatgit/landline/tree/linux-nix",
+    "branch": "linux-nix",
+    "commit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+    "framework": "Nix / Rust",
+    "linuxFilesVerified": [
+      "LandlineNix/Cargo.toml",
+      "LandlineNix/src/main.rs"
+    ]
+  },
+  "sourceArchiveSha256": "b16c249134f148d8f9e0ca3fffaac24a2592222105a6090fe7e7ce097860fc86",
+  "subsequentChanges": {
+    "runtime": false,
+    "checkerOnly": [
+      "Wait for completed host animation state",
+      "Wait for working-mark native allocation",
+      "Wait for directory-viewer output bytes"
+    ]
+  },
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false,
+  "originalAssetCount": 64,
+  "originalAnimationSha256": "b976ac19686b3c3c59d29291fb9a9a1bf7b43f74464270d6cbb2c3c68234f78c"
+}

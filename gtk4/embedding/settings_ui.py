@@ -5,7 +5,7 @@ import tempfile
 import uuid
 from urllib.parse import urlparse
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
-from ui import ASSETS, WidthLimit, box, label, button, button_text, original, picture, margins
+from ui import accessible, ASSETS, WidthLimit, box, label, button, button_text, original, picture, margins
 from update_ui import UpdateControls
 from omp_settings import OmpSettings
 from v2_ui import field
@@ -88,10 +88,11 @@ class SettingsView:
             model_row=box(spacing=0); model_caption=label('Select model','small')
             model_caption.set_max_width_chars(14); model_caption.set_ellipsize(Pango.EllipsizeMode.END)
             model_row.append(model_caption); arrow=original('0702b.svg',24); arrow.add_css_class('provider-arrow'); model_row.append(arrow); chooser.set_child(model_row)
-            action=button('Connect',lambda i=len(self.provider_cards):self.connect_provider(i),css='provider-action',tone='plain',width=80)
+            action=button('Connect',lambda i=len(self.provider_cards):self.connect_provider(i),css='provider-action',tone='plain',width=67)
             card.append(action); models.append(card)
             self.provider_cards.append({'card':card,'title':title,'ids':ids,'chooser':chooser,'model-caption':model_caption,'action':action,'dot':dot,'models':[]})
             owner.targets['provider-'+ids[0]]=action
+            owner.targets['provider-card-'+ids[0]]=card
             owner.targets['provider-models-'+ids[0]]=chooser
         self.provider_feedback=label('','small muted',True); self.provider_feedback.set_visible(False); models.append(self.provider_feedback)
         refresh=button('Refresh',self.refresh,css='settings-refresh',tone='plain',height=24)
@@ -176,14 +177,14 @@ class SettingsView:
         # Existing shared conversations bind the member name at invitation
         # time. Preserve that identity while the guest is connected.
         owner.name.set_sensitive(not data.get('remote',False))
-        owner.name.set_tooltip_text('Leave this shared project before changing your name.' if data.get('remote') else None)
+        accessible(owner.name,'Username','Leave this shared project before changing your name.' if data.get('remote') else '')
         self.sharing.set_visible(bool(owner.project.get('sharing',{}).get('enabled')) and not data.get('remote'))
         if 'name' not in self.debounces and not owner.name.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.name.set_text(data.get('author',''))
         value=owner.project.get('agentName',data.get('defaultAgentName','centaur')) if not data.get('remote') else data.get('defaultAgentName','centaur')
         if 'agent' not in self.debounces and not owner.agent_name_button.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.agent_name_button.set_text(value)
         for project in data.get('projects',[]):
             if self.agent_pending.get(project['id'])==project.get('agentName'): self.agent_pending.pop(project['id'],None)
-        owner.agent_name_button.set_tooltip_text('Used for this project and future projects.' if owner.project and not data.get('remote') else 'Used for future projects.')
+        accessible(owner.agent_name_button,'Address Centaur’s agent as','Used for this project and future projects.' if owner.project and not data.get('remote') else 'Used for future projects.')
         self.syncing=False
         selected_model=data.get('selectedModel')
         if selected_model!=getattr(self,'rendered_model',None):
@@ -271,6 +272,9 @@ class SettingsView:
             item['dot'].set_visible(connected)
             (item['card'].add_css_class if connected else item['card'].remove_css_class)('connected')
             button_text(item['action'],'Disconnect' if connected else 'Connect')
+            item['action'].set_size_request(80 if connected else 67,32)
+            accessible(item['action'],('Disconnect ' if connected else 'Connect ')+item['title'])
+            accessible(item['chooser'],'Select '+item['title']+' model')
             chooser=item['chooser']; chooser.set_visible(bool(models)); chosen=self.owner.data.get('selectedModel')
             current=next((m for m in models if m.get('provider','')+'/'+m.get('id','')==chosen),None)
             if not current and not chosen: current=next((m for m in models if m.get('id')==self.current_model.get('id') and m.get('provider')==self.current_model.get('provider')),None)

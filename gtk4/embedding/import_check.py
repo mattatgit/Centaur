@@ -1,6 +1,8 @@
 """Hands-on-equivalent native import flow, in disposable CI project storage."""
 import json
+import os
 import subprocess
+import sys
 import time
 from pathlib import Path
 from check import until, target
@@ -70,13 +72,33 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     assert original_file.read_bytes()==before
     assert not (root/'projects'/imported_id/'App.gtk.json').exists(),'A fake starter app was created for import'
     driver.screenshot(window,folder/'ui-import-ready.png',focus=False)
-    click(state,window,'nav-projects'); click(state,window,'open-'+imported_id)
+    assert 'import-open' not in state()['targets']
+    click(state,window,'nav-projects'); click(state,window,'menu-'+imported_id)
+    until(lambda:'menu-source-'+imported_id in state()['targets'],'Imported source is missing from its project options')
+    # Register a disposable directory viewer inside the test's private XDG
+    # profile. Verify the real native menu action and URI without launching an
+    # owner desktop file manager or changing any owner MIME preferences.
+    from gi.repository import Gio
+    assert os.environ.get('XDG_CONFIG_HOME') and Path(os.environ['XDG_CONFIG_HOME'])!=Path.home()/'.config'
+    opened=folder/'opened-source-uri.txt'; receiver=folder/'source-viewer.py'
+    receiver.write_text('from pathlib import Path\nimport sys\nPath('+repr(str(opened))+').write_text(sys.argv[-1])\n')
+    viewer=Gio.AppInfo.create_from_commandline(sys.executable+' '+str(receiver),'Disposable imported-source viewer',Gio.AppInfoCreateFlags.SUPPORTS_URIS)
+    assert viewer.set_as_default_for_type('inode/directory')
+    driver.screenshot(window,folder/'ui-import-project-options.png',focus=False)
+    click(state,window,'menu-source-'+imported_id)
+    until(lambda:opened.is_file() and opened.stat().st_size>0,'Source menu action did not launch its directory viewer')
+    expected=(root/'projects'/imported_id/'.centaur/import'/project['import']['storage']/'source').as_uri()
+    actual=Gio.File.new_for_commandline_arg(opened.read_text()).get_uri()
+    assert actual==expected,(actual,expected)
+    viewer.delete()
+    click(state,window,'open-'+imported_id)
     until(lambda:state()['project'].get('import',{}).get('status')=='readyToRun','Import state was lost on navigation')
     click(state,window,'import-run')
     until(lambda:(state().get('child') or {}).get('ready'),'Explicit imported GTK preview did not start')
     assert marker.exists() and state()['project']['import']['previewReady']
     assert original_file.read_bytes()==before
     checks.append('local-managed-copy-name-persistence-no-starter-and-explicit-native-run')
+    checks.append('source-inspection-contextual-project-menu-opens-exact-managed-copy-and-stays-out-of-chat')
     preview_pid=state()['childPid']
     reply_file.write_text(json.dumps({'kind':'inspect','message':'Checking the source','paths':['App.gtk.json']}))
     message(state,window,'@centaur Check the imported source again.')

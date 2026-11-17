@@ -135,14 +135,40 @@ def check_window_controls(driver, folder):
                 crops.append(crop.tobytes())
         assert crops[0]!=crops[1],'Original animation frames are indistinguishable'
         enabled=settings.get_property('gtk-enable-animations')
+        motion=settings.get_property(animation.motion_property)
         try:
-            settings.set_property('gtk-enable-animations',True); animation.set_working(True); settle(.25)
-            assert animation.tick is not None and .2<animation.frame_opacities[1]<.8,animation.frame_opacities
-            settings.set_property('gtk-enable-animations',False); animation.set_working(True)
+            # Reproduce GNOME's virtual-display policy: toolkit transitions
+            # disabled, but no accessibility request for reduced motion.
+            settings.set_property('gtk-enable-animations',False)
+            settings.set_property(animation.motion_property,Gtk.ReducedMotion.NO_PREFERENCE)
+            animation.set_working(True)
+            samples=[]; rendered=[]; start=time.monotonic()
+            for index in range(15):
+                settle(.10)
+                path=folder/f'working-clock-{index:02}.png'
+                driver.screenshot(handle,path,focus=False)
+                with Image.open(path) as source:
+                    crop=source.convert('RGB').crop((round(ax+offset[0]),round(ay+offset[1]),round(ax+offset[0]+32),round(ay+offset[1]+32)))
+                    rendered.append(crop.copy())
+                path.unlink(); crop.save(path)
+                samples.append({'seconds':round(time.monotonic()-start,3),'opacities':animation.frame_opacities})
+            assert animation.tick is not None and len({c.tobytes() for c in rendered})>=3,'Frame clock did not produce visible native movement'
+            assert any(s['opacities'][1]>.99 for s in samples) and any(s['opacities'][1]<.5 for s in samples),samples
+            assert sum(samples[i]['opacities'][1]<samples[i-1]['opacities'][1] for i in range(1,len(samples)))>=1,'One-second animation never repeated'
+            rendered[0].save(folder/'working-playback.gif',save_all=True,append_images=rendered[1:],duration=round(samples[-1]['seconds']*1000/len(rendered)),loop=0)
+            report['clockPlayback']=samples
+            settings.set_property(animation.motion_property,Gtk.ReducedMotion.REDUCE)
             assert animation.tick is None and animation.frame_opacities==(1,0)
+            settle(.15); assert animation.frame_opacities==(1,0)
+            settings.set_property(animation.motion_property,Gtk.ReducedMotion.NO_PREFERENCE)
+            settle(.15); assert animation.tick is not None
+            animation.set_visible(False); settle(); assert animation.tick is None
+            animation.set_visible(True); settle(.15); assert animation.tick is not None
+            animation.set_working(False); assert animation.tick is None and animation.frame_opacities==(1,0)
         finally:
-            animation.set_working(False); settings.set_property('gtk-enable-animations',enabled)
-        report['checks'].append('original-svg-both-frames-one-second-native-timing-and-reduced-motion')
+            animation.set_working(False); settings.set_property(animation.motion_property,motion)
+            settings.set_property('gtk-enable-animations',enabled)
+        report['checks'].append('original-svg-visible-clock-driven-frames-one-second-loop-reduced-motion-and-map-idle-transitions')
 
         def move(x, y):
             r = driver.rect(handle)

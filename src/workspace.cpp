@@ -72,7 +72,8 @@ QVariantList Workspace::projects() const {
         }
         result.append(QVariantMap{{"id", id}, {"name", state["name"].toString()},
             {"description", state["description"].toString()}, {"updated", state["updated"].toString()},
-            {"revision", state["revision"].toInt()}, {"path", projectPath(id)}, {"appFormat", state["appFormat"].toString("qml-v1")}, {"appType", appType}, {"agentName", state["agentName"].toString("centaur")}});
+            {"revision", state["revision"].toInt()}, {"path", projectPath(id)}, {"appFormat", state["appFormat"].toString("qml-v1")}, {"appType", appType}, {"agentName", state["agentName"].toString("centaur")},
+            {"import", QVariantMap{{"storage", imported["storage"].toString()}, {"framework", imported["framework"].toString()}, {"output", imported["output"].toString()}}}});
     }
     std::sort(result.begin(), result.end(), [](const QVariant &a, const QVariant &b) {
         return a.toMap()["updated"].toString() > b.toMap()["updated"].toString();

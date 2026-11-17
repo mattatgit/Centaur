@@ -24,8 +24,12 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
         driver.drag_path(window,x,y,moves)
 
     def blue(state,window,name,point):
-        path=folder/(name+'.png'); x,y=map(round,location(state,*point))
+        path=folder/(name+'.png')
         def visible():
+            # A first pan acknowledgement can precede the remaining native
+            # motion events. Check pixels against the latest transform on
+            # every attempt instead of retaining an intermediate position.
+            x,y=map(round,location(state,*point))
             driver.screenshot(window,path)
             with Image.open(path) as image:
                 pixels=image.convert('RGB').crop((x-3,y-3,x+4,y+4)).getdata()

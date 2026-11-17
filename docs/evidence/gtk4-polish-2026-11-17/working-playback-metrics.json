@@ -1,0 +1,134 @@
+[
+  {
+    "seconds": 0.168,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.28855200000000003,
+      0.711448
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 0.326,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.28855200000000003,
+      0.711448
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 0.488,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 0.657,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 0.824,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 0.978,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.652534,
+      0.347466
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.141,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.25973999999999997,
+      0.74026
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.312,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.25973999999999997,
+      0.74026
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.485,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.643,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.8,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0,
+      1
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  },
+  {
+    "seconds": 1.955,
+    "mapped": true,
+    "running": true,
+    "opacities": [
+      0.65779,
+      0.34221
+    ],
+    "motionProperty": "gtk-interface-reduced-motion",
+    "preference": 0
+  }
+]
