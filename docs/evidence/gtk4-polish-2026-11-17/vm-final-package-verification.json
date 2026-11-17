@@ -1,0 +1,14 @@
+{
+  "version": "Centaur GTK4 0.4.0-preview+7a94994",
+  "sourceRevision": "7a949941c3429904662eeab581a586c1a2143d1c",
+  "storePath": "/nix/store/i0zbds5yrrxn2nv0jpm79g6rvs4zmvap-centaur-gtk4-preview-0.4.0-preview",
+  "signedClosurePaths": 613,
+  "originalAnimationUnchanged": true,
+  "ownerProfileActivated": false,
+  "signatureVerificationExitCode": 0,
+  "usedAlreadyConfiguredCachixSigningKey": true,
+  "temporaryKeyOverrideRequired": false,
+  "privateCentaurProcessesRemaining": 0,
+  "privateGitFixturesRemoved": true,
+  "copiedPackageMetadataCacheRemoved": true
+}

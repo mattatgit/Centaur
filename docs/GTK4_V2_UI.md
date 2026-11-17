@@ -1,5 +1,10 @@
 # Centaur UI V2
 
+The owner's four-fix review is implemented in signed preview
+`0.4.0-preview+7a94994`. [Polish investigation and verification](GTK4_V2_POLISH.md)
+cover the native working animation, contextual source menu, exact provider hover
+states and removal of Centaur hover tooltips with accessibility names retained.
+
 The approved [Centaur UI V2.0 design](https://www.figma.com/design/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=43-689) supersedes the older Qt visual reference. The native GTK4 frontend still uses the existing coordinator, project storage, collaboration protocol, preview viewport, import broker and signed updater. The recoverable baseline is `checkpoint/pre-v2-ui-2026-11-17` at `cd45de767d0aba11991424555ca57e6c45c462fd`.
 
 ## Native presentation

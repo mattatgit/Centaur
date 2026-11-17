@@ -1,5 +1,29 @@
 # Current state
 
+## V2 four-fix polish — 17 November 2026
+
+Published signed preview: **`0.4.0-preview+7a94994`**, immutable source
+`7a949941c3429904662eeab581a586c1a2143d1c`. The original working SVG now animates
+under the VM's GNOME motion policy and respects reduced motion; source inspection
+is in the imported project's options menu; provider row/action hovers match the
+original Figma variants and support keyboard focus; Centaur's own native tooltips
+are removed with accessible names/descriptions preserved.
+
+Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44030232587)
+and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44030232553)
+workflows passed. ARM64 NixOS UTM verification passed all 27 native product checks,
+all 92 Python tests including the packaged sandbox, retained service regressions,
+embedding and all 11 signed-updater checks. All 613 signed closure paths and the
+exact published version/original SVG were verified inside the VM; the advertised
+feed matches its artifact. [Release evidence](evidence/gtk4-polish-2026-11-17/release-verification.json)
+records exact revisions and test boundaries, including the disposable VM DNS and
+package-metadata fixtures. Owner profiles/data, OMP credentials/configuration,
+collaboration identities, Qt and NixOS settings are unchanged. General model
+terminal access remains disabled. [Details](GTK4_V2_POLISH.md).
+
+Installation and hands-on acceptance remain in Installer (Centaur Install), one
+step at a time; automated success does not mark owner acceptance complete.
+
 ## Native V2 interface — 17 November 2026
 
 Published signed preview: **`0.4.0-preview+9680f97`**, immutable source `9680f97902ed359974dfbe13736fc72d83109ca2`. Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44019986166) and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44019986162) workflows passed. All 613 closure paths passed empty-store signature verification, the advertised feed exactly matches the signed artifact, and the final package plus original animation were verified inside ARM64 NixOS without activating the owner’s profile. [Release verification](evidence/gtk4-v2-2026-11-17/release-verification.json) distinguishes the complete VM signed-update test of runtime-equivalent `a6c4894` from the final checker-only revision. Hands-on acceptance remains in Centaur Install.

@@ -66,4 +66,25 @@ override was installed. The verified branch is `linux-nix`, commit
 context. Owner provider authentication was not exercised or changed.
 
 All 64 original asset hashes still match. Signed publication and final owner
-acceptance remain separate gates; publication details will be recorded here.
+acceptance remain separate gates.
+
+## Published signed preview
+
+`Centaur GTK4 0.4.0-preview+7a94994`, immutable source
+`7a949941c3429904662eeab581a586c1a2143d1c`, is advertised through the existing
+signed update feed. Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44030232587)
+and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44030232553)
+workflows passed on that exact source. The normal-network CI native run passed
+all 27 product checks; both embedding gates passed 19 checks; all 11 signed-update
+checks passed in CI and in a disposable ARM64 NixOS profile. All 613 closure paths
+also passed final signature verification inside the VM. The advertised manifest
+exactly matches the digest-verified distribution artifact.
+
+The immutable store path is
+`/nix/store/i0zbds5yrrxn2nv0jpm79g6rvs4zmvap-centaur-gtk4-preview-0.4.0-preview`.
+[Release evidence](evidence/gtk4-polish-2026-11-17/release-verification.json) records
+the workflow/artifact identities, manifest and verification boundaries. The VM
+full product source matches this runtime; three final checker changes only add
+readiness waits. The signed package's exact version and unchanged original SVG
+were verified in the VM. No owner profile was activated. Hands-on acceptance
+remains in Installer (Centaur Install), one step at a time.
