@@ -35,7 +35,7 @@ def target(state,name):
         nonlocal previous,since
         bounds=state().get('targets',{}).get(name)
         if bounds!=previous: previous=bounds; since=time.monotonic()
-        return bounds if bounds and time.monotonic()-since>=.2 else None
+        return bounds if bounds and bounds[2]>0 and bounds[3]>0 and time.monotonic()-since>=.2 else None
     return until(settled,'Missing or unsettled GTK control '+name)
 
 
@@ -69,7 +69,9 @@ def main():
             driver.click(window, round(x + w / 2), round(y + h / 2))
 
         def click_client(name):
-            box = until(lambda: client().get('targets', {}).get(name), 'Missing target ' + name)
+            # Popovers can be mapped while their first allocation is moving.
+            # Use the same settled native geometry as the product UI checks.
+            box = target(client,name)
             cx, cy, cw, ch = host()['canvas']
             view = host()['viewport']
             x, y, w, h = box
@@ -191,12 +193,12 @@ def main():
             x,y,w,h = client()['targets']['slider']
             view = host()['viewport']
             start = 12 + (w-24)*client()['slider']/100
-            target = 80 if index % 2 == 0 else 20
-            end = 12 + (w-24)*target/100
+            slider_target = 80 if index % 2 == 0 else 20
+            end = 12 + (w-24)*slider_target/100
             driver.drag(window, round(cx+view['app_x']+(x+start)*view['scale']),
                         round(cy+view['app_y']+(y+h/2)*view['scale']),
                         round((end-start)*view['scale']), 0, button=1)
-            until(lambda: abs(client()['slider']-target) < 15, 'Scaled app drag failed at ' + mode)
+            until(lambda: abs(client()['slider']-slider_target) < 15, 'Scaled app drag failed at ' + mode)
             if mode in ('100%', '150%'):
                 start = 12+(w-24)*client()['slider']/100
                 outside = initial_size[0]+40-x

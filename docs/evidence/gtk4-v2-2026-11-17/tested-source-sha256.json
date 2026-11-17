@@ -1,5 +1,5 @@
 {
-  "sourceArchiveSHA256": "c203c4ed219a8ce7082f65746486240f22c32aec92fb2e321142bb9e99ee455e",
+  "sourceArchiveSHA256": "fe7646d7409d40ba81ab8377ef83f335d24d79ee5ab18ba9735ca13133f0d6ee",
   "files": {
     ".github/workflows/gtk4-embedding.yml": "023d4eefcdd6a485821224cc4a46f22a483c1df7ab1461fedaa424b4aca090c1",
     ".github/workflows/gtk4-integration.yml": "d84e70beee0cab962f9a9de6f4454802801e3d4b7604640ff429db3262dca61d",
@@ -120,7 +120,7 @@
     "gtk4/embedding/annotations.py": "5cd3cc37c6582f1a3fe6c37149539afd1eb6b6d90e7bd04d90b1ab901cc0ca1c",
     "gtk4/embedding/backend.py": "1c8bf401f8c15c90d11438304e50cf4b9ef089635a302886342efe06fb015c99",
     "gtk4/embedding/bundle.py": "d9732eb1266460a96e12281c6b4e24ed5d70929652a421b34977a680ed30f13c",
-    "gtk4/embedding/check.py": "155473dd4b1e0e6a2321721bcb0c2342cd0d4c2f5621d0bc5387745b16ff757b",
+    "gtk4/embedding/check.py": "63ac89891d7e5f9c17f0095a9d6d8114c3318b2709be7edf5db6fbdf4a402073",
     "gtk4/embedding/comment_pointer.py": "b96503b50aea5a70486143ef4e72d94b4b55c2b64f550ad821f7adddc4dde160",
     "gtk4/embedding/desktop.py": "e3c27b2a1743e3366a728442571da35a5dde85994913648b00d4ba78e5b6de15",
     "gtk4/embedding/download_progress.py": "a86ac257519b65e153594c69c286020f731965175b727d628935af50e4926d34",
