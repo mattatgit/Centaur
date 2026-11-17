@@ -3,7 +3,7 @@
   "environment": "ARM64 NixOS under UTM; private Wayland/Sway display and disposable profiles",
   "baseline": "cd45de767d0aba11991424555ca57e6c45c462fd",
   "recoverableCheckpoint": "checkpoint/pre-v2-ui-2026-11-17",
-  "sourceArchiveSHA256": "fe7646d7409d40ba81ab8377ef83f335d24d79ee5ab18ba9735ca13133f0d6ee",
+  "sourceArchiveSHA256": "1ebb07516f846be0131c02dff312896e478bb03bf38472b76f86cbd3f317b7af",
   "nativeChecks": 24,
   "pythonTests": {
     "count": 92,
@@ -34,17 +34,24 @@
     "native-chrome-animation.json": "26510b0b868a0ec7bed7e1b9c60f5c646270c80a477812afefcf25e45a3a7dd8",
     "ui-agent-working.png": "44d327ac82adabb3b41db14724c21b6616cb1db878081a49a34100169216911b",
     "ui-settings-avatar-uploaded.png": "f393f0ae7722d8dd84c35a8efa9431ad99a8c6c3ef550856bc60aa91480ee096",
+    "release-a6c4894-native.json": "137a55907b57e63aef4985e536d18a358f1b2da77ae65f087ce40e043bf2c23f",
+    "vm-updated-app.png": "6bb2dee5f8aa8a037a0c1bc0258e6da00fb8bce9b9c180a096e5d7eb7313e048",
     "ui-project-cards.png": "6e4a3c4234d1873ea77e01d456bf09cd9eb59530c0a99364ed8f210c8a403304",
     "ui-settings.png": "b77faba89c9522b8768a60683611edb631213ca8b152f794667921219a123be3",
-    "tested-source-sha256.json": "e240461bebba148aa98367679b5f043350a1cbaa4eee46ba5e657406f03095b1",
+    "tested-source-sha256.json": "8bd0aeb93e1f425c82ae2c7a5d5b35dd3471f8788ca377d1d1c00967ee371ab6",
     "ui-new-project.png": "68b72fceb91dc00023bfca17d6868d00dbc549c72784c0c369892288a1dc11bc",
     "embedding-summary.json": "c5a18e1ec7f2ae20d916a42c9db700c94221fb3b895b4b03fa2e050da422a7d4",
     "ui-projects-empty.png": "8be7e5d8acfa3e5a46256d810951168b8daeeab1481e6ba6e1393a7fb1ce845f",
+    "release-a6c4894-updater.json": "3a56cf9921afae57e9a633343781e1748f244fffa759fa73f49bdc828dce0fb7",
+    "vm-signed-updater-summary.json": "16a6fdccdbb21265e828026bf78f62236081a1bed0d26fd54b2a7ff8a0c5e0bb",
     "native-summary.json": "99e43818348fdf5dae88cc005653cbd7a6e584cedb00d5985c498a83f35bac40",
     "native-product-source-sha256.json": "5b22846f92a0321cb6e0337f4fa99fc7f986faa9dfe2a314f863da8fbc851cf7",
+    "release-a6c4894-manifest.json": "6d881469c511bd1b106d3380b132ade92c62700380113080ee2621421f4400a8",
     "gtk4-workspace.png": "f699721a6bcd22433d9840a8b070398ae19aa159d92daff5c5ad93b1506e1ba9",
     "ui-delete-confirmation.png": "440836d7c11871766e09c0798bf048cc9035ca840efd54770bb1efbee26a35b3",
-    "ui-import-branch-selected.png": "79257ddae6640cb960662a081b82ee2d3ffa64413febc845ab9908e27ea415b3"
+    "vm-footer-update-running.png": "262005d9da67170cdd397dc8d76748b7c902d816397e7fdb4422e98d04df948a",
+    "ui-import-branch-selected.png": "79257ddae6640cb960662a081b82ee2d3ffa64413febc845ab9908e27ea415b3",
+    "vm-footer-up-to-date.png": "f3a307054bbf6d4cb9f7777534bd8bf60917f515466ec619a5301b455508a7f3"
   },
   "nativeProductSourceArchiveSHA256": "c203c4ed219a8ce7082f65746486240f22c32aec92fb2e321142bb9e99ee455e",
   "additionalEmbeddingVerification": {
@@ -53,5 +60,15 @@
     "change": "Test probe waits for settled nonzero popup geometry; slider target variable no longer shadows the target helper. Product runtime unchanged.",
     "initialCiObservation": "50% popup click missed before geometry settled",
     "initialCiRun": 44016978355
+  },
+  "publishedVmUpdate": {
+    "sourceRevision": "a6c4894f6c95c5b7c8ccbb0fa1920358799c7c71",
+    "passed": true,
+    "checks": 11,
+    "privateNixMetadataCache": true,
+    "coldMetadataAttempt": "Exceeded the 180-second engineering wait while querying remote narinfo; disposable updater process group stopped, installed owner profile untouched.",
+    "checkerFix": "Read final atomic progress status after the transfer thread joins; no production runtime changes.",
+    "normalNetworking": true,
+    "ownerProfileChanged": false
   }
 }

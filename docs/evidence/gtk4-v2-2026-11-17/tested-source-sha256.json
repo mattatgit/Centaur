@@ -1,5 +1,5 @@
 {
-  "sourceArchiveSHA256": "fe7646d7409d40ba81ab8377ef83f335d24d79ee5ab18ba9735ca13133f0d6ee",
+  "sourceArchiveSHA256": "1ebb07516f846be0131c02dff312896e478bb03bf38472b76f86cbd3f317b7af",
   "files": {
     ".github/workflows/gtk4-embedding.yml": "023d4eefcdd6a485821224cc4a46f22a483c1df7ab1461fedaa424b4aca090c1",
     ".github/workflows/gtk4-integration.yml": "d84e70beee0cab962f9a9de6f4454802801e3d4b7604640ff429db3262dca61d",
@@ -136,7 +136,7 @@
     "gtk4/embedding/integration_check.py": "fb34e6a9c44b3a9185b0db2f2d6f510f04c7082b0f21b329973e87ad6875230e",
     "gtk4/embedding/omp_settings.py": "83db47cce0af6c08ba475849829c019f0e9aaa1668595862a37573c59070ff41",
     "gtk4/embedding/probe.py": "275456853daf3ee4039fa76a91634a355cb0939dd4787b2c255d6788e895feef",
-    "gtk4/embedding/progress_check.py": "15be4005a0024f16025ed8f08505e49f7022293e379c503c54274237ef57698c",
+    "gtk4/embedding/progress_check.py": "25c2388287a74b7fd65bc02fee1fa185669bcf30e79681fea8fd1854365a6ad2",
     "gtk4/embedding/runner.py": "06eeccbf4218a31c4e9aceeaa903d577596275a1eee12a05e25b03a3b64b6902",
     "gtk4/embedding/service.py": "034730773b88486e94a5316cde01429ba83633322289d1667b63bf930d7c7813",
     "gtk4/embedding/settings_ui.py": "7ce03758d299bb66b1f4ee3b8d1c0fe390a48832b837e92e4194673da9d31edb",

@@ -101,6 +101,11 @@ def check_progress(driver,folder,path,info):
         worker.join(timeout=2)
         assert not worker.is_alive(),'Controlled download did not finish'
         if errors: raise errors[0]
+        # Completion can land between the loop's status read and its thread
+        # liveness check. Observe the final atomic status after joining.
+        controls.tick(); pump(); value=read(folder/'status.json')
+        samples.append({'bytes':value.get('downloadBytes',0),'total':value.get('totalBytes'),
+                        'message':controls.status.get_text(),'copyRunning':False})
         assert len({s['message'] for s in samples if 0<s['bytes']<len(payload) and s['copyRunning']})>=2,samples
         assert samples[-1]['bytes']==len(payload),samples
         transaction.status('verifying','Download complete. Verifying the update…'); controls.tick(); pump()
