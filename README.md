@@ -1,162 +1,92 @@
 # Centaur
 
-A tool to build native apps collaboratively. One project is one Git repository and one app. A shared canvas and conversation are the workspace.
+Centaur is a native, collaborative workspace for building GTK4 applications. Each project combines a live app preview, canvas drawing and comments, a shared conversation, and Git-backed history.
 
-**Current direction:** `main` contains the GTK4 frontend, GTK4 app-generation path and sandboxed import diagnostics. This is the baseline for the next UI pass. See [current state and verification](docs/CURRENT.md), [the GTK4 project contract](docs/GTK4_PROJECT_FORMAT.md) and [the UI reference](docs/GTK4_UI_REFERENCE.md). Installation and hands-on acceptance are coordinated in **Centaur Install**.
+Create an application, import an existing GitHub repository or local folder, and invite others to build with you. Centaur's AI agent helps investigate projects and make changes through conversation.
 
-The pre-UI main checkpoint is tagged `checkpoint/pre-ui-2026-11-16`; the verified Phase 4 baseline is also retained as `checkpoint/phase4-sandbox-2026-11-16`. The earlier `codex/gtk4-migration` branch and Qt prototype on `codex/native-prototype` remain preserved. The explicit GTK4 package is `gtk4-preview`; the default Nix package and the older run/update instructions below retain the Qt prototype for compatibility. GTK4 Settings uses [signed in-app updates with restart and recovery](docs/GTK4_UPDATER.md). Choosing GTK4 as the development direction does not change the documented runtime and production-acceptance limits.
+**Current status:** Preview software. Precompiled GTK4 releases are available for **ARM64 NixOS**. Standalone app deployment and the design-system library are planned. macOS and Intel Linux GTK4 releases are not yet available.
 
-Start with the [project documentation](docs/README.md) for product vision, requirements, decisions, design-system direction and development conventions. See [Architecture](docs/ARCHITECTURE.md) for runtime and deployment boundaries, and [Current state](docs/CURRENT.md) for implementation status and dated validation.
+## Install on ARM64 NixOS
 
-## Run on NixOS
+Run these commands from a terminal in your graphical desktop, as your normal user. You'll need Nix with flakes, `curl`, `python3`, and `sudo` for the initial cache setup.
 
-For the Intel NixOS Air or ARM64 VM, prefer the [step-by-step precompiled installation and update helper](docs/NIXOS_INSTALL.md). Once the public Cachix cache is configured and CI has published a revision, its cache-only commands download the complete package, including the host, preview and native Iroh helper, without local compilation. The source-build commands below remain available for development.
+No source checkout or Cachix account is required.
 
-With Nix flakes enabled, from this repository:
+### 1. Configure the binary cache
 
-```sh
-nix run .
-```
-
-The first build downloads Qt and the compiler. Subsequent launches reuse the built package. To immediately open a starter project:
+This is a one-time setup so Nix can download Centaur's signed, precompiled packages.
 
 ```sh
-nix run . -- --demo
+curl -fsSL https://raw.githubusercontent.com/mattatgit/Centaur/main/scripts/centaur-cache-setup.sh \
+  -o "$HOME/centaur-cache-setup.sh"
+
+bash "$HOME/centaur-cache-setup.sh" check
+sudo bash "$HOME/centaur-cache-setup.sh" enable
 ```
 
-`--demo` opens the most recently updated project, creating a starter only if there are no visible projects. Joining windows resolve this through the shared host, so launching another window does not create another project. App changes update the existing project's source and history.
+The check makes no changes. Enabling the cache restarts the Nix daemon but does not rebuild NixOS.
 
-Centaur needs a graphical Linux session and its normal `XDG_RUNTIME_DIR`. It runs as your ordinary user; creating projects does not require rebuilding the operating system. Each window opens its own private Wayland socket, so Centaur can run inside an existing Wayland desktop or an X11 session.
+If the check rejects your system configuration, don't force it. You can instead use the [Centaur NixOS cache module](packaging/centaur-cache.nix) with your existing declarative configuration.
 
-## Try the prototype
+### 2. Install Centaur
 
-Projects, Design Systems and Settings are the main views. In a workspace, switch between **Interact** (app input with chat still visible) and **Build** (Draw, Comment and Undo). The grid button and Settings share persistent 8-point grid preferences. Click the chat author footer to open Settings and use **Back to app** to return. Design Systems import and Deploy are not available yet. Original SVG/PNG provenance is recorded in [assets/dialogue](assets/dialogue/README.md).
-
-1. Create a project. This makes a local Git repository with a working `App.qml`, initial checkpoint and README.
-2. On Linux, use the starter app inside the canvas: add a task, tick a checkbox, open the menu and dialog.
-3. Choose **Draw** to sketch, or **Comment** to drag an arrow towards a feature. Switch back to **Interact** to interact. Undo removes your last mark. Press Escape to return to the app.
-4. Chat with another author. Mention **@centaur** when you want an agent response. You can change your name and the agent's name in Settings (open it from the chat footer).
-5. A request to the agent is approval to make that change. Compatible requests are checked and applied automatically, with no extra approval click. If the agent identifies genuinely incompatible requirements, it explains the conflict and proposes a compromise. Only the affected authors use **Agree to compromise**; other contributors do not need to sign off. The agent may ask a clarification question before it can propose a change.
-6. Centaur checks candidate QML in another process, saves a Git checkpoint and restarts the native preview. A candidate that fails its QML check leaves the existing app untouched. Agent requests queue automatically. New explicit agent directions and sketches cause stale work to be retried; ordinary chat can continue.
-
-The chat sidebar is resizable, starts at 430 logical pixels, and uses 12.5-point message text. There is no activity rail; decisions and progress appear in the chat.
-
-## Two authors, one computer
-
-The first collaboration transport is an OS-user-only local socket. Open two windows with the same data directory and choose different author names:
+These commands retrieve the latest successfully published GTK4 release and install it into a dedicated Nix profile.
 
 ```sh
-CENTAUR_AUTHOR=Matt nix run . -- --data-dir "$PWD/.centaur-data" --demo
+INSTALLABLE="$(curl -fsSL \
+  https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview \
+  | python3 -c 'import json,sys; m=json.loads(json.load(sys.stdin)["body"]); assert m["system"]=="aarch64-linux" and m["packageAttribute"]=="gtk4-preview" and m["verifiedSignedClosureDownload"] is True; print(m["installable"])')"
+
+mkdir -p "$HOME/.local/state/nix/profiles"
+
+nix --extra-experimental-features 'nix-command flakes' --refresh \
+  --max-jobs 0 --builders '' --option fallback false --option require-sigs true \
+  build --profile "$HOME/.local/state/nix/profiles/centaur-gtk4" "$INSTALLABLE"
 ```
 
-In another terminal:
+Local compilation is disabled. If the signed package is unavailable, the installation fails rather than building from source.
+
+### 3. Set up the AI agent (host computer only)
+
+Centaur uses [oh-my-pi (OMP)](https://github.com/can1357/oh-my-pi) as its underlying AI runtime.
+
+Install OMP before launching Centaur on a computer that will host agent requests. For Nix 2.30 or newer:
 
 ```sh
-CENTAUR_AUTHOR=Saori nix run . -- --data-dir "$PWD/.centaur-data"
+nix --extra-experimental-features 'nix-command flakes' \
+  profile add github:can1357/oh-my-pi
 ```
 
-A background process hosts the shared session. Both windows see the same projects, conversation, marks, proposal and accepted app revision. Their in-app interaction state is independent. The background host keeps coordinating after the first window closes.
+For older Nix versions, use `profile install` instead of `profile add`. See the [OMP installation instructions](https://github.com/can1357/oh-my-pi#install) for other methods.
 
-Local display names remain prototype identities. Across computers, project invitations assign stable participant credentials; shared live app interaction state remains separate.
+Guest computers joining a shared Centaur project do not need their own OMP installation.
 
-For separate computers, choose **Invite** inside a project and **Join project** on the other machine. Only the host needs OMP. Invite now defaults to Iroh peer-to-peer connections, with encrypted relay fallback when needed. Choose **Local network only** for the original LAN transport. See [collaboration setup and user flow](docs/LAN_COLLABORATION.md). The project host must stay awake; only the host needs OMP.
-
-## Connect the agent
-
-For step-by-step instructions on the Air, see [Omp NixOS Setup](docs/OMP_NIXOS_SETUP.md).
-
-Centaur uses **oh-my-pi (`omp`)**, the same agent runtime used by Dialogue. Install it and sign in using its normal setup. Launch Centaur with `omp` on `PATH`, or supply its executable explicitly:
+### 4. Launch Centaur
 
 ```sh
-CENTAUR_AGENT=/path/to/omp nix run .
+"$HOME/.local/state/nix/profiles/centaur-gtk4/bin/centaur-gtk4"
 ```
 
-Optionally set `CENTAUR_MODEL` to an omp model identifier. No provider keys are stored in Centaur projects. If omp is unavailable or cannot authenticate, Centaur reports that in the chat; it does not substitute simulated agent replies.
+The first launch registers Centaur in your desktop application launcher.
 
-The **Chat** header shows the project's agent name and the model last reported by omp (provider/model ID). Centaur reads this from omp's structured assistant events, including model fallbacks, and shares it between windows. Until the first report it shows “Model not reported yet”; it does not guess which model omp selected. The reported model is remembered with the project and updates on subsequent requests.
+Once running, open **Settings → LLM and Model** to connect your preferred AI provider and select a model.
 
-For this experiment the agent receives the authored conversation, the requesting author, applied decisions, current QML, revision-tagged drawing geometry and a canvas image captured when it is mentioned. It returns a clarification or a complete proposed `App.qml` with an explicit conflict classification. A compatible proposal uses `"conflict": null` and is applied after its native check. A conflict includes a reason and the affected authors; the coordinator waits for those authors to agree before checking/applying the compromise. Missing or malformed classifications and unknown conflict authors leave the app unchanged. The agent determines semantic conflicts; its judgment still needs evaluation with real people. Omp runs without tools, project rules, skills or discovered extensions; the coordinator owns file writes, validation, agreement and checkpoints.
+Your projects are stored by default in `~/.local/share/Centaur/GTK4`.
 
-This deliberately limits the first generated apps to Qt Quick `Item` / `Rectangle` roots with built-in modules. They can also run independently with `centaur-preview /path/to/App.qml`. Generating arbitrary native application frameworks and larger compiled projects comes later.
+## Getting started
 
-## Earlier versions, through conversation
+From Projects, choose **Create**, **Import** or **Join**.
 
-Changes are quietly saved as Git checkpoints. The canvas, project cards and older chat messages do not display numbered app revisions, and routine replies do not announce a new version number.
+Within a project, use **Interact** to operate the running application or **Build** to draw, comment and request changes. Mention `@centaur` in chat when you want the agent to work on the application.
 
-Ask naturally, for example:
+To collaborate across computers, use **Invite** to generate a secure, single-use invitation code.
 
-- “@centaur what did we change earlier?”
-- “@centaur go back to before we changed the background.”
-- “@centaur undo the last app change.”
+## Updating Centaur
 
-The agent receives dates and descriptions for the 100 most recent checkpoints. Questions about history do not change the app. If the target is unclear, the agent asks for clarification. A rewind retrieves the exact saved `App.qml`, runs the same native check, and applies it with the same conflict-only agreement rule as other changes. It adds a new checkpoint instead of resetting Git, so later saved work remains recoverable. Conversation history is retained. All Git checkpoints remain on disk, including those outside the bounded model context.
+Once installed, Centaur can update itself. Use **Update app** in Settings or the version control at the bottom of the chat panel.
 
-## Build and test
+Updates download verified packages, restart Centaur and preserve your existing project data.
 
-```sh
-nix develop
-cargo build --locked --manifest-path networking/Cargo.toml
-cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-  -DCENTAUR_NETWORK_EXECUTABLE="$PWD/networking/target/debug/centaur-network"
-cmake --build build -j 4
-ctest --test-dir build --output-on-failure
-./build/centaur --demo
-```
+## Documentation
 
-Or build and run the package checks in Nix's sandbox:
-
-```sh
-nix build -L
-```
-
-Tests cover project persistence and Git checkpoints, automatic changes requested through a second native client, conflict agreement by only the affected authors, stale responses/checks, agreement across restarts, malformed classifications, history context, exact-source rewinds that preserve later history, and rejection of unavailable or invalid saved apps. The UI smoke test loads both main views. Linux builds also run an embedding smoke test that starts a separate Qt Quick process, requires a rendered buffer inside Centaur's compositor, forwards a mouse click to the client and checks clean shutdown. These tests do not call a live model.
-
-For the older MacBook Air running NixOS, see [the target-machine test guide](docs/TESTING_ON_NIXOS.md).
-
-On a Linux machine without a graphical desktop, use:
-
-```sh
-mkdir -p /tmp/centaur-runtime
-chmod 700 /tmp/centaur-runtime
-XDG_RUNTIME_DIR=/tmp/centaur-runtime QT_QPA_PLATFORM=offscreen \
-  QT_QUICK_BACKEND=software ./build/centaur --embedding-smoke-test
-```
-
-macOS builds support native interface and coordination development. The canvas clearly states that app embedding requires Linux; it does not simulate a live embedded preview.
-
-## Modest hardware
-
-Centaur and its example app use bundled **Inter 4.1**, including Regular, SemiBold and Bold. The native shell and preview process load their own copies without a font download or system installation; other scripts and symbols retain system fallback support. Font licences and provenance are in [assets/fonts/inter](assets/fonts/inter/README.md).
-
-- C++ and Qt Quick; no Chromium, browser server or JavaScript service runtime.
-- One app process per open workspace and one agent request at a time per local host.
-- Event-driven drawing, a virtualized recent-message list, bounded live drawing geometry, and no continuous canvas animation or visual effects.
-- Model inference runs through the configured provider; no local language model is required.
-- Hardware acceleration is the normal path. `QT_QUICK_BACKEND=software` provides a compatibility test path; it needs benchmarking on the actual target hardware.
-
-We have not established a minimum RAM/CPU specification. Measure idle CPU, resident memory, drawing latency, preview responsiveness and rebuild time on the intended entry-level machine before claiming a hardware floor.
-
-## Project data
-
-The default data location is Qt's per-user application data directory (normally `~/.local/share/Centaur/Centaur` on Linux). `--data-dir` selects a different location. Each project is stored at `projects/<uuid>/`:
-
-- `App.qml` and Git history: accepted native app source.
-- `.centaur/state.json`: shared conversation state, marks, accepted decisions and pending proposal.
-- `.centaur/conversation.jsonl`: full append-only conversation record; the UI keeps the most recent 250 messages in live state.
-- `.centaur/context-*.png`: canvas images used as model context.
-- `.centaur/previous.qml`: source before the last applied change.
-- `.centaur/annotations-v*.json`: drawings preserved with the revision they describe. A new app revision starts with a clear canvas.
-
-Back up the whole project folder, including `.centaur/`; collaboration data is intentionally excluded from the generated app's Git repository. Archive hides a project from the project view and keeps its files.
-
-## Implementation map
-
-- `src/workspace.*`: projects, persistence and app Git checkpoints.
-- `src/session.*`: authoritative local collaboration host and the agreement/build coordinator.
-- `src/agent.*`: omp invocation and structured proposals.
-- `src/controller.*`: native UI bindings and preview lifecycle.
-- `src/inkitem.*`: native freehand and arrow rendering/input.
-- `qml/`: project view, canvas, chat and Linux Wayland compositor.
-- `templates/App.qml`: the independently running native starter app.
-
-Qt Wayland Compositor is offered under GPLv3 or a commercial Qt license; the project's distribution licensing decision is still open. See [Qt's module documentation](https://doc.qt.io/qt-6/qtwaylandcompositor-index.html).
+See the [project documentation](docs/README.md) for architecture and development information, or [Current state](docs/CURRENT.md) for the latest verified implementation and known limitations.
