@@ -91,7 +91,7 @@ public:
     bool nativeAppTest() const { return !m_nativeTestProgram.isEmpty(); }
     void configureNativeAppTest(const QString &program, const QSize &size);
     Q_INVOKABLE void createProject(const QString &name, const QString &description);
-    void createGtkProject(const QString &name, const QString &description);
+    void createGtkProject(const QString &name, const QString &description, bool generate = false);
     void importGtkProject(const QJsonObject &data);
     void importAction(const QString &type, const QJsonObject &source = {});
     QJsonObject importSource() const;

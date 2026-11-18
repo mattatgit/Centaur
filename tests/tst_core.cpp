@@ -683,6 +683,43 @@ private slots:
         }
         QCOMPARE(Agent::parseReply("```json\n{\"kind\":\"question\",\"message\":\"Which is better?\"}\n```", &error)["kind"].toString(), QString("question"));
     }
+    void gtkCreationPromptUsesNormalAgentAndNativeValidation() {
+        for (const bool valid:{false,true}) {
+            QTemporaryDir dir; Workspace workspace(dir.path());
+            QFile fixture(":/templates/App.gtk.json"); QVERIFY(fixture.open(QIODevice::ReadOnly));
+            auto bundle=QJsonDocument::fromJson(fixture.readAll()).object();
+            auto files=bundle["files"].toObject(); auto ui=files["app.ui"].toString();
+            ui.replace("Family board","Created clock"); files["app.ui"]=ui; bundle["files"]=files;
+            const auto agentPath=dir.path()+"/agent",checker=dir.path()+"/checker";
+            QVERIFY(writeAgentReply(agentPath,{{"kind","proposal"},{"message","Create the requested app"},{"conflict",QJsonValue::Null},{"gtk",bundle}},"sleep 0.4\n"));
+            QVERIFY(Workspace::writeFile(checker,("#!"+QStandardPaths::findExecutable("sh")+"\nexit "+(valid ? "0" : "1")+"\n").toUtf8()));
+            QVERIFY(QFile::setPermissions(checker,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+            const auto previous=qgetenv("CENTAUR_GTK_RUNNER"); qputenv("CENTAUR_GTK_RUNNER",checker.toUtf8());
+            const auto restore=qScopeGuard([previous] { if(previous.isNull())qunsetenv("CENTAUR_GTK_RUNNER");else qputenv("CENTAUR_GTK_RUNNER",previous); });
+            AgentOverride override(agentPath); Session session(dir.path()); session.start();
+            session.send({{"type","create"},{"name","Clock"},{"description","Build a clock"},{"appFormat","gtk4-v1"},{"createPrompt","Build a clock"},{"author","Matt"}});
+            QTRY_COMPARE(workspace.projects().size(),1);
+            const auto id=workspace.projects().first().toMap()["id"].toString();
+            QVERIFY(workspace.load(id)["creationPending"].toBool());
+            if(valid) QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(),2,5000);
+            else QTRY_VERIFY_WITH_TIMEOUT(QJsonDocument(workspace.load(id)).toJson().contains("did not pass its native check"),5000);
+            const auto state=workspace.load(id);
+            QCOMPARE(state["creationPending"].toBool(),!valid);
+            int requests=0;for(const auto &v:state["messages"].toArray())if(v.toObject()["kind"]=="human") {
+                ++requests;QCOMPARE(v.toObject()["text"].toString(),QString("@centaur Build a clock"));
+            }
+            QCOMPARE(requests,1);
+            QCOMPARE(workspace.source(id).contains("Created clock"),valid);
+        }
+    }
+    void gtkCreationWithoutPromptKeepsExistingStarterBehaviour() {
+        QTemporaryDir dir;Workspace workspace(dir.path());Session session(dir.path());session.start();
+        session.send({{"type","create"},{"name","Empty prompt"},{"appFormat","gtk4-v1"},{"createPrompt"," "},{"author","Matt"}});
+        QTRY_COMPARE(workspace.projects().size(),1);
+        const auto state=workspace.load(workspace.projects().first().toMap()["id"].toString());
+        QVERIFY(!state.contains("creationPending")); QVERIFY(state["messages"].toArray().isEmpty());
+        QVERIFY(state["agentQueue"].toArray().isEmpty()); QCOMPARE(state["revision"].toInt(),1);
+    }
     void focusedGtkEditsAreExactAtomicAndBoundToCurrentSource() {
         QFile fixture(":/templates/App.gtk.json"); QVERIFY(fixture.open(QIODevice::ReadOnly));
         const auto source=QString::fromUtf8(fixture.readAll());

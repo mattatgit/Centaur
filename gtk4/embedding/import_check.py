@@ -179,5 +179,10 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     assert info['branch']=='linux-nix' and info['commit']==expected_commit
     assert 'LandlineNix/Cargo.toml' in request_record.read_text() and 'LandlineNix/src/main.rs' in request_record.read_text()
     assert info['commit'] in request_record.read_text() and info['framework']=='Nix / Rust'
+    copied=root/'projects'/project['id']/'.centaur/import'/info['storage']/'source'
+    assert (copied/'LandlineNix').is_dir() and (copied/'LandlineNix/Cargo.toml').is_file() and (copied/'LandlineNix/src/main.rs').is_file()
+    (folder/'landline-source-verification.json').write_text(json.dumps({'sourceUrl':value,'branch':info['branch'],'commit':info['commit'],
+        'independentRemoteCommit':expected_commit,'framework':info['framework'],'linuxDirectoryPresent':True,
+        'linuxCargoAndMainPresent':True,'linuxAgentContextVerified':True,'macOsSwiftFilesAlsoPresent':any(copied.rglob('*.swift')),'passed':True},indent=2)+'\n')
     checks.append('landline-linux-nix-url-preselection-verified-commit-and-linux-agent-context')
     return checks

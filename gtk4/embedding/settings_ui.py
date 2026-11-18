@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 import uuid
+import time
 from urllib.parse import urlparse
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 from ui import accessible, ASSETS, WidthLimit, box, label, button, button_text, original, picture, margins
@@ -52,6 +53,7 @@ class SettingsView:
         self.owner=owner; self.pending=set(); self.debounces={}; self.failed=False; self.syncing=False
         self.rpc=None; self.catalog=[]; self.login_providers=[]; self.current_model={}; self.refreshing=False
         self.agent_pending={}; self.agent_edit_context=None
+        self.saved_until=0; self.save_acknowledged=False; self.notice_timeout=None; self.fade_tick=None
         page=box(True,0,'panel'); scroll=Gtk.ScrolledWindow(vexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         owner.settings_inner=margins(box(True,40),72); owner.settings_inner.set_margin_top(48)
         owner.settings_limit=WidthLimit(owner.settings_inner,648); scroll.set_child(owner.settings_limit); page.append(scroll)
@@ -121,10 +123,45 @@ class SettingsView:
 
     def status(self):
         pending=bool(self.pending or self.debounces or getattr(self,'agent_pending',None))
-        text='Could not save changes' if self.failed else 'Saving…' if pending else 'Changes saved'
-        owner=self.owner; owner.saved_caption.set_text(text); owner.saved_tick.set_visible(not pending and not self.failed)
+        owner=self.owner
+        if pending or self.failed:
+            self.clear_notice()
+            owner.saved_status.set_opacity(1)
+        elif self.save_acknowledged:
+            self.clear_notice(); self.save_acknowledged=False
+            self.saved_until=time.monotonic()+10; owner.saved_status.set_opacity(1)
+            self.notice_timeout=GLib.timeout_add(10000,self.begin_fade)
+        text='Could not save changes' if self.failed else 'Saving…' if pending else 'Changes saved' if self.saved_until else ''
+        owner.saved_caption.set_text(text); owner.saved_tick.set_visible(bool(self.saved_until) and not pending and not self.failed)
+        owner.saved_status.set_visible(owner.page=='settings' and bool(text))
         for css,value in (('pending',pending),('failed',self.failed)):
             (owner.saved_status.add_css_class if value else owner.saved_status.remove_css_class)(css)
+
+    def clear_notice(self):
+        if self.notice_timeout is not None: GLib.source_remove(self.notice_timeout); self.notice_timeout=None
+        if self.fade_tick is not None: self.owner.saved_status.remove_tick_callback(self.fade_tick); self.fade_tick=None
+        self.saved_until=0
+
+    def opened(self):
+        self.clear_notice(); self.save_acknowledged=False; self.status()
+
+    def begin_fade(self):
+        self.notice_timeout=None
+        settings=Gtk.Settings.get_default()
+        prop='gtk-interface-reduced-motion' if settings.find_property('gtk-interface-reduced-motion') else 'gtk-enable-animations'
+        value=settings.get_property(prop)
+        reduced=value==Gtk.ReducedMotion.REDUCE if prop=='gtk-interface-reduced-motion' else not value
+        if reduced or self.owner.page!='settings':
+            self.saved_until=0; self.owner.saved_status.set_visible(False); return False
+        started=GLib.get_monotonic_time()
+        def fade(widget,clock):
+            fraction=min(1,max(0,(clock.get_frame_time()-started)/400000))
+            widget.set_opacity(1-fraction)
+            if fraction>=1:
+                self.fade_tick=None; self.saved_until=0; widget.set_visible(False); return False
+            return True
+        self.fade_tick=self.owner.saved_status.add_tick_callback(fade)
+        return False
 
     def numeric_dirty(self,key,active):
         (self.pending.add if active else self.pending.discard)('grid-'+key)
@@ -142,11 +179,17 @@ class SettingsView:
         if not hasattr(owner,'service'): return False
         if key=='name':
             value=owner.name.get_text().strip()
+            if value==owner.data.get('author'):
+                self.status(); return False
             if value: self.send('author',name=value)
             else: self.failed=True
         else:
             value=owner.agent_name_button.get_text().strip().replace('@','')
             if value and not any(c.isspace() for c in value):
+                project_id,remote=self.agent_edit_context or (owner.project.get('id'),owner.data.get('remote',False))
+                project=next((p for p in owner.data.get('projects',[]) if p['id']==project_id),{})
+                if value==owner.data.get('defaultAgentName') and (not project_id or remote or value==project.get('agentName')):
+                    self.status(); return False
                 self.send('agentDefaults',agentName=value)
                 project_id,remote=self.agent_edit_context or (owner.project.get('id'),owner.data.get('remote',False))
                 if project_id and not remote:
@@ -167,7 +210,9 @@ class SettingsView:
         owner=self.owner
         if data.get('type')=='settingsSaved':
             if data.get('requestId') in self.pending:
-                self.pending.remove(data['requestId']); self.failed|=not data.get('success',False); self.status()
+                self.pending.remove(data['requestId']); self.failed|=not data.get('success',False)
+                if data.get('success'): self.save_acknowledged=True
+                self.status()
             return
         if data.get('type')=='error':
             if self.pending or self.agent_pending: self.failed=True; self.agent_pending.clear(); self.status()
@@ -183,7 +228,8 @@ class SettingsView:
         value=owner.project.get('agentName',data.get('defaultAgentName','centaur')) if not data.get('remote') else data.get('defaultAgentName','centaur')
         if 'agent' not in self.debounces and not owner.agent_name_button.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.agent_name_button.set_text(value)
         for project in data.get('projects',[]):
-            if self.agent_pending.get(project['id'])==project.get('agentName'): self.agent_pending.pop(project['id'],None)
+            if project['id'] in self.agent_pending and self.agent_pending[project['id']]==project.get('agentName'):
+                self.agent_pending.pop(project['id'],None); self.save_acknowledged=True
         accessible(owner.agent_name_button,'Address Centaur’s agent as','Used for this project and future projects.' if owner.project and not data.get('remote') else 'Used for future projects.')
         self.syncing=False
         selected_model=data.get('selectedModel')
@@ -214,13 +260,14 @@ class SettingsView:
             texture=Gdk.Texture.new_from_file(file)
             if max(texture.get_width(),texture.get_height())>8192: raise ValueError('Image too large')
             data=path.read_bytes(); self.owner.root.mkdir(parents=True,exist_ok=True)
+            if self.avatar_path.exists() and self.avatar_path.read_bytes()==data: return True
             with tempfile.NamedTemporaryFile(dir=self.owner.root,prefix='.avatar-',delete=False) as output:
                 temporary=Path(output.name); output.write(data); output.flush(); os.fsync(output.fileno())
             temporary.replace(self.avatar_path)
             fd=os.open(self.owner.root,os.O_RDONLY)
             try: os.fsync(fd)
             finally: os.close(fd)
-            self.refresh_avatar(); self.owner.refresh_messages(); self.failed=False
+            self.refresh_avatar(); self.owner.refresh_messages(); self.failed=False; self.save_acknowledged=True
         except (OSError,ValueError,GLib.Error): self.failed=True
         finally:
             self.pending.discard('avatar'); self.status()
@@ -289,6 +336,7 @@ class SettingsView:
             scroller.set_child(entries); pop.set_child(scroller); chooser.set_popover(pop)
 
     def select_model(self,model):
+        if model['provider']+'/'+model['id']==self.owner.data.get('selectedModel'): return
         if not self.ensure_rpc(): return
         self.feedback('Selecting model…'); self.pending.add('model-selection'); self.status()
         def selected(response):
@@ -309,7 +357,9 @@ class SettingsView:
         elif item.get('login'):
             self.feedback('Finish signing in with your provider…'); self.auth_started=True; self.pending.add('auth'); self.status()
             def finished(response):
-                self.auth_started=False; self.pending.discard('auth'); self.failed=not response.get('success',False); self.status()
+                self.auth_started=False; self.pending.discard('auth'); self.failed=not response.get('success',False)
+                if response.get('success'): self.save_acknowledged=True
+                self.status()
                 if response.get('success'): self.refresh()
                 else: self.feedback('Sign-in did not finish. Retry, or complete authentication in OMP and refresh.')
             self.rpc.request('login',finished,providerId=item['login'])
@@ -327,7 +377,9 @@ class SettingsView:
                 self.owner.dismiss_dialog(dialog)
                 self.pending.add('auth'); self.status()
                 def finished(response):
-                    self.pending.discard('auth'); self.failed=not response.get('success',False); self.status()
+                    self.pending.discard('auth'); self.failed=not response.get('success',False)
+                    if response.get('success'): self.save_acknowledged=True
+                    self.status()
                     if response.get('success'): self.refresh()
                     else: self.feedback('Could not disconnect the account.')
                 self.rpc.request('logout',finished,providerId=provider,credentialId=a['credentialId'])
@@ -352,6 +404,7 @@ class SettingsView:
         return False
 
     def close(self):
+        self.clear_notice()
         for key in list(self.debounces): self.flush(key)
         for key in ('size','opacity'): self.owner.settings_grid[key].commit()
         if self.rpc: self.rpc.close()

@@ -57,7 +57,7 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
         driver.click(window,x,y)
         until(lambda:state()['commentPointer']['phase']=='placed' and state()['focus']=='GtkTextView','Placement did not focus comment text input')
         mark=state()['commentPointer']; composer=state()['targets']['composer']
-        assert mark['tail']==[composer[0]+12,composer[1]+12],mark
+        assert mark['tail']==[composer[0]+composer[2]-12,composer[1]+12],mark
         rect=driver.rect(window)
         driver.ipc(f"seat seat0 cursor set {rect['x']+composer[0]+40} {rect['y']+composer[1]+40}"); driver.seat_command('motion 0 0')
         time.sleep(.15); assert all(abs(a-b)<.01 for a,b in zip(state()['commentPointer']['head'],[x,y])),'A placed head kept following the pointer'

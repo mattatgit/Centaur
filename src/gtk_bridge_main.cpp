@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
             const auto type = command["type"].toString();
             const auto id = command["projectId"].toString();
             bool settingsValid = true;
-            if (type == "create") controller.createGtkProject(command["name"].toString(), command["description"].toString());
+            if (type == "create") controller.createGtkProject(command["name"].toString(), command["description"].toString(), command["generate"].toBool());
             else if (type == "importProject") controller.importGtkProject(command);
             else if (type == "retryImport" || type == "runImport") controller.importAction(type,command["source"].toObject());
             else if (type == "open") controller.openProject(id);

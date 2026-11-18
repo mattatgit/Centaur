@@ -140,36 +140,38 @@ def main():
         before={str(p.relative_to(data)):p.read_bytes() for p in data.rglob('*') if p.is_file() and p.suffix in ('.json','.ini','.jsonl','.key','.pem')}
         # Availability must reach the workspace without visiting Settings.
         until(lambda:state().get('updater',{}).get('available'),'Background update check did not detect the published version')
-        assert state()['updater']['badgeVisible']
-        badge=state()['targets']['update-badge']; assert badge[2:]==[8,8],'Update badge is not 8px'
-        version=state()['targets']['update-version']; composer=state()['targets']['composer']
-        assert version[0]==composer[0],'Version button is not left aligned with the composer'
+        assert state()['updater']['iconState']=='available'
+        art=state()['targets']['update-art']; assert art[2:]==[16,16],'Original update artwork is not 16px'
+        version=state()['targets']['update-icon']; composer=state()['targets']['composer'];chip=state()['targets']['version-chip']
+        assert version[0]==composer[0] and abs(chip[0]+chip[2]-composer[0]-composer[2])<=1,'Footer icon/chip differs from the Figma alignment'
         assert state()['updater']['footerLabel']=='Update available'
         driver.screenshot(window,folder/'footer-update-available.png')
         rect=driver.rect(window)
         driver.ipc(f"seat seat0 cursor set {round(rect['x']+version[0]+version[2]/2)} {round(rect['y']+version[1]+version[3]/2)}")
         driver.seat_command('motion 0 0')
-        until(lambda:state()['updater']['footerLabel']=='Update app','Version button hover did not show Update app')
-        assert state()['targets']['update-version']==version,'Version button shifted or resized on hover'
+        until(lambda:state()['updater']['iconState']=='available','Hover changed update availability')
+        assert state()['targets']['update-icon']==version and state()['targets']['version-chip']==chip,'Hover shifted footer layout'
         driver.screenshot(window,folder/'footer-update-hover.png')
-        with Image.open(folder/'footer-update-hover.png') as source:
-            pixels=source.convert('RGB'); x,y,w,h=map(round,state()['targets']['update-caption'])
-            assert pixels.getpixel((x+4,y+h//2))==(235,235,235),'Version hover has no grey background'
-            assert pixels.getpixel((x,y))==(255,255,255),'Version hover corners are not rounded'
-            assert w<version[2]-24,'Highlight retained the version width'
-            assert pixels.getpixel((x+w+4,y+h//2))!=(235,235,235),'Hover paints reserved label space'
+        assert any(s['file']=='v2/pass2/d0b9d.svg' and s['bounds'][2:]==[16,16] for s in state()['assetSlots']),'Available icon is not the original Figma export'
         # Move away and reach the action using native keyboard traversal.
         click('editor')
         for _ in range(6):
             driver.key('Tab'); time.sleep(.25)
             if state()['updater']['footerFocused']: break
-        assert state()['updater']['footerFocused'] and state()['updater']['footerLabel']=='Update app','Footer action is not keyboard accessible'
+        assert state()['updater']['footerFocused'] and state()['updater']['iconState']=='available','Footer action is not keyboard accessible'
         click('nav-projects'); click('nav-settings')
         assert state()['updater']['version'].endswith('+0000000'),'Settings reported the wrong installed version'
         driver.screenshot(window,folder/'update-available.png')
+        click('update-app');until(lambda:state()['updater']['confirmationVisible'],'Settings did not ask before downloading')
+        assert not state()['updater']['work'] and profile.resolve()==previous
+        driver.screenshot(window,folder/'settings-restart-warning.png');click('update-cancel')
+        assert not state()['updater']['work'] and profile.resolve()==previous,'Not now started an update'
         click('nav-projects'); click('open-'+project_id)
         until(lambda:(state().get('child') or {}).get('ready'),'Workspace did not reopen for footer update')
-        click('update-version')
+        click('update-icon');until(lambda:state()['updater']['confirmationVisible'],'Footer did not ask before downloading')
+        assert not state()['updater']['work'] and profile.resolve()==previous
+        click('update-cancel');assert not state()['updater']['work'] and profile.resolve()==previous
+        click('update-icon');until(lambda:state()['updater']['confirmationVisible'],'Footer confirmation did not reopen');click('update-confirm')
         work=Path(until(lambda:state().get('updater',{}).get('work'),'Detached updater did not start'))
         until(lambda:not state()['updater']['footerSensitive'],'Footer allowed a second update while one was active')
         driver.screenshot(window,folder/'footer-update-running.png')
@@ -195,7 +197,7 @@ def main():
         assert desktop.resolve()==profile.resolve()/'share/applications/org.centaur.Gtk4.desktop','Desktop entry pinned the old package'
         assert state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 ')
         assert state()['page']=='workspace','Footer update did not restore the workspace'
-        until(lambda:not state()['updater']['badgeVisible'],'Updated version retained its availability badge')
+        until(lambda:state()['updater']['iconState']=='complete','Completed updater did not show the real checkmark')
         assert any(m.get('text')=='Keep this conversation' for m in state()['project']['messages'])
         for name,content in before.items(): assert (data/name).read_bytes()==content,'Updater modified project/configuration '+name
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
@@ -203,16 +205,42 @@ def main():
         assert avatar.read_bytes()==avatar_bytes,'Updater changed the saved avatar'
         new_window=driver.find_window('org.centaur.Gtk4',new_pid)
         driver.track_native(new_window,state); driver.screenshot(new_window,folder/'updated-app.png')
-        until(lambda:state()['updater']['footerLabel']=='v'+state()['updater']['version'],'Restart did not restore installed version')
-        x,y,w,h=target(state,'update-version'); driver.click(new_window,round(x+w/2),round(y+h/2))
+        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        # Repeat the real transaction from Settings, using only the disposable
+        # CI profile and already-built previous-version fixture.
+        os.kill(new_pid,signal.SIGTERM)
+        until(lambda:not Path(f'/proc/{new_pid}').exists() or Path(f'/proc/{new_pid}/stat').read_text().split()[2]=='Z','First updated window did not close')
+        subprocess.run([str(previous/'bin/centaur-host'),'--stop','--data-dir',str(data)],env=env,timeout=10,check=True);new_pid=None
+        subprocess.run([*nix,'build','--offline','--no-link','--profile',str(profile),str(previous)],env=env,check=True)
+        process=subprocess.Popen([str(profile/'bin/centaur-gtk4'),'--data-dir',str(data),'--report-dir',str(report)],env=env)
+        until(lambda:state().get('pid')==process.pid and state()['updater']['version'].endswith('+0000000'),'Settings update fixture did not map')
+        window=driver.find_window('org.centaur.Gtk4',process.pid);driver.track_native(window,state)
+        click('nav-settings');until(lambda:state()['updater']['available'],'Settings fixture did not discover the signed update')
+        click('update-app');until(lambda:state()['updater']['confirmationVisible'],'Settings update bypassed confirmation')
+        assert not state()['updater']['work'];click('update-confirm')
+        work=Path(until(lambda:state()['updater']['work'],'Confirmed Settings updater did not start'))
+        until(lambda:process.poll() is not None,'Settings updater did not exit for restart',timeout=180)
+        until(lambda:read(work/'status.json').get('phase') in ('complete','recovered','failed','recovery-required'),'Settings update did not finish',timeout=90)
+        assert read(work/'status.json')['phase']=='complete'
+        new_pid=read(work/'ready.json')['pid']
+        until(lambda:state().get('pid')==new_pid and state()['page']=='settings' and state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 '),'Settings update did not restore its page/version')
+        until(lambda:state()['updater']['iconState']=='complete','Settings completion did not show the real checkmark')
+        assert profile.resolve()==Path(manifest['storePath'])
+        for name,content in before.items():assert (data/name).read_bytes()==content,'Settings update changed saved data '+name
+        assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
+        assert auth.read_text()=='opaque-test-credentials' and avatar.read_bytes()==avatar_bytes
+        new_window=driver.find_window('org.centaur.Gtk4',new_pid);driver.track_native(new_window,state)
+        driver.screenshot(new_window,folder/'settings-updated-app.png')
+        x,y,w,h=target(state,'update-app');driver.click(new_window,round(x+w/2),round(y+h/2))
         until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
-        assert state()['updater']['footerLabel']=='v'+state()['updater']['version'],'Stationary pointer kept action after real no-update check'
+        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
         driver.screenshot(new_window,folder/'footer-up-to-date.png')
         until(lambda:state()['updater']['footerStatus']=='','Real no-update notice did not clear')
-        assert state()['updater']['footerLabel']=='v'+state()['updater']['version']
-        summary['checks']+=['settings-version-and-published-update','footer-background-availability-8px-badge-alignment-hover-and-keyboard',
-                            'footer-natural-width-paint-stable-geometry-pointer-and-focus-rearm-transient-no-update',
-                            'footer-click-live-status-detached-download-signature-verification',
+        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        summary['checks']+=['settings-version-and-published-update','figma-original-download-icon-right-version-chip-and-native-keyboard',
+                            'both-entry-points-restart-warning-and-not-now-without-transaction',
+                            'confirmed-footer-live-status-detached-download-signature-verification',
+                            'confirmed-settings-real-profile-switch-restart-and-restored-settings-page',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
                             'qt-profile-and-data-preserved']
         maintenance(folder,env); summary['checks'].append('real-host-maintenance-gate-and-busy-agent-refusal')
@@ -231,8 +259,9 @@ def main():
         import shutil
         diagnostics=folder/'transaction'; diagnostics.mkdir(exist_ok=True)
         for work in (home/'.local/state/centaur-gtk4-updater').glob('run-*'):
+            transaction=diagnostics/work.name;transaction.mkdir(exist_ok=True)
             for name in ('status.json','ready.json','request.json','resume.json','helper.log','application.log'):
-                if (work/name).is_file(): shutil.copyfile(work/name,diagnostics/name)
+                if (work/name).is_file(): shutil.copyfile(work/name,transaction/name)
         (folder/'summary.json').write_text(json.dumps(summary,indent=2))
         print(json.dumps(summary,indent=2))
 

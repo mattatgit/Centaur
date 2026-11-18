@@ -1,0 +1,183 @@
+{
+  "ownerProfileActivated": false,
+  "rawProviderOutputStored": false,
+  "model": "openai-codex/gpt-6.1-sol",
+  "realCreate": {
+    "seconds": 17.98,
+    "phases": [
+      "waiting",
+      "processing",
+      "responding",
+      "validating"
+    ],
+    "failureDetails": [],
+    "creationPending": false,
+    "waitingVisible": false,
+    "promptSubmittedOnce": true,
+    "nativeTitle": "Counter verification",
+    "nativeReady": true,
+    "passed": true
+  },
+  "realLandlineEdit": {
+    "label": "landline-clone",
+    "ownerProfileActivated": false,
+    "privateSourceCopyOnlyInVm": true,
+    "seconds": 6.363,
+    "revisionBefore": 4,
+    "revisionAfter": 5,
+    "sourceChanged": true,
+    "failureDetails": [],
+    "completionMessageKinds": [
+      "human",
+      "agent",
+      "agent"
+    ],
+    "coordinatorErrors": [],
+    "ownerSourceAndStateUnchanged": true,
+    "observedPhases": [
+      "starting",
+      "waiting",
+      "processing",
+      "responding",
+      "receiving_edit",
+      "finishing",
+      "complete",
+      "validating"
+    ],
+    "brokerResults": [
+      {
+        "operation": "read",
+        "ok": true,
+        "files": [
+          "LandlineNix/assets/mic_on.svg"
+        ]
+      }
+    ],
+    "unchangedFiles": [
+      "app.py",
+      "style.css"
+    ],
+    "runs": [
+      {
+        "seconds": 6.007,
+        "prompt": {
+          "bytes": 61498,
+          "fieldBytes": {
+            "adaptationInspection": 24,
+            "agentModel": 26,
+            "agentName": 9,
+            "annotations": 2,
+            "appFormat": 9,
+            "appHistory": 2,
+            "contributors": 8,
+            "decisions": 699,
+            "description": 18,
+            "epoch": 2,
+            "id": 38,
+            "import": 456,
+            "importDiagnostics": 2104,
+            "logicalRequestId": 38,
+            "messages": 7156,
+            "name": 10,
+            "proposal": 2,
+            "requestAuthor": 6,
+            "requestComment": 2,
+            "requestText": 126,
+            "revision": 1,
+            "sourceInspection": 1766,
+            "updated": 26
+          },
+          "currentSourceJsonBytes": 35671
+        },
+        "events": {
+          "session": 1,
+          "agent_start": 1,
+          "turn_start": 1,
+          "message_start": 2,
+          "message_end": 2,
+          "message_update": 120,
+          "turn_end": 1,
+          "agent_end": 1
+        },
+        "streamCategories": {
+          "thinking_start": 1,
+          "thinking_delta": 2,
+          "thinking_end": 1,
+          "text_start": 1,
+          "text_delta": 114,
+          "text_end": 1
+        },
+        "stdoutBytes": 224523,
+        "responseTextBytes": 390,
+        "responseTextCharacters": 386,
+        "responseLineBreaks": 0,
+        "responseFieldsObserved": [],
+        "timeline": [
+          {
+            "seconds": 0.26,
+            "event": "session"
+          },
+          {
+            "seconds": 0.26,
+            "responseField": null
+          },
+          {
+            "seconds": 0.349,
+            "event": "agent_start"
+          },
+          {
+            "seconds": 0.37,
+            "event": "turn_start"
+          },
+          {
+            "seconds": 0.37,
+            "event": "message_start"
+          },
+          {
+            "seconds": 0.371,
+            "event": "message_end"
+          },
+          {
+            "seconds": 5.97,
+            "event": "turn_end"
+          },
+          {
+            "seconds": 5.978,
+            "event": "agent_end"
+          }
+        ],
+        "parsedResponse": {
+          "kind": "patch",
+          "validJson": true,
+          "outputBytes": 390,
+          "fileBytes": {},
+          "editCount": 1,
+          "editedFiles": [
+            "app.ui"
+          ],
+          "toolOperation": null,
+          "stopReason": "stop",
+          "usage": {
+            "input": 18016,
+            "output": 148,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 18164
+          }
+        },
+        "rawReasoningRetained": false,
+        "rawProviderOutputStored": false,
+        "toolFlagsDisabled": true
+      }
+    ]
+  },
+  "realLandlineUi": {
+    "nativeReady": true,
+    "noStrayComposerAction": true,
+    "sourceManagementInProjectMenu": true,
+    "passed": true
+  },
+  "passed": true,
+  "ownerConfigurationAndProjectBytesUnchanged": true,
+  "ownerAndQtProfilesUnchanged": true
+}

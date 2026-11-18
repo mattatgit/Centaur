@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import datetime
 import gi
 
@@ -57,6 +58,7 @@ class Centaur(Gtk.Application):
         self.drafts = {}
         self.active_form = None
         self.open_id = None
+        self.pending_source_change=None
         self.targets = {}
         self.comment=CommentPointer(); self.pointer_position=None; self.comment_geometry=None
 
@@ -108,6 +110,7 @@ class Centaur(Gtk.Application):
         self.profile_text = box(True, 8); self.profile_name = label('', 'nav-label'); self.profile_name.set_ellipsize(Pango.EllipsizeMode.END)
         self.profile_text.append(self.profile_name); self.profile_text.append(label('This device', 'small muted')); profile.append(self.profile_text)
         self.identity.set_child(profile); self.sidebar.append(self.identity); root.append(self.sidebar)
+        self.targets.update({'sidebar-profile':self.identity,'sidebar-avatar':self.profile_avatar})
         content = box(True,0); content.set_hexpand(True)
         self.top = Gtk.CenterBox(); self.top.add_css_class('topbar'); self.top.set_size_request(-1,HEADER)
         self.top_start = box(spacing=8); self.top_start.set_margin_start(24); self.top_start.set_valign(Gtk.Align.CENTER)
@@ -159,11 +162,12 @@ class Centaur(Gtk.Application):
         self.invite_button = button('Invite',self.invite,tone='outline',width=62); self.top_actions.append(self.invite_button)
         self.deploy_button = button('Deploy',lambda:self.notice('Deploy','Deployment is planned for a later version.'),tone='dark',width=72); self.top_actions.append(self.deploy_button)
         self.targets.update({'invite':self.invite_button,'deploy':self.deploy_button})
-        self.saved_status=box(spacing=8,css='saved-status'); self.saved_status.set_valign(Gtk.Align.CENTER)
+        self.saved_status=box(spacing=2,css='saved-status'); self.saved_status.set_valign(Gtk.Align.CENTER)
+        self.saved_status.set_margin_end(1)
         self.saved_status.set_size_request(127,32); self.targets['saved-status']=self.saved_status
-        self.saved_status.set_margin_end(52)
         self.saved_tick=original('9ed11.svg',24); self.saved_status.append(self.saved_tick)
-        self.saved_caption=label('Changes saved','small'); self.saved_status.append(self.saved_caption); self.top_actions.append(self.saved_status)
+        self.saved_caption=label('','saved-caption'); self.saved_status.append(self.saved_caption); self.top_actions.append(self.saved_status)
+        self.saved_status.set_visible(False)
         self.window_controls=Gtk.WindowControls(side=Gtk.PackType.END,decoration_layout=':close')
         self.window_controls.set_valign(Gtk.Align.CENTER); self.top_actions.append(self.window_controls)
         self.top.set_end_widget(self.top_actions)
@@ -195,18 +199,22 @@ class Centaur(Gtk.Application):
 
     def build_projects(self):
         page = box(True,0,'panel')
-        self.projects_inner = margins(box(True,24),40); self.projects_inner.set_vexpand(True); page.append(self.projects_inner)
+        self.projects_inner = box(True,24); self.projects_inner.set_vexpand(True); page.append(self.projects_inner)
         scroll = Gtk.ScrolledWindow(vexpand=True,hexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
-        self.cards = ProjectGrid(); scroll.set_child(self.cards)
+        # Padding belongs inside the viewport so first/last card shadows have
+        # room to paint. Card positions and grid width retain their V2 insets.
+        self.cards = margins(ProjectGrid(),40); scroll.set_child(self.cards)
         overlay = Gtk.Overlay(vexpand=True); overlay.set_child(scroll)
         self.empty_projects = box(True,16,'empty-project'); self.empty_projects.set_size_request(-1,264)
         self.empty_projects.append(label('What shall we make?','empty-heading',True))
         self.empty_projects.append(label('A family planner, a little game, a shared collection. Every project becomes its own native app.','empty-description muted',True))
         spacer=box(); spacer.set_vexpand(True); self.empty_projects.append(spacer)
         first=button('Create your first project',self.new_project,tone='lime'); first.set_halign(Gtk.Align.START); self.empty_projects.append(first)
-        self.empty_limit=WidthLimit(self.empty_projects,424); overlay.add_overlay(self.empty_limit); self.projects_inner.append(overlay)
+        self.empty_limit=margins(WidthLimit(self.empty_projects,424),40); overlay.add_overlay(self.empty_limit); self.projects_inner.append(overlay)
         self.join_progress=label('','small muted',True); self.projects_inner.append(self.join_progress); self.join_progress.set_visible(False)
+        self.join_progress.set_margin_start(40); self.join_progress.set_margin_end(40)
         self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); self.cancel_join.set_halign(Gtk.Align.START)
+        self.cancel_join.set_margin_start(40); self.cancel_join.set_margin_bottom(40)
         self.projects_inner.append(self.cancel_join); self.cancel_join.set_visible(False)
         self.stack.add_named(page,'projects')
 
@@ -248,7 +256,8 @@ class Centaur(Gtk.Application):
         self.preview_label=label('','small muted',True); self.preview_label.set_halign(Gtk.Align.CENTER); self.preview_label.set_valign(Gtk.Align.CENTER); self.preview_label.set_can_target(False)
         self.overlay.add_overlay(self.preview_label)
         from v2_ui import ImportWaiting, WorkingMark, rule
-        self.import_working=ImportWaiting(); self.overlay.add_overlay(self.import_working); self.import_working.set_visible(False)
+        self.import_working=ImportWaiting(); self.import_working.set_visible(False)
+        self.targets.update({'canvas-waiting':self.import_working,'waiting-illustration':self.import_working.clay})
         self.build_tools=box(spacing=8,css='tools'); self.build_tools.set_halign(Gtk.Align.CENTER); self.build_tools.set_valign(Gtk.Align.END); self.build_tools.set_margin_bottom(16)
         self.tool_buttons={}
         for tool,title,icon in [('draw','Draw','v2/3f1c5.svg'),('comment','Comment','v2/e0a15.svg')]:
@@ -264,7 +273,9 @@ class Centaur(Gtk.Application):
         self.targets['undo-icon']=self.undo_button.centaur_image
         self.overlay.add_overlay(self.build_tools); self.canvas_column=box(True,0,'canvas-panel'); self.canvas_column.set_overflow(Gtk.Overflow.HIDDEN)
         self.canvas_column.append(self.canvas_bar); self.canvas_column.append(rule('2115d.svg')); self.canvas_column.append(self.overlay)
-        self.panes.set_end_child(self.canvas_column); self.panes.set_resize_end_child(True); self.panes.set_shrink_end_child(False)
+        canvas=Gtk.Overlay(); canvas.set_child(self.canvas_column); canvas.add_overlay(self.import_working)
+        self.targets['canvas-panel']=canvas
+        self.panes.set_end_child(canvas); self.panes.set_resize_end_child(True); self.panes.set_shrink_end_child(False)
         self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
         self.targets['chat-panel']=self.chat
         chat=box(True,0); chat.set_vexpand(True); self.chat.append(chat)
@@ -281,19 +292,32 @@ class Centaur(Gtk.Application):
         self.chat_scrollbar=Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,adjustment=self.chat_scroll.get_vadjustment())
         self.chat_scrollbar.add_css_class('chat-scrollbar'); self.chat_scrollbar.set_margin_top(16); self.chat_scrollbar.set_margin_bottom(16)
         self.chat_scrollbar.set_sensitive(False)
+        self.chat_scrollbar.set_opacity(0)
+        self.scrollbar_timeout=None; self.scrollbar_until=0; self.scrollbar_dragging=False
         self.chat_scroll_generation=0; self.chat_follow=True; self.chat_follow_generation=0
         scroll_input=Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
         scroll_input.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         def scrolled(*unused):
-            self.chat_scroll_generation+=1; self.chat_follow=False; return False
+            self.chat_scroll_generation+=1; self.chat_follow=False; self.reveal_chat_scrollbar(); return False
         scroll_input.connect('scroll',scrolled); self.chat_scroll.add_controller(scroll_input)
         scroll_keys=Gtk.EventControllerKey()
+        scroll_keys.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         def scroll_key(controller,keyval,*unused):
             if keyval in (Gdk.KEY_Up,Gdk.KEY_Down,Gdk.KEY_Page_Up,Gdk.KEY_Page_Down,Gdk.KEY_Home,Gdk.KEY_End): scrolled()
             return False
         scroll_keys.connect('key-pressed',scroll_key); self.chat_scroll.add_controller(scroll_keys)
-        scroll_drag=Gtk.GestureClick(); scroll_drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
-        scroll_drag.connect('pressed',scrolled); self.chat_scrollbar.add_controller(scroll_drag)
+        bar_keys=Gtk.EventControllerKey(); bar_keys.connect('key-pressed',scroll_key); self.chat_scrollbar.add_controller(bar_keys)
+        # Leave the native range's sequence unclaimed; observe real presses
+        # through GTK gestures rather than raw GdkEvent introspection.
+        bar_input=Gtk.GestureClick(button=0,propagation_phase=Gtk.PropagationPhase.CAPTURE)
+        def bar_pressed(*unused):
+            self.scrollbar_dragging=True; scrolled()
+        def bar_released(*unused):
+            self.scrollbar_dragging=False; self.reveal_chat_scrollbar()
+        bar_input.connect('pressed',bar_pressed); bar_input.connect('released',bar_released)
+        bar_input.connect('unpaired-release',bar_released); bar_input.connect('cancel',bar_released)
+        self.chat_scrollbar.add_controller(bar_input)
+        self.chat_scroll.get_vadjustment().connect('value-changed',lambda a:self.reveal_chat_scrollbar() if self.scrollbar_dragging or time.monotonic()<self.scrollbar_until else None)
         self.chat_scroll.get_vadjustment().connect('changed',lambda a:self.chat_scrollbar.set_sensitive(a.get_upper()>a.get_page_size()))
         def range_changed(adjustment):
             if self.chat_follow and self.chat_follow_generation==self.chat_scroll_generation:
@@ -332,11 +356,21 @@ class Centaur(Gtk.Application):
         for item in (self.proposal,self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
         self.update_footer.set_margin_top(0); self.update_footer.set_size_request(-1,48)
         self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider,'chat-scroller':self.chat_scroll})
+
         self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
         self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
         self.root_overlay.add_overlay(self.comment_overlay)
         self.panes.set_start_child(self.chat); self.panes.set_resize_start_child(False); self.panes.set_shrink_start_child(False)
         self.stack.add_named(wrapper,'workspace'); self.set_tool('draw'); self.initial_pane=True
+
+    def reveal_chat_scrollbar(self):
+        self.scrollbar_until=time.monotonic()+.9
+        self.chat_scrollbar.set_opacity(1 if self.chat_scrollbar.get_sensitive() else 0)
+        if self.scrollbar_timeout is not None: GLib.source_remove(self.scrollbar_timeout)
+        def hide():
+            if self.scrollbar_dragging: return True
+            self.scrollbar_timeout=None; self.chat_scrollbar.set_opacity(0); return False
+        self.scrollbar_timeout=GLib.timeout_add(900,hide)
 
     @staticmethod
     def version(): return '0.4.0-preview+'+os.environ.get('CENTAUR_GTK4_BUILD_ID','dev')
@@ -366,7 +400,9 @@ class Centaur(Gtk.Application):
 
     def navigate(self,page):
         if page!='workspace': self.cancel_comment()
+        opened_settings=page=='settings' and self.page!='settings'
         self.page=page
+        if opened_settings and hasattr(self,'settings'): self.settings.opened()
         if page=='settings' and hasattr(self,'updates') and not self.updates.checked: self.updates.check()
         if page=='settings' and hasattr(self,'settings'): self.settings.refresh()
         self.stack.set_visible_child_name(page)
@@ -378,7 +414,7 @@ class Centaur(Gtk.Application):
         workspace=page=='workspace'
         self.top_start.set_margin_start(24)
         self.sidebar.set_visible(not workspace); self.modes.set_visible(workspace)
-        self.saved_status.set_visible(page=='settings')
+        if hasattr(self,'settings'): self.settings.status()
         for item in (self.projects_crumb,self.breadcrumb_arrow,self.breadcrumb,self.invite_button,self.deploy_button): item.set_visible(workspace)
         self.create_menu.set_visible(page=='projects'); self.import_button.set_visible(page=='systems')
         self.targets['nav-projects']=self.projects_crumb if workspace else self.nav['projects']
@@ -439,7 +475,7 @@ class Centaur(Gtk.Application):
         ok,canvas=self.ink.compute_bounds(self.root_overlay); good,composer=self.composer.compute_bounds(self.root_overlay)
         if not ok or not good: return None,None
         head=self.comment.head(self.viewport.describe(),(canvas.get_x(),canvas.get_y()))
-        return (composer.get_x()+12,composer.get_y()+12),head
+        return (composer.get_x()+composer.get_width()-12,composer.get_y()+12),head
 
     def undo(self):
         if self.comment.phase!='idle': self.cancel_comment()
@@ -462,6 +498,7 @@ class Centaur(Gtk.Application):
         new_id=self.project.get('id')
         buffer=self.editor.get_buffer()
         if old_id!=new_id:
+            self.scrollbar_until=0; self.scrollbar_dragging=False; self.chat_scrollbar.set_opacity(0)
             self.chat_follow=True; self.chat_follow_generation=self.chat_scroll_generation
             self.cancel_comment()
             if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
@@ -508,14 +545,22 @@ class Centaur(Gtk.Application):
             imported=self.project.get('import') or {}; phase=imported.get('status')
             local=not data.get('remote',False)
             self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
-            self.import_retry.set_visible(local and bool(imported) and phase not in ('fetching','inspecting','investigating') and not data.get('busy'))
-            button_text(self.import_retry,'Retry import' if phase in ('failed','interrupted') else 'Change source')
+            self.import_retry.set_visible(local and bool(imported) and not imported.get('previewReady') and phase in ('failed','interrupted') and not data.get('busy'))
+            button_text(self.import_retry,'Retry import')
             self.import_actions.set_visible(any(w.get_visible() for w in (self.import_run,self.import_retry)))
-            working=bool(imported) and not imported.get('previewReady')
+            creating=bool(self.project.get('creationPending'))
+            active=bool(activity or data.get('busy') or self.project.get('queueCount'))
+            working=(bool(imported) and not imported.get('previewReady') and (active or phase in ('fetching','inspecting'))) or (creating and active)
             self.import_working.set_visible(working)
-            self.import_working.update(phase)
+            self.import_working.update(phase,'create' if creating else 'import')
             self.working_mark.set_working(bool(activity))
             if self.page=='workspace': GLib.idle_add(self.start_preview)
+            if self.pending_source_change==self.project['id']:
+                expected=self.pending_source_change; self.pending_source_change=None
+                def show_source_change():
+                    if self.project.get('id')==expected and not self.data.get('remote'): show_import(self,retry=True)
+                    return False
+                GLib.idle_add(show_source_change)
         elif old_id:
             self.stop_preview(); self.navigate('projects')
         self.ink.queue_draw()
@@ -569,7 +614,7 @@ class Centaur(Gtk.Application):
     def refresh_cards(self):
         self.cards.clear()
         for key in list(self.targets):
-            if key.startswith(('open-','menu-')): del self.targets[key]
+            if key.startswith(('open-','menu-','thumbnail-')): del self.targets[key]
         projects=self.data.get('projects',[])
         self.empty_projects.set_visible(not projects)
         for project in projects:
@@ -581,12 +626,13 @@ class Centaur(Gtk.Application):
             thumbnail.set_child(box())
             path=self.thumbnail_path(project)
             if path.exists():
-                image=Gtk.Picture.new_for_filename(str(path)); image.set_content_fit(Gtk.ContentFit.CONTAIN); image.set_can_shrink(True)
+                image=picture(path,0,padding=24)
                 thumbnail.add_overlay(image)
             else:
                 image=picture(ASSETS/'v2/dc3c7.png',72); image.set_halign(Gtk.Align.CENTER); image.set_valign(Gtk.Align.CENTER)
                 image.set_opacity(.2); thumbnail.add_overlay(image)
             content.append(thumbnail)
+            self.targets['thumbnail-'+project['id']]=image
             text=box(True,5); text.set_size_request(-1,72); text.set_margin_start(16); text.set_margin_end(48)
             title=label(project['name'],'project-title'); title.set_ellipsize(Pango.EllipsizeMode.END); title.set_margin_top(16); text.append(title)
             app_type=project.get('appType') or {'gtk4-v1':'GTK4 App','qml-v1':'Qt App'}.get(project.get('appFormat'),'Native app')
@@ -603,10 +649,18 @@ class Centaur(Gtk.Application):
             rename.get_child().set_halign(Gtk.Align.START); rename.set_sensitive(not project.get('remote',False)); actions.append(rename)
             imported=project.get('import') or {}
             if not project.get('remote') and imported.get('storage') and imported.get('framework'):
-                inspect=button('Open adaptation' if imported.get('output') else 'Open source',
+                inspect=button('Open source',
                     lambda p=project,a=action:a(lambda:self.open_imported(p)),tone='plain',height=24)
                 inspect.get_child().set_halign(Gtk.Align.START); actions.append(inspect)
                 self.targets['menu-source-'+project['id']]=inspect
+                if imported.get('output'):
+                    adaptation=button('Open adaptation',lambda p=project,a=action:a(lambda:self.open_imported(p,True)),tone='plain',height=24)
+                    adaptation.get_child().set_halign(Gtk.Align.START); actions.append(adaptation)
+                    self.targets['menu-adaptation-'+project['id']]=adaptation
+            if imported.get('storage') and not project.get('remote'):
+                change=button('Change source',lambda p=project,a=action:a(lambda:self.change_import_source(p)),tone='plain',height=24)
+                change.get_child().set_halign(Gtk.Align.START); actions.append(change)
+                self.targets['menu-change-source-'+project['id']]=change
             delete=button('Leave project' if project.get('remote') else 'Delete',lambda p=project,a=action:a(lambda:self.delete(p)),tone='plain',height=24)
             delete.get_child().set_halign(Gtk.Align.START); actions.append(delete)
             self.targets['menu-rename-'+project['id']]=rename; self.targets['menu-delete-'+project['id']]=delete
@@ -615,13 +669,16 @@ class Centaur(Gtk.Application):
             self.targets['menu-'+project['id']]=menu
             self.cards.append(card)
 
-    def open_imported(self,project):
+    def open_imported(self,project,adaptation=False):
         info=project.get('import') or {}
         base=(self.root/'projects'/project['id']/'.centaur/import').resolve()
-        path=(base/info['storage']/(info.get('output') or 'source')).resolve()
+        path=(base/info['storage']/(info.get('output') if adaptation else 'source')).resolve()
         if not path.is_relative_to(base) or not path.is_dir():
             self.notice('Source unavailable','The saved imported source could not be found.'); return
         Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
+
+    def change_import_source(self,project):
+        self.pending_source_change=project['id']; self.open_project(project['id'])
 
     def current_activity(self):
         if self.data.get('remote') and not self.data.get('connected'): return {}
@@ -642,12 +699,22 @@ class Centaur(Gtk.Application):
             if key.startswith('agent-details-'): del self.targets[key]
         activity=self.current_activity()
         self.busy.set_visible(bool(activity))
+        try: avatar_stamp=self.settings.avatar_path.stat().st_mtime_ns
+        except OSError: avatar_stamp=None
+        previous_rows=getattr(self,'message_widgets',{}); rows=[]
+        for index,message in enumerate(self.project.get('messages',[])):
+            key=message.get('id') or 'legacy-'+str(index)
+            fingerprint=(self.project.get('id'),self.data.get('author'),avatar_stamp,
+                         hashlib.sha256(json.dumps(message,sort_keys=True).encode()).digest())
+            old=previous_rows.get(key)
+            rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None))
+        keep={old[1] for key,message,fingerprint,old in rows if old}
         child=self.messages.get_first_child()
         while child:
             following=child.get_next_sibling()
-            if child!=self.busy or not activity: self.messages.remove(child)
+            if child not in keep and (child!=self.busy or not activity): self.messages.remove(child)
             child=following
-        self.message_rows=[]
+        self.message_rows=[]; self.message_widgets={}
         def put_activity(after=None):
             # Reordering an existing child preserves its frame clock while
             # concurrent human messages arrive; progress never rebuilds it.
@@ -655,53 +722,26 @@ class Centaur(Gtk.Application):
             self.messages.reorder_child_after(self.busy,after)
         inserted=False
         if activity and not activity.get('afterMessage'): put_activity(); inserted=True
+        previous=self.busy if inserted else None
         self.empty_chat.set_visible(not self.project.get('messages') and not activity)
-        for message in self.project.get('messages',[]):
-            item=box(spacing=8,css='chat-card'); column=box(True,2); column.set_hexpand(True); head=box(spacing=8)
-            author=message.get('author','')
-            agent=message.get('kind')!='human'
-            if not agent: item.add_css_class('human')
-            if agent:
-                author=author.lstrip('@')
-                if author.lower()=='centaur': author='Centaur'
-            if agent:
-                avatar=box(css='avatar agent'); mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
-                self.targets['chat-agent-avatar']=avatar; self.targets['chat-agent-mark']=mark
+        for key,message,fingerprint,old in rows:
+            if old:
+                _,item,widgets,action,mark=old
             else:
-                if author==self.data.get('author') and self.settings.avatar_path.exists():
-                    avatar=Gtk.Overlay(css_classes=['avatar']); avatar.set_overflow(Gtk.Overflow.HIDDEN); avatar.set_child(picture(self.settings.avatar_path,32,cover=True))
-                else:
-                    avatar=label(author[:1].upper(),'avatar'); avatar.set_xalign(.5)
-            avatar.set_size_request(32,32); avatar.set_valign(Gtk.Align.START); item.append(avatar)
-            self.targets['chat-avatar']=avatar
-            name=label(author,'chat-name'); name.set_ellipsize(Pango.EllipsizeMode.END); name.set_valign(Gtk.Align.BASELINE); head.append(name)
-            try: time=datetime.fromisoformat(message['time'].replace('Z','+00:00')).astimezone().strftime('%H:%M')
-            except (KeyError,ValueError): time=''
-            stamp=label(time,'chat-time muted'); stamp.set_valign(Gtk.Align.BASELINE); head.append(stamp); column.append(head)
-            text=message.get('text','')
-            if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
-            body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
-            attributes=Pango.AttrList()
-            for mention in re.finditer(r'(?<!\w)@[\w-]+',text):
-                weight=Pango.attr_weight_new(Pango.Weight.SEMIBOLD)
-                weight.start_index=len(text[:mention.start()].encode('utf-8'))
-                weight.end_index=len(text[:mention.end()].encode('utf-8'))
-                attributes.insert(weight)
-            body.set_attributes(attributes)
-            self.chat_body=body
-            column.append(body); item.append(column); self.messages.append(item)
-            if message.get('agentDiagnostics'):
-                details=message['agentDiagnostics']
-                action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
-                action.set_halign(Gtk.Align.START); column.append(action)
-                self.targets['agent-details-'+message['id']]=action
-            self.message_rows.append((avatar,name,stamp,body))
-            self.targets.update({'chat-name':name,'chat-body':body,'chat-time':stamp})
+                item,widgets,action,mark=self.message_row(message)
+                self.messages.append(item)
+            # Keep unchanged labels parented: rebuilding a focused message
+            # loses its selection and lets GTK scroll to a replacement focus.
+            self.messages.reorder_child_after(item,previous); previous=item
+            avatar,name,stamp,body=widgets
+            self.chat_body=body; self.message_rows.append(widgets)
+            self.message_widgets[key]=(fingerprint,item,widgets,action,mark)
+            self.targets.update({'chat-avatar':avatar,'chat-name':name,'chat-body':body,'chat-time':stamp})
+            if mark: self.targets.update({'chat-agent-avatar':avatar,'chat-agent-mark':mark})
+            if action: self.targets['agent-details-'+message['id']]=action
             if activity and activity.get('afterMessage')==message.get('id'):
-                put_activity(item); inserted=True
-        if activity and not inserted:
-            last=self.messages.get_last_child()
-            put_activity(last if last!=self.busy else self.busy.get_prev_sibling())
+                put_activity(item); inserted=True; previous=self.busy
+        if activity and not inserted: put_activity(previous)
         message_key=self.message_key
         def bottom():
             if follow and generation==self.chat_scroll_generation and message_key==self.message_key:
@@ -713,6 +753,44 @@ class Centaur(Gtk.Application):
             GLib.idle_add(bottom)
             return False
         self.messages.add_tick_callback(after_layout)
+
+    def message_row(self,message):
+        item=box(spacing=8,css='chat-card'); column=box(True,2); column.set_hexpand(True); head=box(spacing=8)
+        action=mark=None
+        author=message.get('author','')
+        agent=message.get('kind')!='human'
+        if not agent: item.add_css_class('human')
+        if agent:
+            author=author.lstrip('@')
+            if author.lower()=='centaur': author='Centaur'
+        if agent:
+            avatar=box(css='avatar agent'); mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
+        else:
+            if author==self.data.get('author') and self.settings.avatar_path.exists():
+                avatar=Gtk.Overlay(css_classes=['avatar']); avatar.set_overflow(Gtk.Overflow.HIDDEN); avatar.set_child(picture(self.settings.avatar_path,32,cover=True))
+            else:
+                avatar=label(author[:1].upper(),'avatar'); avatar.set_xalign(.5)
+        avatar.set_size_request(32,32); avatar.set_valign(Gtk.Align.START); item.append(avatar)
+        name=label(author,'chat-name'); name.set_ellipsize(Pango.EllipsizeMode.END); name.set_valign(Gtk.Align.BASELINE); head.append(name)
+        try: time=datetime.fromisoformat(message['time'].replace('Z','+00:00')).astimezone().strftime('%H:%M')
+        except (KeyError,ValueError): time=''
+        stamp=label(time,'chat-time muted'); stamp.set_valign(Gtk.Align.BASELINE); head.append(stamp); column.append(head)
+        text=message.get('text','')
+        if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
+        body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
+        attributes=Pango.AttrList()
+        for mention in re.finditer(r'(?<!\w)@[\w-]+',text):
+            weight=Pango.attr_weight_new(Pango.Weight.SEMIBOLD)
+            weight.start_index=len(text[:mention.start()].encode('utf-8'))
+            weight.end_index=len(text[:mention.end()].encode('utf-8'))
+            attributes.insert(weight)
+        body.set_attributes(attributes)
+        column.append(body); item.append(column)
+        if message.get('agentDiagnostics'):
+            details=message['agentDiagnostics']
+            action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
+            action.set_halign(Gtk.Align.START); column.append(action)
+        return item,(avatar,name,stamp,body),action,mark
 
     def refresh_proposal(self):
         self.clear(self.proposal)
@@ -815,7 +893,7 @@ class Centaur(Gtk.Application):
         def done():
             if not name.get_text().strip(): return
             buf=prompt.get_buffer(); text=buf.get_text(buf.get_start_iter(),buf.get_end_iter(),False)
-            if self.service.send('create',name=name.get_text().strip(),description=text): self.dismiss_dialog(dialog)
+            if self.service.send('create',name=name.get_text().strip(),description=text,generate=bool(text.strip())): self.dismiss_dialog(dialog)
         create=button('Create project',done,tone='dark',width=104); footer.append(create)
         name.connect('changed',lambda e:create.set_sensitive(bool(e.get_text().strip())))
         name.connect('activate',lambda e:done()); create.set_sensitive(False)
@@ -927,7 +1005,9 @@ class Centaur(Gtk.Application):
 
     def send_grid(self,**fields):
         if getattr(self,'syncing_grid',False) or not hasattr(self,'service'): return
-        values=dict(getattr(self,'requested_grid',None) or self.data.get('grid',{})); values.update(fields)
+        values=dict(getattr(self,'requested_grid',None) or self.data.get('grid',{}))
+        if all(values.get(k)==v or (k=='color' and str(values.get(k)).lower()==str(v).lower()) for k,v in fields.items()): return
+        values.update(fields)
         self.requested_grid=values; self.settings.send('grid',**values)
 
     def toggle_grid(self): self.send_grid(enabled=not self.data.get('grid',{}).get('enabled',False))
@@ -988,7 +1068,13 @@ class Centaur(Gtk.Application):
     def start_preview(self,force=False):
         if self.closing or self.page!='workspace' or not self.project: return False
         if self.project.get('import') and not self.project['import'].get('previewReady'):
-            self.stop_preview(); self.preview_status=''; return False
+            self.stop_preview()
+            phase=self.project['import'].get('status')
+            self.preview_status=('Use Run preview to continue.' if phase=='readyToRun' else
+                'Import could not finish. See chat to retry.' if phase in ('failed','interrupted') else 'Reply in chat to continue the import.')
+            return False
+        if self.project.get('creationPending'):
+            self.stop_preview(); self.preview_status='See chat to continue creating your project.'; return False
         if self.project.get('appFormat')!='gtk4-v1':
             self.preview_status='This Qt project is preserved. Open it with Qt Centaur.'; return False
         key=(self.project['id'],self.project.get('revision'))
@@ -1107,8 +1193,11 @@ class Centaur(Gtk.Application):
         self.links.set_margin_start(16 if compact else 24); self.links.set_margin_end(16 if compact else 24)
         for item in self.nav.values(): item.get_child().set_halign(Gtk.Align.CENTER if compact else Gtk.Align.START)
         self.profile_text.set_visible(not compact)
-        self.projects_inner.set_margin_top(24 if self.stack.get_width()<720 else 40)
-        for edge in ('bottom','start','end'): getattr(self.projects_inner,'set_margin_'+edge)(self.projects_inner.get_margin_top())
+        inset=24 if self.stack.get_width()<720 else 40
+        for widget in (self.cards,self.empty_limit):
+            for edge in ('top','bottom','start','end'): getattr(widget,'set_margin_'+edge)(inset)
+        self.join_progress.set_margin_start(inset); self.join_progress.set_margin_end(inset)
+        self.cancel_join.set_margin_start(inset); self.cancel_join.set_margin_bottom(inset)
         setting_margin=24 if self.stack.get_width()<648 else 72
         margins(self.settings_inner,setting_margin); self.settings_inner.set_margin_top(48)
         self.settings_limit.maximum=504+2*setting_margin
@@ -1136,9 +1225,13 @@ class Centaur(Gtk.Application):
                   'workingAnimation':{'mapped':self.working_mark.get_mapped(),'running':self.working_mark.tick is not None,
                       'opacities':self.working_mark.frame_opacities,'motionProperty':self.working_mark.motion_property,
                       'preference':int(self.working_mark.settings.get_property(self.working_mark.motion_property))},
-                  'settings':{'pending':bool(self.settings.pending or self.settings.debounces or self.settings.agent_pending),'failed':self.settings.failed,'status':self.saved_caption.get_text()},
-                  'grid':self.data.get('grid',{}),
+                  'settings':{'pending':bool(self.settings.pending or self.settings.debounces or self.settings.agent_pending),'failed':self.settings.failed,'status':self.saved_caption.get_text(),
+                              'badgeVisible':self.saved_status.get_visible(),'badgeOpacity':self.saved_status.get_opacity(),'savedUntil':self.settings.saved_until},
+                  'waiting':{'visible':self.import_working.get_visible(),'operation':getattr(self.import_working,'operation','import'),
+                             'title':self.import_working.title.get_text(),'support':self.import_working.status.get_text()},
+                  'grid':self.data.get('grid',{}),'author':self.data.get('author',''),'busy':self.data.get('busy',False),
                   'focus':self.window.get_focus().__gtype__.name if self.window.get_focus() else None,
+                  'focusId':id(self.window.get_focus()) if self.window.get_focus() else None,
                   'form':self.active_form.get_title() if self.active_form and self.active_form.get_visible() else None,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
@@ -1163,6 +1256,11 @@ class Centaur(Gtk.Application):
                             'headerText':self.chat_status.get_text()}
             data['chatRows']=[]
             data['assetSlots']=[]
+            data['thumbnails']={}
+            for key,widget in self.targets.items():
+                if key.startswith('thumbnail-') and widget.get_mapped() and getattr(widget,'padding',0) and hasattr(widget,'content_rect'):
+                    data['thumbnails'][key[len('thumbnail-'):]]={'contentRect':widget.content_rect,
+                        'textureSize':[widget.texture.get_width(),widget.texture.get_height()]}
             data['tooltipWidgets']=[]
             def asset_slots(widget):
                 if widget.get_has_tooltip(): data['tooltipWidgets'].append({'type':type(widget).__name__,'text':widget.get_tooltip_text()})
@@ -1184,7 +1282,8 @@ class Centaur(Gtk.Application):
                                     'reference':self.comment.target,'token':self.comment.token}
             adjustment=self.chat_scroll.get_vadjustment()
             data['chatScroll']={'upper':adjustment.get_upper(),'pageSize':adjustment.get_page_size(),
-                                'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive()}
+                                'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive(),
+                                'barOpacity':self.chat_scrollbar.get_opacity()}
             for widgets in getattr(self,'message_rows',[])[:4]:
                 row={}
                 for key,widget in zip(('avatar','name','time','body'),widgets):
@@ -1202,7 +1301,9 @@ class Centaur(Gtk.Application):
             data['updater']={'version':self.version(),'status':self.updates.status.get_text(),
                              'footerLabel':self.updates.footer_labels.get_visible_child().get_text(),
                              'footerStatus':self.updates.footer_status.get_text(),
-                             'badgeVisible':self.updates.badge.get_visible(),
+                             'iconState':self.updates.icon.state,'iconPhase':self.updates.icon.phase,'iconAnimated':self.updates.icon.tick is not None,
+                             'versionChip':self.updates.footer_version.get_text(),
+                             'confirmationVisible':bool(self.updates.confirmation and self.updates.confirmation.get_visible()),
                              'footerSensitive':self.updates.footer_button.get_sensitive(),
                              'footerFocused':self.updates.footer_focused,
                              'footerHovered':self.updates.footer_hovered,
@@ -1229,6 +1330,7 @@ class Centaur(Gtk.Application):
         return True
 
     def close(self):
+        if self.scrollbar_timeout is not None: GLib.source_remove(self.scrollbar_timeout); self.scrollbar_timeout=None
         if self.closing: return False
         self.settings.close()
         self.closing=True; self.stop_preview()

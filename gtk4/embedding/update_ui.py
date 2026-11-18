@@ -5,8 +5,9 @@ import subprocess
 import threading
 import time
 import uuid
-from gi.repository import GLib, Gtk
-from ui import box,button,button_text,label,accessible
+from gi.repository import GLib, Gtk, Pango
+from ui import ASSETS,box,button,button_text,label,accessible,picture
+from v2_ui import UpdateIcon
 from updater import (check_update,process_identity,profile_path,read_json,state_path,write_json)
 from download_progress import progress_message
 
@@ -21,6 +22,7 @@ class UpdateControls:
         self.footer_hover_suppressed=False; self.footer_focus_suppressed=False
         self.footer_notice_until=0
         self.next_check=time.monotonic()+2
+        self.completed=False; self.confirmation=None
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
         self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
         self.restore_page_pending=bool(owner.update_session)
@@ -38,22 +40,17 @@ class UpdateControls:
 
     def build_footer(self):
         owner=self.owner
-        self.footer_button=Gtk.Button(css_classes=['update-version'],height_request=24,valign=Gtk.Align.CENTER)
+        self.footer_button=Gtk.Button(css_classes=['update-icon'],width_request=16,height_request=24,valign=Gtk.Align.CENTER)
         self.footer_button.set_cursor_from_name('pointer')
         accessible(self.footer_button,'Update app · v'+owner.version())
-        row=box(spacing=8)
-        # Reserve the largest caption's space, but paint only the natural-width
-        # START-aligned label. The hit target and right-hand status never move.
-        self.footer_labels=Gtk.Stack(hhomogeneous=True,vhomogeneous=True)
-        for name,text in [('version','v'+owner.version()),('action','Update app'),
-                          ('available','Update available'),('updating','Updating…')]:
-            caption=label(text,'version update-caption'); caption.set_halign(Gtk.Align.START)
+        self.icon=UpdateIcon(); self.footer_button.set_child(self.icon)
+        left=box(spacing=8); left.set_hexpand(True); left.append(self.footer_button)
+        captions=box(True,0); captions.set_hexpand(True); captions.set_valign(Gtk.Align.CENTER)
+        self.footer_labels=Gtk.Stack(hhomogeneous=False,vhomogeneous=True)
+        for name,text in [('disabled',''),('available','Update available'),('updating','Updating…'),('complete','Complete')]:
+            caption=label(text,'update-caption',True); caption.set_halign(Gtk.Align.START)
             self.footer_labels.add_named(caption,name)
-        self.footer_labels.set_visible_child_name('version'); row.append(self.footer_labels)
-        badge_slot=Gtk.Box(width_request=8,valign=Gtk.Align.CENTER)
-        self.badge=Gtk.Box(css_classes=['update-badge'],width_request=8,height_request=8,valign=Gtk.Align.CENTER)
-        self.badge.set_visible(False); badge_slot.append(self.badge); row.append(badge_slot)
-        self.footer_button.set_child(row)
+        self.footer_labels.set_visible_child_name('disabled'); captions.append(self.footer_labels)
         self.footer_button.connect('clicked',lambda b:self.clicked())
         motion=Gtk.EventControllerMotion()
         motion.connect('enter',lambda c,x,y:self.footer_state(hovered=True))
@@ -61,10 +58,14 @@ class UpdateControls:
         # Observe the window's final focus location. Controller crossing signals
         # can arrive before GtkWindow has finished transferring focus.
         owner.window.connect('notify::focus-widget',lambda w,p:GLib.idle_add(self.sync_footer_focus))
-        self.footer_status=label('','version muted',True); self.footer_status.set_hexpand(True); self.footer_status.set_xalign(1)
-        owner.update_footer.append(self.footer_button); owner.update_footer.append(self.footer_status)
+        self.footer_status=label('','version muted',True); self.footer_status.set_hexpand(True)
+        self.footer_status.set_lines(2); self.footer_status.set_ellipsize(Pango.EllipsizeMode.END)
+        self.footer_status.set_width_chars(1); captions.append(self.footer_status); left.append(captions)
+        self.footer_version=label('v'+owner.version(),'version-chip'); self.footer_version.set_valign(Gtk.Align.CENTER)
+        owner.update_footer.append(left); owner.update_footer.append(self.footer_version)
         owner.targets.update({'update-footer':owner.update_footer,'update-version':self.footer_button,
-                              'update-badge':self.badge,'update-progress':self.footer_status})
+                              'update-icon':self.footer_button,'update-art':self.icon,
+                              'version-chip':self.footer_version,'update-progress':self.footer_status})
 
     def footer_state(self,hovered=None,focused=None):
         if hovered is not None:
@@ -81,7 +82,7 @@ class UpdateControls:
         return False
 
     def set_sensitive(self,value):
-        self.button.set_sensitive(value); self.footer_button.set_sensitive(value)
+        self.button.set_sensitive(value); self.footer_button.set_sensitive(bool(value and self.manifest))
 
     def reset_footer_action(self):
         focus=self.owner.window.get_focus()
@@ -91,21 +92,22 @@ class UpdateControls:
 
     def refresh_footer(self):
         busy=bool(self.work or self.process or self.starting)
-        action=not (busy or self.checking) and (
-            (self.footer_hovered and not self.footer_hover_suppressed) or
-            (self.footer_focused and not self.footer_focus_suppressed))
-        name='updating' if busy else 'action' if action else 'available' if self.manifest else 'version'
+        name='updating' if busy else 'available' if self.manifest else 'complete' if self.completed else 'disabled'
+        self.icon.set_state(name)
         self.footer_labels.set_visible_child_name(name)
         self.owner.targets['update-caption']=self.footer_labels.get_visible_child()
-        (self.footer_button.add_css_class if action else self.footer_button.remove_css_class)('action')
-        self.badge.set_visible(bool(self.manifest) and not busy)
         message=self.status.get_text() if self.checking or busy or self.footer_feedback else ''
         if not message and time.monotonic()<self.footer_notice_until: message='Up to date'
-        self.footer_status.set_text(message); accessible(self.footer_status,'Update status',message or '')
-        accessible(self.footer_button,('Update available · ' if self.manifest else 'Update app · ')+ 'v'+self.owner.version())
+        self.footer_status.set_text(message); self.footer_status.set_visible(bool(message))
+        accessible(self.footer_status,'Update status',message or '')
+        accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'No update available'}[name],
+                   'Installed version '+self.owner.version())
+        self.footer_button.set_sensitive(bool(self.manifest and not busy and not self.checking))
+        accessible(self.button,'Update app' if self.manifest else 'Check for updates')
+        button_text(self.button,'Update app' if self.manifest else 'Check for updates')
 
     def check(self,install=False):
-        if self.checking or self.process or self.starting: return
+        if self.checking or self.process or self.starting or self.work: return
         focus=self.owner.window.get_focus()
         self.check_focus=focus if focus in (self.button,self.footer_button) else None
         self.checked=True; self.checking=True; self.status.set_text('Checking for updates…'); self.set_sensitive(False)
@@ -145,17 +147,40 @@ class UpdateControls:
         return False
 
     def clicked(self):
-        if self.checking or self.process or self.starting: return
-        self.footer_feedback=True
+        if self.checking or self.process or self.starting or self.work: return
         self.footer_notice_until=0
         if not self.manifest: self.check(install=True); return
+        if self.confirmation and self.confirmation.get_visible(): return
+        owner=self.owner; manifest=dict(self.manifest)
+        dialog,card=owner.dialog('Restart Centaur to update?',288); self.confirmation=dialog
+        owner.clear(card); card.add_css_class('restart-dialog'); card.set_spacing(0); card.set_overflow(Gtk.Overflow.HIDDEN)
+        hero=Gtk.Overlay(css_classes=['restart-hero']); hero.set_size_request(-1,128); hero.set_child(box())
+        clay=picture(ASSETS/'v2/dc3c7.png',72); clay.set_halign(Gtk.Align.CENTER); clay.set_valign(Gtk.Align.CENTER)
+        hero.add_overlay(clay); card.append(hero)
+        title=label('Restart Centaur to update?','dialog-title',True); title.set_xalign(.5)
+        title.set_size_request(-1,21); title.set_margin_top(25); card.append(title)
+        text=label('Centaur will restart after downloading,\nare you ready to update?','restart-description',True)
+        text.set_xalign(.5); text.set_justify(Gtk.Justification.CENTER); text.set_size_request(-1,44); text.set_margin_top(4); card.append(text)
+        row=box(spacing=16); row.set_margin_top(10); row.set_margin_bottom(24); row.set_margin_start(24); row.set_margin_end(24); card.append(row)
+        cancel=button('Not now',lambda:owner.dismiss_dialog(dialog),tone='soft',width=112); row.append(cancel)
+        def confirmed():
+            owner.dismiss_dialog(dialog)
+            self.start_update(manifest)
+        confirm=button('Yes, update',confirmed,tone='dark',width=112); row.append(confirm)
+        dialog.on_close=lambda:setattr(self,'confirmation',None)
+        owner.targets.update({'update-cancel':cancel,'update-confirm':confirm,'update-confirmation-clay':clay})
+        dialog.present(); cancel.grab_focus()
+
+    def start_update(self,manifest):
+        if self.checking or self.process or self.starting or self.work: return
+        self.footer_feedback=True; self.completed=False
         if self.blocked(): self.status.set_text('Finish the current work before updating.'); self.refresh_footer(); return
         owner=self.owner
         try:
             base=state_path(); base.mkdir(parents=True,exist_ok=True,mode=0o700)
             self.work=base/('run-'+uuid.uuid4().hex); self.work.mkdir(mode=0o700)
             package=os.environ['CENTAUR_GTK_PACKAGE']
-            write_json(self.work/'manifest.json',self.manifest)
+            write_json(self.work/'manifest.json',manifest)
             write_json(self.work/'request.json',{'dataDir':str(owner.root),'package':package,
                        'parentPid':os.getpid(),'parentIdentity':process_identity(os.getpid()),
                        'reportDir':str(owner.reports) if owner.reports else None,
@@ -227,7 +252,10 @@ class UpdateControls:
             owner.quit()
         elif self.process and self.process.poll() is not None:
             if phase not in ('failed','recovered','complete'): self.status.set_text('The update stopped. Your installed version is preserved.')
+            if phase=='complete': self.completed=True; self.manifest=None; self.footer_feedback=False
             self.process=None; self.set_sensitive(True); self.work=None
         elif not self.process and phase in ('complete','recovered','failed','recovery-required'):
-            self.set_sensitive(True); self.work=None; self.reset_footer_action()
+            self.completed=phase=='complete'
+            if self.completed: self.manifest=None; self.footer_feedback=False
+            self.work=None; self.set_sensitive(True); self.reset_footer_action()
 

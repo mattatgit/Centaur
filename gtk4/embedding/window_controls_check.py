@@ -134,6 +134,16 @@ def check_window_controls(driver, folder):
                 assert sum(pixel==(23,178,57) for pixel in crop.getdata())>10,'Original animation frame did not render'
                 crops.append(crop.tobytes())
         assert crops[0]!=crops[1],'Original animation frames are indistinguishable'
+        animation.phase(.25); settle(); driver.screenshot(handle,folder/'working-midpoint.png',focus=False)
+        with Image.open(folder/'working-midpoint.png') as source:
+            midpoint=source.convert('RGB').crop((round(ax+offset[0]),round(ay+offset[1]),round(ax+offset[0]+32),round(ay+offset[1]+32)))
+        ends=[list(Image.frombytes('RGB',(32,32),raw).get_flattened_data()) for raw in crops]
+        common=[i for i,(a,b) in enumerate(zip(*ends)) if a==b==(23,178,57)]
+        middle=list(midpoint.get_flattened_data());assert len(common)>5,'No common original ink for the transition check'
+        drift=max(abs(channel-expected) for i in common for channel,expected in zip(middle[i],(23,178,57)))
+        assert drift<=2,('Shared animation ink flashed during the crossfade',drift)
+        report['crossfade']={'commonInkPixels':len(common),'maximumChannelDrift':drift,'originalSvgUnchanged':True}
+        midpoint.save(folder/'working-midpoint-crop.png')
         enabled=settings.get_property('gtk-enable-animations')
         motion=settings.get_property(animation.motion_property)
         try:
@@ -191,6 +201,10 @@ def check_window_controls(driver, folder):
         move(ix+12, iy+12)
         assert controls()['close'].get_state_flags() & Gtk.StateFlags.PRELIGHT
         capture('hover')
+        with Image.open(folder/'normal.png') as normal,Image.open(folder/'hover.png') as hover:
+            point=(round(ix+offset[0]+4),round(iy+offset[1]+16))
+            assert normal.convert('RGB').getpixel(point)==(255,255,255),'Original default close fill differs'
+            assert hover.convert('RGB').getpixel(point)==(235,235,235),'Figma close hover fill missing'
         driver.seat_command('left press'); settle(); capture('pressed')
         assert controls()['close'].get_state_flags() & Gtk.StateFlags.ACTIVE
         driver.seat_command('left release'); settle()

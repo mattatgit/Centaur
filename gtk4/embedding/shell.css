@@ -11,7 +11,11 @@ window.centaur-window.maximized, window.centaur-window.fullscreen { border-radiu
 .topbar.modal-open { background: #cbcbcb; }
 .centaur-window windowcontrols { margin: 0; padding: 0; }
 .centaur-window windowcontrols button.close { min-width: 32px; min-height: 32px; margin: 0; padding: 0; border-radius: 0; background: transparent; }
-.window-close-art { background: #ebebeb; border-radius: 8px; }
+.window-close-art { background: white; border-radius: 8px; }
+.centaur-window windowcontrols button.close:hover .window-close-art,
+.centaur-window windowcontrols button.close:focus-visible .window-close-art { background: #ebebeb; }
+.centaur-window windowcontrols button.close:focus-visible { outline: none; }
+.centaur-window windowcontrols button.close:focus-visible .window-close-art { outline: 1px solid #9ea39e; outline-offset: -2px; }
 .send-arrow { transform: rotate(90deg); }
 button { min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 8px; background: transparent; background-image: none; box-shadow: none; color: inherit; }
 button:hover { background: #ebebeb; }
@@ -47,6 +51,7 @@ textview, textview text { background: transparent; color: #171717; padding: 0; }
 .navigation .button-label, .nav-label { font-size: 14px; font-weight: 600; }
 .flat-button.navigation:hover, .flat-button.navigation.selected { color: #171717; background: #f3f3f3; }
 .flat-button.profile { padding: 0 24px 0 32px; min-height: 88px; }
+.flat-button.profile:hover, .flat-button.profile:active { background: transparent; }
 .profile-avatar { background: #fafafa; border-radius: 10px; }
 .sidebar.compact .flat-button.profile { padding: 0 16px; }
 .breadcrumb { font-size: 12px; font-weight: 600; }
@@ -71,11 +76,10 @@ separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .chat-card { padding: 16px 24px 16px 16px; border-radius: 12px; background: #fafafa; }
 .chat-card.human { background: #eef8fe; }
 .version { font-family: Inter; font-size: 10px; }
-.update-version, .update-version:hover { color: #9ea39e; padding: 0; min-height: 24px; background: transparent; }
-.update-caption { padding: 0 8px; min-height: 24px; border-radius: 8px; }
-.update-version.action .update-caption { color: #171717; background: #ebebeb; }
-.update-version:focus-visible .update-caption { outline: 1px solid #9ea39e; outline-offset: -2px; }
-.update-badge { min-width: 8px; min-height: 8px; border-radius: 999px; background: #ccff00; }
+.update-icon, .update-icon:hover, .update-icon:disabled { padding: 0; min-height: 24px; min-width: 16px; background: transparent; opacity: 1; }
+.update-icon:focus-visible { outline: 1px solid #9ea39e; outline-offset: 2px; }
+.update-caption { font-family: Inter; font-size: 12px; font-weight: 500; color: #17b239; }
+.version-chip { font-family: Inter; font-size: 10px; font-weight: 400; min-height: 14px; padding: 1px 6px; border-radius: 12px; background: #fafafa; color: #9ea39e; }
 .message, .composer-placeholder { font-family: Inter; font-size: 16px; font-weight: 400; }
 .avatar { border-radius: 8px; background: #ff6157; color: white; font-size: 13px; font-weight: 600; }
 .avatar.agent { background: #171717; }
@@ -87,7 +91,7 @@ separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .empty-description { font-size: 14px; }
 .empty-project { background: #f8f8f8; border-radius: 16px; padding: 32px; }
 .project-card { background: #f8f8f8; border-radius: 16px; padding: 0; }
-.project-card:hover { background: #f3f3f3; }
+.project-card:hover, .project-card:focus-visible { background: #f8f8f8; box-shadow: 0 0 25px alpha(black,.12); }
 .project-thumbnail { background: #272727; }
 .project-title { font-size: 14px; font-weight: 600; }
 .project-meta { font-size: 12px; }
@@ -119,6 +123,9 @@ popover.create-project-menu > contents { min-width: 96px; }
 .delete-dialog { padding: 0; border-radius: 24px; box-shadow: 0 0 20px alpha(black,.08); }
 .delete-hero { background: #ffefee; }
 .delete-description { font-size: 14px; line-height: 18px; color: #6b6b6b; }
+.restart-dialog { padding: 0; border-radius: 24px; box-shadow: 0 0 20px alpha(black,.08); }
+.restart-hero { background: #fafafa; }
+.restart-description { font-size: 14px; line-height: 18px; color: #6b6b6b; }
 .delete-dialog .delete-confirm { background: #ff6157; }
 .invite-code { padding-right: 64px; }
 .text-field { background: #f8f8f8; border-radius: 12px; padding: 12px 16px; }
@@ -164,11 +171,13 @@ scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8
 .colour-button .button-label { font-weight: 500; }
 .provider-card:not(.connected) .provider-action .button-label { opacity: 0; }
 .provider-card:hover .provider-action .button-label, .provider-card:focus-within .provider-action .button-label { opacity: 1; }
-.saved-status { background: #f1faf8; color: #17b239; border-radius: 8px; padding: 0 8px; min-height: 32px; }
+.saved-status { background: #f1faf8; color: #17b239; border-radius: 8px; padding: 0 10px 0 3px; min-height: 32px; }
+.saved-caption { font-size: 12px; font-weight: 600; }
 .saved-status.pending { background: transparent; color: #9ea39e; }
 .saved-status.failed { background: #fff0ed; color: #ad3232; }
 .import-waiting { background: #fafafa; border-radius: 16px; }
 .waiting-title { font-size: 14px; font-weight: 600; line-height: 18px; }
+.waiting-support { font-size: 12px; font-weight: 500; line-height: 18px; }
 .working-mark { background: white; border-radius: 8px; }
 .import-title { font-family: 'Inter Tight'; font-size: 16px; font-weight: 600; }
 .import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; line-height: 12px; }

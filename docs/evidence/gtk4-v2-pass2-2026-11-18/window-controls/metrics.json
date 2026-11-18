@@ -1,0 +1,201 @@
+{
+  "compositor": "disposable Sway; GNOME visual acceptance pending",
+  "checks": [
+    "original-v2-32px-artwork-integrated-80px-header-native-close-action",
+    "original-svg-visible-clock-driven-frames-one-second-loop-reduced-motion-and-map-idle-transitions",
+    "native-rounded-bottom-corners-and-clipped-content",
+    "native-pointer-hover-pressed-and-no-underlying-circular-fill",
+    "eight-outer-target-points-activate-native-close",
+    "disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible",
+    "native-titlebar-drag-compositor-resize-tile-fullscreen-and-restore",
+    "inactive-and-unscoped-native-window-unchanged",
+    "native-close-destroys-window"
+  ],
+  "baseline": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "styled": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "pointerOffset": [
+    0.0,
+    0.0
+  ],
+  "crossfade": {
+    "commonInkPixels": 151,
+    "maximumChannelDrift": 1,
+    "originalSvgUnchanged": true
+  },
+  "clockPlayback": [
+    {
+      "seconds": 0.145,
+      "opacities": [
+        0.802378,
+        0.197622
+      ]
+    },
+    {
+      "seconds": 0.301,
+      "opacities": [
+        0.509884,
+        0.490116
+      ]
+    },
+    {
+      "seconds": 0.443,
+      "opacities": [
+        0.20078399999999996,
+        0.799216
+      ]
+    },
+    {
+      "seconds": 0.574,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.723,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.864,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.008,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.142,
+      "opacities": [
+        0.77886,
+        0.22114
+      ]
+    },
+    {
+      "seconds": 1.296,
+      "opacities": [
+        0.516572,
+        0.483428
+      ]
+    },
+    {
+      "seconds": 1.416,
+      "opacities": [
+        0.211376,
+        0.788624
+      ]
+    },
+    {
+      "seconds": 1.562,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.713,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.869,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 2.015,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 2.151,
+      "opacities": [
+        0.766878,
+        0.233122
+      ]
+    }
+  ],
+  "tiledState": 21952
+}

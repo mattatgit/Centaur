@@ -224,8 +224,10 @@ bool Controller::route(const QString &id, QJsonObject data) {
 void Controller::createProject(const QString &name, const QString &description) {
     m_session.send({{"type", "create"}, {"name", name}, {"description", description}});
 }
-void Controller::createGtkProject(const QString &name, const QString &description) {
-    m_session.send({{"type", "create"}, {"name", name}, {"description", description}, {"appFormat", "gtk4-v1"}});
+void Controller::createGtkProject(const QString &name, const QString &description, bool generate) {
+    QJsonObject command{{"type", "create"}, {"name", name}, {"description", description}, {"appFormat", "gtk4-v1"}};
+    if (generate) { command["createPrompt"]=description; command["author"]=m_author; }
+    m_session.send(command);
 }
 void Controller::importGtkProject(const QJsonObject &data) {
     auto command=data; command["type"]="importProject"; command["author"]=m_author;

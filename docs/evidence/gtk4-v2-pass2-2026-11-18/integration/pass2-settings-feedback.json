@@ -1,0 +1,889 @@
+{
+  "firstDeadline": 8829.116678839,
+  "secondDeadline": 8837.518453343,
+  "badge": [
+    1248.0,
+    24.0,
+    127.0,
+    32.0
+  ],
+  "close": [
+    1384.0,
+    24.0,
+    32.0,
+    32.0
+  ],
+  "samples": [
+    {
+      "secondsToDeadline": 8.21,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 8.152,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 8.095,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 8.035,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.982,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.931,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.88,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.83,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.776,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.725,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.673,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.619,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.568,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.517,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.461,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.404,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.349,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.292,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.241,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.189,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.135,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.082,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 7.032,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.982,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.925,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.848,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.797,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.736,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.679,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.629,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.578,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.526,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.476,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.425,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.371,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.32,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.26,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.206,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.145,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.093,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 6.04,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.988,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.935,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.885,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.832,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.778,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.719,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.659,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.598,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.548,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.497,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.447,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.396,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.346,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.295,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.24,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.189,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.139,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.088,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 5.034,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.981,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.927,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.877,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.825,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.773,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.719,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.664,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.612,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.559,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.502,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.449,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.396,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.344,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.294,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.243,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.193,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.137,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.087,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 4.035,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.982,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.922,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.865,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.812,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.752,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.7,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.648,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.596,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.544,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.494,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.44,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.386,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.336,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.281,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.229,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.171,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.118,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.067,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 3.017,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.965,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.912,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.861,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.811,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.76,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.706,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.655,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.605,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.553,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.501,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.451,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.401,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.35,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.297,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.245,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.192,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.139,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.087,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 2.031,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.972,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.917,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.866,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.816,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.764,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.711,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.659,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.609,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.556,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.502,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.451,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.4,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.347,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.296,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.244,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.192,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.141,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.089,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 1.037,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.987,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.934,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.882,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.831,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.78,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.729,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.678,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.628,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.576,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.525,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.473,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.421,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.365,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.311,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.259,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.202,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.151,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.101,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": 0.051,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": -0.004,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": -0.057,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": -0.107,
+      "visible": true,
+      "opacity": 1.0
+    },
+    {
+      "secondsToDeadline": -0.159,
+      "visible": true,
+      "opacity": 0.6274509803921569
+    },
+    {
+      "secondsToDeadline": -0.259,
+      "visible": true,
+      "opacity": 0.6274509803921569
+    },
+    {
+      "secondsToDeadline": -0.355,
+      "visible": true,
+      "opacity": 0.6274509803921569
+    },
+    {
+      "secondsToDeadline": -0.439,
+      "visible": true,
+      "opacity": 0.10980392156862745
+    },
+    {
+      "secondsToDeadline": -0.527,
+      "visible": true,
+      "opacity": 0.10980392156862745
+    },
+    {
+      "secondsToDeadline": -0.604,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.663,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.723,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.776,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.836,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.892,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -0.952,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -1.003,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -1.063,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -1.117,
+      "visible": false,
+      "opacity": 0.0
+    },
+    {
+      "secondsToDeadline": -1.171,
+      "visible": false,
+      "opacity": 0.0
+    }
+  ],
+  "passed": true
+}

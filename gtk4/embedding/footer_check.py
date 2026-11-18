@@ -1,144 +1,121 @@
-"""Native footer state, input and painted-geometry regressions; isolated CI UI."""
-import json
-import os
+"""Native updater artwork, real input, confirmation and lifecycle presentation."""
+import json,os,time,threading
 from pathlib import Path
-import threading
-import time
 from types import SimpleNamespace
 from unittest.mock import patch
 import gi
-
-gi.require_version('Gtk','4.0')
-gi.require_version('Gdk','4.0')
+gi.require_version('Gtk','4.0');gi.require_version('Gdk','4.0')
 from gi.repository import Gdk,Gio,GLib,Gtk
 from PIL import Image
-from ui import box,margins
+from ui import box,margins,Modal
 from update_ui import UpdateControls
+from updater import write_json
 
 
 def check_footer(driver,folder):
-    folder.mkdir()
-    Gtk.init()
-    app=Gtk.Application(application_id='org.centaur.Gtk4',flags=Gio.ApplicationFlags.NON_UNIQUE); app.register()
-    window=Gtk.ApplicationWindow(application=app,title='Centaur footer check',default_width=560,default_height=240,decorated=False)
-    provider=Gtk.CssProvider(); provider.load_from_path(str(Path(__file__).with_name('shell.css')))
+    folder.mkdir();Gtk.init()
+    app=Gtk.Application(application_id='org.centaur.Gtk4',flags=Gio.ApplicationFlags.NON_UNIQUE);app.register()
+    window=Gtk.ApplicationWindow(application=app,title='Centaur updater presentation check',default_width=560,default_height=480,decorated=False)
+    provider=Gtk.CssProvider();provider.load_from_path(str(Path(__file__).with_name('shell.css')))
     Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(),provider,Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-    root=margins(box(True,24),24); entry=Gtk.Entry(); root.append(entry)
-    section=box(True,16); root.append(section); footer=box(spacing=8); root.append(footer); window.set_child(root)
-    owner=SimpleNamespace(update_session=None,version=lambda:'0.4.0-preview+4451f19',targets={},
-                          update_footer=footer,closing=False,window=window)
-    controls=UpdateControls(owner,section)
-    assert 0<controls.next_check-time.monotonic()<=2,'Startup discovery schedule changed'
-    controls.next_check=float('inf')
-    context=GLib.MainContext.default(); window.present()
+    overlay=Gtk.Overlay();root=margins(box(True,24),24);overlay.set_child(root);window.set_child(overlay)
+    entry=Gtk.Entry();root.append(entry);section=box(True,16);root.append(section);footer=box(spacing=8);footer.set_size_request(-1,48);root.append(footer)
+    owner=SimpleNamespace(update_session=None,version=lambda:'0.4.0-preview+4451f19',targets={},update_footer=footer,
+        closing=False,window=window,root_overlay=overlay,top=Gtk.Box(),active_form=None)
+    def dismiss(dialog):
+        dialog.destroy()
+        if owner.active_form is dialog:owner.active_form=None
+    def dialog(title,width):
+        value=Modal(owner,title,width);owner.active_form=value
+        content=box(True,0,'dialog-card');value.set_child(content);owner.targets['dialog-card']=content
+        return value,content
+    def clear(widget):
+        while widget.get_first_child():widget.remove(widget.get_first_child())
+    owner.dialog=dialog;owner.dismiss_dialog=dismiss;owner.clear=clear
+    controls=UpdateControls(owner,section);assert 0<controls.next_check-time.monotonic()<=2
+    controls.next_check=float('inf');context=GLib.MainContext.default();window.present()
+    evidence={'checks':[]};handle=None;gate=threading.Event();started=[]
     def pump():
-        while context.pending(): context.iteration(False)
-    def wait(predicate,message,timeout=8):
-        deadline=time.monotonic()+timeout
-        while time.monotonic()<deadline:
-            pump(); controls.refresh_footer()
-            if predicate(): return
+        while context.pending():context.iteration(False)
+        controls.refresh_footer()
+    def settle(seconds=.2):
+        end=time.monotonic()+seconds
+        while time.monotonic()<end:pump();time.sleep(.01)
+    def wait(test,message,seconds=8):
+        end=time.monotonic()+seconds
+        while time.monotonic()<end:
+            pump()
+            if test():return
             time.sleep(.02)
         raise AssertionError(message)
-    def settle():
-        # Wait through the next frame allocation, not just the state change.
-        for _ in range(12): pump(); time.sleep(.02)
     def bounds(widget):
-        ok,r=widget.compute_bounds(window); assert ok
-        return [round(r.get_x()),round(r.get_y()),round(r.get_width()),round(r.get_height())]
-    caption=lambda:controls.footer_labels.get_visible_child()
-    text=lambda:caption().get_text()
-    gate=threading.Event(); evidence={}; handle=None
-    def input_state():
-        focus=window.get_focus()
-        return {'focus':focus.__gtype__.name if focus else None,'footerFocused':controls.footer_focused,
-                'footerIsFocus':focus==controls.footer_button,
-                'hovered':controls.footer_hovered,'focusSuppressed':controls.footer_focus_suppressed,
-                'hoverSuppressed':controls.footer_hover_suppressed,'caption':text()}
+        ok,r=widget.compute_bounds(window);assert ok
+        return list(map(round,(r.get_x(),r.get_y(),r.get_width(),r.get_height())))
+    def click(widget):
+        x,y,w,h=bounds(widget);driver.click(handle,x+w//2,y+h//2);settle()
+    def photo(name):driver.screenshot(handle,folder/(name+'.png'))
     try:
-        wait(window.get_mapped,'Footer fixture did not map')
-        handle=next(n['id'] for n in driver.nodes() if n.get('app_id')=='org.centaur.Gtk4' and n.get('pid')==os.getpid())
-        def hover(widget):
-            x,y,w,h=bounds(widget); rect=driver.rect(handle)
-            driver.ipc(f"seat seat0 cursor set {round(rect['x']+x+w/2)} {round(rect['y']+y+h/2)}")
-            driver.seat_command('motion 0 0'); settle()
-        def click(widget):
-            x,y,w,h=bounds(widget); driver.click(handle,x+w//2,y+h//2); settle()
-        entry.grab_focus(); hover(entry)
-        wait(lambda:text().startswith('v0.4.'),'Idle footer did not show installed version')
-        settle(); stable=[bounds(controls.footer_button),bounds(controls.footer_status)]
-        evidence['idle']={'button':stable[0],'progress':stable[1],'caption':bounds(caption())}
-        driver.screenshot(handle,folder/'idle.png')
-        hover(controls.footer_button)
-        wait(lambda:text()=='Update app','Pointer hover did not show action')
-        settle(); painted=bounds(caption()); evidence['hover']={'caption':painted,'button':bounds(controls.footer_button)}
-        assert [bounds(controls.footer_button),bounds(controls.footer_status)]==stable,'Hover shifted footer layout'
-        assert painted[2]<stable[0][2]-24,'Action highlight still uses version width'
-        assert abs(painted[2]-(caption().get_layout().get_pixel_size()[0]+16))<=1,'Action does not have 8px horizontal padding'
-        driver.screenshot(handle,folder/'hover.png')
-        with Image.open(folder/'hover.png') as source:
-            pixels=source.convert('RGB'); x,y,w,h=painted
-            assert pixels.getpixel((x+4,y+h//2))==(235,235,235),'Hover grey fill missing'
-            assert pixels.getpixel((x,y))!=(235,235,235),'Hover corners are square'
-            assert pixels.getpixel((x+w+4,y+h//2))!=(235,235,235),'Grey highlight extends into reserved version space'
-        # Real click, real asynchronous checked_result; only discovery is doubled.
-        def no_update(*args): gate.wait(10); return None
-        with patch('update_ui.check_update',side_effect=no_update):
-            click(controls.footer_button)
-            wait(lambda:controls.checking,'Footer click did not check')
-            assert 898<controls.next_check-time.monotonic()<=900,'Periodic discovery schedule changed'
-            gate.set()
-            wait(lambda:not controls.checking and controls.footer_status.get_text()=='Up to date','No-update feedback missing')
-        settle()
-        assert controls.footer_hovered and text()=='v'+owner.version(),'Stationary pointer hid checked version'
-        driver.screenshot(handle,folder/'checked-no-update.png')
-        wait(lambda:controls.footer_status.get_text()=='','No-update notice did not expire',timeout=5)
-        assert text()=='v'+owner.version(),'Expired notice rearmed a stationary pointer'
-        assert [bounds(controls.footer_button),bounds(controls.footer_status)]==stable,'No-update result shifted layout'
-        hover(entry); hover(controls.footer_button)
-        wait(lambda:text()=='Update app','Pointer re-entry did not rearm action')
-        # Independent keyboard traversal, activation, retained focus and re-entry.
-        hover(entry); click(entry)
-        traversal=[input_state()]
-        for _ in range(6):
-            driver.key('Tab'); settle()
-            traversal.append(input_state())
-            if controls.footer_focused: break
-        evidence['traversal']=traversal
-        assert controls.footer_focused and text()=='Update app',('Keyboard cannot reach footer action',traversal)
-        driver.screenshot(handle,folder/'keyboard-focus.png')
-        with patch('update_ui.check_update',return_value=None):
-            driver.key('Return')
-            wait(lambda:controls.footer_status.get_text()=='Up to date','Keyboard activation did not check')
-        assert controls.footer_focused and text()=='v'+owner.version(),'Retained focus hid checked version'
-        driver.key('Tab'); settle(); evidence['focusLeft']=input_state()
-        assert not controls.footer_focused,('Tab did not leave footer focus',input_state())
-        driver.key('ISO_Left_Tab'); settle()
-        assert controls.footer_focused and text()=='Update app',('Focus re-entry did not rearm action',input_state())
-        # Moving focus elsewhere during discovery must not be undone on return.
-        gate.clear()
-        with patch('update_ui.check_update',side_effect=no_update):
-            driver.key('Return'); wait(lambda:controls.checking,'Keyboard retry did not check')
-            click(entry); gate.set()
-            wait(lambda:not controls.checking,'Retry did not finish')
-        settle()
-        assert window.get_focus() and window.get_focus()!=controls.footer_button and not controls.footer_focused,'Check stole focus back from another control'
-        hover(entry); click(entry)
-        controls.checked_result({'version':'Centaur GTK4 0.4.0-preview+abcdef0'},None); settle()
-        assert text()=='Update available' and controls.badge.get_visible(),'Background discovery did not show availability'
-        assert bounds(controls.badge)[2:]==[8,8],'Availability badge is not 8px'
-        assert [bounds(controls.footer_button),bounds(controls.footer_status)]==stable,'Availability shifted footer layout'
-        driver.screenshot(handle,folder/'available.png')
-        controls.work=folder; controls.set_sensitive(False); controls.status.set_text('Downloaded 2.1 of 16.5 MB'); controls.refresh_footer(); settle()
-        assert text()=='Updating…' and controls.footer_status.get_text()=='Downloaded 2.1 of 16.5 MB'
-        assert not controls.badge.get_visible() and not controls.footer_button.get_sensitive()
-        driver.screenshot(handle,folder/'updating.png')
-        controls.work=None; controls.manifest=None; controls.footer_feedback=False; controls.set_sensitive(True); controls.refresh_footer(); settle()
-        assert text()=='v'+owner.version() and not controls.badge.get_visible(),'Completed transaction retained stale availability'
-        evidence['passed']=True
-        (folder/'geometry.json').write_text(json.dumps(evidence,indent=2))
+        wait(window.get_mapped,'Updater fixture did not map');handle=driver.find_window('org.centaur.Gtk4',os.getpid());settle()
+        stable=[bounds(controls.footer_button),bounds(controls.footer_version)]
+        assert bounds(controls.icon)[2:]==[16,16] and not controls.footer_button.get_sensitive()
+        assert controls.icon.state=='disabled' and controls.footer_version.get_text()=='v'+owner.version()
+        photo('disabled');click(controls.footer_button);assert owner.active_form is None and not controls.work
+        evidence['checks'].append('original-disabled-16px-download-art-and-static-right-version-chip')
+        # A late background discovery result must not move the user's focus.
+        entry.grab_focus();settle();focus=window.get_focus()
+        manifest={'version':'Centaur GTK4 0.4.0-preview+abcdef0','sourceRevision':'a'*40}
+        def discovery(*args):gate.wait(8);return manifest
+        with patch('update_ui.check_update',side_effect=discovery):
+            controls.check();wait(lambda:controls.checking,'Discovery did not start')
+            assert 898<controls.next_check-time.monotonic()<=900;gate.set()
+            wait(lambda:not controls.checking,'Discovery did not finish')
+        assert window.get_focus()==focus and controls.icon.state=='available' and owner.active_form is None
+        assert [bounds(controls.footer_button),bounds(controls.footer_version)]==stable
+        photo('available');evidence['checks'].append('real-background-check-schedule-no-focus-theft-stable-geometry')
+        with patch.object(controls,'start_update',side_effect=lambda m:started.append(m)):
+            for endpoint in (controls.button,controls.footer_button):
+                click(endpoint);assert controls.confirmation and controls.confirmation.get_visible()
+                assert not started and controls.work is None,'Update started before confirmation'
+                photo('settings-warning' if endpoint==controls.button else 'footer-warning')
+                click(owner.targets['update-cancel']);assert owner.active_form is None and not started
+            # Reach the available footer with physical keyboard traversal.
+            entry.grab_focus();settle()
+            for _ in range(6):
+                driver.key('Tab');settle(.08)
+                if controls.footer_focused:break
+            assert controls.footer_focused,'Keyboard cannot reach the update icon'
+            driver.key('Return');wait(lambda:bool(controls.confirmation),'Keyboard did not open restart warning')
+            click(owner.targets['update-confirm']);assert len(started)==1 and started[0]==manifest
+            click(controls.button);assert len(started)==1
+            click(owner.targets['update-confirm']);assert len(started)==2 and started[1]==manifest
+        evidence['checks'].append('both-entry-points-cancel-and-confirm-keyboard-no-download-before-consent')
+        work=folder/'transaction';work.mkdir();controls.work=work;controls.completed=False
+        for phase in ('starting','downloading','verifying','ready'):
+            write_json(work/'status.json',{'phase':phase,'message':'Downloaded 2.1 of 16.5 MB'})
+            controls.tick();settle(.06)
+            assert controls.icon.state=='updating' and not controls.footer_button.get_sensitive()
+        frames=[];centres=[]
+        for i in range(5):
+            settle(.11);photo('progress-'+str(i));x,y,w,h=bounds(controls.icon)
+            with Image.open(folder/('progress-'+str(i)+'.png')) as im:
+                crop=im.convert('RGB').crop((x,y,x+w,y+h));frames.append(crop.tobytes());centres.append(crop.crop((6,5,10,11)).tobytes())
+        assert controls.icon.tick is not None and len(set(frames))>2,'Circular progress stroke did not move'
+        assert len(set(centres))==1,'The arrow rotated with the circular stroke'
+        settings=controls.icon.settings;prop=controls.icon.motion_property;previous=settings.get_property(prop)
+        try:
+            settings.set_property(prop,Gtk.ReducedMotion.REDUCE if prop=='gtk-interface-reduced-motion' else False);settle()
+            assert controls.icon.tick is None and controls.icon.state=='updating';photo('progress-reduced-motion')
+        finally:settings.set_property(prop,previous)
+        evidence['checks'].append('original-named-stroke-rotates-arrow-stays-still-reduced-motion')
+        # Failed and intermediate helper phases cannot manufacture completion.
+        write_json(work/'status.json',{'phase':'failed','message':'Disposable failure'});controls.tick();settle()
+        assert controls.icon.state!='complete' and not controls.completed;photo('failure')
+        controls.work=work;write_json(work/'status.json',{'phase':'complete','message':'Centaur updated.'});controls.tick();settle()
+        assert controls.icon.state=='complete' and not controls.footer_button.get_sensitive();photo('complete')
+        assert [bounds(controls.footer_button),bounds(controls.footer_version)]==stable
+        evidence['checks'].append('complete-checkmark-only-after-real-helper-complete-phase')
+        evidence.update(passed=True,icon=bounds(controls.icon),button=stable[0],versionChip=stable[1],confirmationCount=len(started))
     finally:
-        evidence['lastInput']=input_state()
-        (folder/'geometry.json').write_text(json.dumps(evidence,indent=2))
-        if handle: driver.screenshot(handle,folder/'last-state.png')
-        gate.set(); window.destroy(); pump()
+        if owner.active_form:dismiss(owner.active_form)
+        gate.set();(folder/'geometry.json').write_text(json.dumps(evidence,indent=2)+'\n')
+        window.destroy();pump()

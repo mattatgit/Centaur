@@ -103,6 +103,7 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
                     state["proposal"] = QJsonObject();
+                    state.remove("creationPending");
                     auto imported=state.value("import").toObject();
                     if (!imported.isEmpty()) { imported["previewReady"]=true; imported["status"]="ready"; state["import"]=imported; }
                     addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
@@ -344,8 +345,19 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             : m_workspace.createProject(starter ? "Family board" : command["name"].toString(),
                 starter ? "A little space for everyday things, made together." : command["description"].toString(), &error, command["appFormat"].toString());
         if (id.isEmpty()) { fail(error); return; }
+        const auto prompt=command["appFormat"]=="gtk4-v1" ? command["createPrompt"].toString().trimmed().left(12000) : QString();
+        if (!prompt.isEmpty()) {
+            auto state=m_workspace.load(id); state["creationPending"]=true;
+            if (!persist(id,state)) return;
+        }
         publish(id);
         reply(sender, {{"type", starter ? "opened" : "created"}, {"projectId", id}});
+        if (!prompt.isEmpty()) {
+            // Use the normal addressed-message path: persisted conversation,
+            // bounded agent execution, validation, conflict policy and retries.
+            handle({{"type","message"},{"projectId",id},{"author",command["author"]},
+                {"text","@"+m_workspace.load(id)["agentName"].toString()+" "+prompt}},sender);
+        }
         return;
     }
     const auto id = command["projectId"].toString();

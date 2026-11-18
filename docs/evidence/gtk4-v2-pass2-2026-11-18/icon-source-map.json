@@ -1,0 +1,42 @@
+{
+  "figmaFile": "9RnuP79pD007wjhTdXZ5WW",
+  "component": "44:1898",
+  "assets": {
+    "d0b9d.svg": {
+      "file": "d0b9d.svg",
+      "nodeId": "44:1895",
+      "state": "Update available",
+      "bytes": 773,
+      "sha256": "5c010ca605da8b3f7e3cacd94e18c5674ce136aea0083c3cd5d28de7b14f2325",
+      "rootDimensions": {
+        "width": "16",
+        "height": "16",
+        "viewBox": "0 0 16 16"
+      }
+    },
+    "d627f.svg": {
+      "file": "d627f.svg",
+      "nodeId": "44:1896",
+      "state": "Updating",
+      "bytes": 834,
+      "sha256": "592a140cec746c02554ef25ab34a791a227ea0a2372b24518f0c832fe0142f48",
+      "rootDimensions": {
+        "width": "16",
+        "height": "16",
+        "viewBox": "0 0 16 16"
+      }
+    },
+    "0b220.svg": {
+      "file": "0b220.svg",
+      "nodeId": "44:1897",
+      "state": "Complete",
+      "bytes": 854,
+      "sha256": "8240ac74dcce5a7db006c5297314584d4971d2ca357b01e01cad77bc8563729f",
+      "rootDimensions": {
+        "width": "16",
+        "height": "16",
+        "viewBox": "0 0 16 16"
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "createdProject": "781adee3-f50f-4d4d-8eb9-17383b4961f1",
+  "importedProject": "0911dcb5-9ff1-4fa8-a61d-d9be4906f749",
+  "createPromptSubmittedOnce": true,
+  "createCancellationFailureAndRetry": true,
+  "sourceUnchanged": true,
+  "noStrayChatActionsAfterEdit": true,
+  "sourceManagementInProjectMenu": true,
+  "openSourceCorrectManagedDirectory": true,
+  "openAdaptationSeparate": true,
+  "passed": true
+}

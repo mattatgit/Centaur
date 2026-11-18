@@ -481,7 +481,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
             "Marks stay anchored to the app through zoom, pan and viewport resizing. They refer");
         prompt.replace("CURRENT App.qml", "CURRENT GTK4 BUNDLE");
         prompt.replace("old QML", "old source");
-        if (!QJsonDocument::fromJson(source.toUtf8()).object().isEmpty()) {
+        if (!state["creationPending"].toBool() && !QJsonDocument::fromJson(source.toUtf8()).object().isEmpty()) {
             prompt += QStringLiteral("\nFOCUSED GTK EDITS (override the full-bundle response example for ordinary edits): The CURRENT GTK4 BUNDLE is the authoritative app. "
                 "For an ordinary change to that app, use exact edits instead of resending unchanged files. "
                 "Return {\"kind\":\"patch\",\"message\":\"Briefly describe the change\",\"conflict\":null,"

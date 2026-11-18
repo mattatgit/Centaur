@@ -15,6 +15,7 @@ from window_controls_check import check_window_controls
 from import_check import check_imports
 from polish_check import check_provider_hovers,check_working_pixels
 from activity_check import check_activity
+from pass2_check import check_settings_feedback,check_cards_and_profile,check_waiting_flows
 
 
 class Bridge:
@@ -76,7 +77,7 @@ if cfg.get('fixtureProgressGate'):
    if phase=='retry': print(json.dumps({'type':'auto_retry_start','errorMessage':'SECRET_PROVIDER_CANARY'}),flush=True)
    if phase=='fail': print('SECRET_STDERR_CANARY',file=sys.stderr,flush=True);sys.exit(2)
    if phase=='finish':
-    answer=json.dumps({'kind':'question','message':cfg['message']})
+    answer=json.dumps(cfg.get('fixtureFinalReply',{'kind':'question','message':cfg['message']}))
     final={'role':'assistant','content':[{'type':'text','text':answer}],'stopReason':'stop'}
     print(json.dumps({'type':'message_end','message':final}),flush=True)
     print(json.dumps({'type':'agent_end','messages':[final]}),flush=True);sys.exit(0)
@@ -123,6 +124,7 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'ui-projects-empty.png')
         click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
         click(hs,hw,'nav-settings')
+        summary['checks'].append(check_settings_feedback(driver,folder,hs,hw,click,roots[0]))
         until(lambda:'provider-models-openai-codex' in hs()['targets'],'Runtime provider catalogue did not reach Settings')
         summary['checks'].append(check_provider_hovers(driver,folder,hs,hw))
         click(hs,hw,'provider-models-openai-codex')
@@ -369,6 +371,7 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'ui-project-cards.png')
         card=hs()['targets']['open-'+project_id]
         assert card[3]==280 and hs()['layout']['tileColumns']==3,'Project grid did not retain reference card geometry'
+        summary['checks']+=check_cards_and_profile(driver,folder,hs,hw,click,project_id)
         menu=target(hs,'menu-'+project_id)
         dots=next(item['bounds'] for item in hs()['assetSlots'] if item['file']=='v2/a7b49.svg')
         assert dots[2:]==[16,4] and dots[:2]==[menu[0]+8,menu[1]+14],('Original menu art must retain its 16×4 aspect ratio',menu,dots)
@@ -398,6 +401,7 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['checks']+=check_imports(driver,folder,hs,hw,click,message,roots[0],original,reply_file,request_record)
+        summary['checks']+=check_waiting_flows(driver,folder,hs,hw,click,message,roots[0],original,reply_file)
         summary['passed']=True
     finally:
         for name in ('host','guest'):

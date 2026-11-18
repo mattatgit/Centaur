@@ -1,0 +1,36 @@
+{
+  "card": [
+    256.0,
+    120.0,
+    320.0,
+    280.0
+  ],
+  "thumbnailSlot": [
+    256.0,
+    120.0,
+    320.0,
+    208.0
+  ],
+  "contentRect": [
+    95.0,
+    24.0,
+    130.0,
+    160.0
+  ],
+  "textureSize": [
+    520,
+    640
+  ],
+  "shadowRest": [
+    255,
+    255,
+    255
+  ],
+  "shadowHover": [
+    243,
+    243,
+    243
+  ],
+  "profileHoverFillUnchanged": true,
+  "passed": true
+}

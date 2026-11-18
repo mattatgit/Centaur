@@ -106,9 +106,9 @@ def send_art():
 
 class Raster(Gtk.Widget):
     """An original image in a measured slot, independent of PNG pixel size."""
-    def __init__(self,filename,size,cover=False):
+    def __init__(self,filename,size,cover=False,padding=0):
         super().__init__()
-        self.filename=str(filename); self.texture=Gdk.Texture.new_from_filename(self.filename); self.size=size; self.cover=cover
+        self.filename=str(filename); self.texture=Gdk.Texture.new_from_filename(self.filename); self.size=size; self.cover=cover; self.padding=padding
         self.set_can_target(False)
 
     def do_measure(self,orientation,for_size): return (self.size,self.size,-1,-1)
@@ -116,14 +116,16 @@ class Raster(Gtk.Widget):
     def do_snapshot(self,snapshot):
         width,height=self.get_width(),self.get_height()
         iw,ih=self.texture.get_width(),self.texture.get_height()
-        scale=(max if self.cover else min)(width/iw,height/ih)
+        inset=min(self.padding,max(0,(min(width,height)-16)/2))
+        scale=(max if self.cover else min)(max(0,width-2*inset)/iw,max(0,height-2*inset)/ih)
+        self.content_rect=((width-iw*scale)/2,(height-ih*scale)/2,iw*scale,ih*scale)
         snapshot.push_clip(Graphene.Rect().init(0,0,width,height))
         snapshot.append_texture(self.texture,Graphene.Rect().init((width-iw*scale)/2,(height-ih*scale)/2,iw*scale,ih*scale))
         snapshot.pop()
 
 
-def picture(filename, size, css=None, cover=False):
-    widget=Raster(filename,size,cover)
+def picture(filename, size, css=None, cover=False,padding=0):
+    widget=Raster(filename,size,cover,padding)
     if css: widget.add_css_class(css)
     return widget
 

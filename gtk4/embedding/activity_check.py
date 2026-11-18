@@ -24,20 +24,53 @@ def check_activity(driver,folder,hs,hw,gs,gw,click,message,control,reply_file):
     assert len(hs()['project']['messages'])==before+1
     assert 'PRIVATE_ACTIVITY_CANARY' not in json.dumps(hs())
     # Scroll real input upward. The activity must move with normal messages.
+    until(lambda:hs()['chatScroll']['barOpacity']==0,'Idle chat scrollbar did not hide')
+    scroll_geometry=target(hs,'chat-scroller')
     value=hs()['chatScroll']['value'];y=target(hs,'activity-tile')[1]
     r=driver.rect(hw);x0,y0,w,h=viewport
     driver.ipc(f"seat seat0 cursor set {round(r['x']+x0+w/2)} {round(r['y']+y0+h/2)}")
     driver.seat_command('motion 0 0');driver.scroll(up=True)
     until(lambda:hs()['chatScroll']['value']<value-40,'Conversation did not scroll upward')
+    until(lambda:hs()['chatScroll']['barOpacity']>.99,'Wheel scrolling did not reveal the scrollbar')
+    assert target(hs,'chat-scroller')==scroll_geometry,'Scrollbar activity changed chat width'
+    driver.screenshot(hw,folder/'pass2-chat-scrollbar-active.png')
     reading=hs();delta=value-reading['chatScroll']['value']
     assert abs(target(hs,'activity-tile')[1]-y-delta)<=2,'Activity remained fixed outside scrolling messages'
-    old=reading['chatScroll']['value']
+    until(lambda:hs()['chatScroll']['barOpacity']==0,'Scrollbar did not hide after scrolling stopped',timeout=4)
+    assert target(hs,'chat-scroller')==scroll_geometry
+    # The reserved native scrollbar remains operable while visually hidden.
+    bar=target(hs,'chat-scrollbar');r=driver.rect(hw)
+    driver.ipc(f"seat seat0 cursor set {round(r['x']+bar[0]+bar[2]/2)} {round(r['y']+bar[1]+20)}")
+    driver.seat_command('motion 0 0');driver.seat_command('left press')
+    until(lambda:hs()['chatScroll']['barOpacity']>.99,'Scrollbar input did not reveal its thumb')
+    driver.seat_command('motion 0 30');time.sleep(.1)
+    time.sleep(1.05);assert hs()['chatScroll']['barOpacity']>.99,'Scrollbar hid during a held native range interaction'
+    driver.seat_command('left release')
+    until(lambda:hs()['chatScroll']['barOpacity']==0,'Scrollbar stayed visible after native release',timeout=4)
+    # Click an actual selectable message, rather than a blank gap which leaves
+    # the composer focused. Keyboard events must originate inside the chat.
+    r=driver.rect(hw);driver.ipc(f"seat seat0 cursor set {round(r['x']+x0+w/2)} {round(r['y']+y0+h/2)}")
+    for _ in range(6):
+        if hs()['chatScroll']['value']<=1:break
+        driver.scroll(up=True)
+    until(lambda:hs()['chatScroll']['value']<=1,'Keyboard fixture could not reach the beginning of chat')
+    body=hs()['chatRows'][0]['body']['bounds']
+    driver.click(hw,round(body[0]+8),round(body[1]+min(8,body[3]/2)))
+    until(lambda:hs()['focus']=='GtkLabel','Keyboard fixture did not focus a chat message')
+    until(lambda:hs()['chatScroll']['barOpacity']==0,'Keyboard fixture did not settle after wheel input',timeout=4)
+    keyboard_value=hs()['chatScroll']['value'];driver.key('Page_Down')
+    until(lambda:hs()['chatScroll']['value']>keyboard_value+20,'Native keyboard navigation did not scroll the chat')
+    until(lambda:hs()['chatScroll']['barOpacity']>.99,'Keyboard scrolling did not reveal the scrollbar')
+    until(lambda:hs()['chatScroll']['barOpacity']==0,'Keyboard inactivity did not hide the scrollbar',timeout=4)
+    old=hs()['chatScroll']['value'];reading_focus=hs()['focusId']
+    checks.append('pass2-chat-scrollbar-input-only-reveal-inactivity-hide-native-hold-and-stable-width')
     gate.write_text('retry')
     until(lambda:hs()['activity']['phase']=='retrying','Real retry event did not reach the tile')
     message(gs,gw,'A note while the agent is working.')
     until(lambda:any(m.get('text')=='A note while the agent is working.' for m in hs()['project']['messages']),'Concurrent conversation message did not arrive')
     time.sleep(.35)
-    assert abs(hs()['chatScroll']['value']-old)<3,'Progress or a new message forced a reader to the bottom'
+    assert abs(hs()['chatScroll']['value']-old)<3,('Progress or a new message moved the reader',old,hs()['chatScroll'])
+    assert hs()['focusId']==reading_focus and hs()['focus']=='GtkLabel','A new message replaced the focused chat label'
     assert hs()['activity']['requestId']==request and hs()['activity']['widget']==widget
     assert hs()['activity']['animationEpoch']==epoch,'A concurrent message restarted the working animation'
     driver.screenshot(hw,folder/'ui-inline-agent-reading-history.png')
