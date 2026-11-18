@@ -19,6 +19,7 @@
 #include <QStandardPaths>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QCryptographicHash>
 #include <QQmlComponent>
 #include <QQmlEngine>
 
@@ -682,6 +683,88 @@ private slots:
         }
         QCOMPARE(Agent::parseReply("```json\n{\"kind\":\"question\",\"message\":\"Which is better?\"}\n```", &error)["kind"].toString(), QString("question"));
     }
+    void focusedGtkEditsAreExactAtomicAndBoundToCurrentSource() {
+        QFile fixture(":/templates/App.gtk.json"); QVERIFY(fixture.open(QIODevice::ReadOnly));
+        const auto source=QString::fromUtf8(fixture.readAll());
+        const auto original=QJsonDocument::fromJson(source.toUtf8()).object();
+        const auto files=original["files"].toObject();
+        QJsonObject patch{{"kind","patch"},{"message","Update the button title"},{"conflict",QJsonValue::Null},
+            {"baseSha256",QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex())},
+            {"edits",QJsonArray{QJsonObject{{"file","app.ui"},{"find","Family board"},{"replace","Updated board"}}}}};
+        QString error;
+        const auto result=Agent::resolvePatch(patch,source,&error); QVERIFY2(!result.isEmpty(),qPrintable(error));
+        QCOMPARE(result["kind"].toString(),QString("proposal")); QVERIFY(result["conflict"].isNull());
+        const auto changed=result["gtk"].toObject();
+        QCOMPARE(changed["width"],original["width"]); QCOMPARE(changed["designSystem"],original["designSystem"]);
+        QCOMPARE(changed["files"].toObject()["app.py"],files["app.py"]);
+        QCOMPARE(changed["files"].toObject()["style.css"],files["style.css"]);
+        QVERIFY(changed["files"].toObject()["app.ui"].toString().contains("Updated board"));
+        for (const auto &fault:QStringList{"stale","missing","ambiguous","outside","extra","noop","partial"}) {
+            auto bad=patch; auto edits=bad["edits"].toArray(); auto edit=edits[0].toObject();
+            if (fault=="stale") bad["baseSha256"]=QString(64,'0');
+            if (fault=="missing") edit["find"]="no such source text";
+            if (fault=="ambiguous") edit["find"]="Gtk";
+            if (fault=="outside") edit["file"]="../credentials";
+            if (fault=="extra") edit["command"]="unavailable";
+            if (fault=="noop") edit["replace"]=edit["find"];
+            edits[0]=edit;
+            if (fault=="partial") edits.append(QJsonObject{{"file","app.py"},{"find","missing after a valid first edit"},{"replace","wrong"}});
+            bad["edits"]=edits;
+            QVERIFY2(Agent::resolvePatch(bad,source,&error).isEmpty(),qPrintable(fault));
+            QCOMPARE(QJsonDocument::fromJson(source.toUtf8()).object(),original);
+        }
+        patch.remove("conflict"); QVERIFY(Agent::parseReply(QJsonDocument(patch).toJson(),&error).isEmpty());
+    }
+    void existingGtkPreviewContextKeepsCurrentEvidenceWithoutOldExcerpts() {
+        const QJsonObject current{{"requestId","logical"},{"operation","read"},{"data",QJsonObject{{"files",QJsonObject{{"mic_on.svg","ORIGINAL SVG"}}}}}};
+        const QJsonObject historical{{"requestId","previous"},{"operation","read"},{"data",QString(74000,'x')}};
+        QJsonObject state{{"appFormat","gtk4-v1"},{"logicalRequestId","logical"},{"import",QJsonObject{{"previewReady",true},{"branch","linux-nix"}}},
+            {"sourceInspection",QJsonObject{{"paths",QJsonArray{"LandlineNix/assets/mic_on.svg"}},{"files",QJsonObject{{"Old.swift",QString(74000,'a')}}}}},
+            {"importDiagnostics",QJsonObject{{"results",QJsonArray{historical,current}},{"capabilities",QJsonObject{{"terminal",false}}}}},
+            {"messages",QJsonArray{QJsonObject{{"author","Matt"},{"text","Hold the PTT button"},{"agentDiagnostics",QJsonObject{{"elapsedMs",180000}}}}}},
+            {"decisions",QJsonArray{"Keep the existing app"}}};
+        const auto compact=Agent::prepareContext(state);
+        QVERIFY(!compact["sourceInspection"].toObject().contains("files"));
+        QCOMPARE(compact["sourceInspection"].toObject()["paths"],state["sourceInspection"].toObject()["paths"]);
+        QCOMPARE(compact["importDiagnostics"].toObject()["results"].toArray(),QJsonArray{current});
+        QCOMPARE(compact["decisions"],state["decisions"]);
+        QCOMPARE(compact["messages"].toArray()[0].toObject()["text"].toString(),QString("Hold the PTT button"));
+        QVERIFY(!compact["messages"].toArray()[0].toObject().contains("agentDiagnostics"));
+        QVERIFY(state["sourceInspection"].toObject().contains("files"));
+        QVERIFY(state["messages"].toArray()[0].toObject().contains("agentDiagnostics"));
+        QVERIFY(QJsonDocument(compact).toJson().size()<QJsonDocument(state).toJson().size()/20);
+        auto pending=state; pending["import"]=QJsonObject{{"previewReady",false}};
+        QCOMPARE(Agent::prepareContext(pending),pending);
+    }
+    void focusedGtkEditsUseNativeValidationAndConflictAgreement() {
+        for (const bool conflict:{false,true}) {
+            QTemporaryDir dir; Workspace workspace(dir.path());QString error;
+            const auto id=workspace.createProject("Focused change","",&error,"gtk4-v1"); QVERIFY(!id.isEmpty());
+            const auto source=workspace.source(id);const auto agentPath=dir.path()+"/agent",checker=dir.path()+"/checker";
+            QVERIFY(Workspace::writeFile(checker,("#!"+QStandardPaths::findExecutable("sh")+"\nexit 0\n").toUtf8()));
+            QVERIFY(QFile::setPermissions(checker,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+            const auto previous=qgetenv("CENTAUR_GTK_RUNNER"); qputenv("CENTAUR_GTK_RUNNER",checker.toUtf8());
+            const auto restore=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_RUNNER");else qputenv("CENTAUR_GTK_RUNNER",previous); });
+            const QJsonValue agreement=conflict ? QJsonValue(QJsonObject{{"reason","Opposing title requirements"},{"authors",QJsonArray{"Matt","Saori"}}}) : QJsonValue(QJsonValue::Null);
+            const QJsonObject patch{{"kind","patch"},{"message","A focused title update"},{"conflict",agreement},
+                {"baseSha256",QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex())},
+                {"edits",QJsonArray{QJsonObject{{"file","app.ui"},{"find","Family board"},{"replace","Updated board"}}}}};
+            QVERIFY(writeAgentReply(agentPath,patch));AgentOverride override(agentPath);Session session(dir.path());session.start();
+            session.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","Keep the title"}});
+            session.send({{"type","message"},{"projectId",id},{"author","Saori"},{"text","@centaur Update the title"}});
+            if (conflict) {
+                QTRY_VERIFY(!workspace.load(id)["proposal"].toObject().isEmpty());
+                QCOMPARE(workspace.source(id),source);
+                const auto proposal=workspace.load(id)["proposal"].toObject();
+                for (const auto &author:QStringList{"Matt","Saori"}) session.send({{"type","accept"},{"projectId",id},{"author",author},{"proposalId",proposal["id"]}});
+            }
+            QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["revision"].toInt(),2,5000);
+            QVERIFY(workspace.source(id).contains("Updated board"));
+            const auto before=QJsonDocument::fromJson(source.toUtf8()).object()["files"].toObject();
+            const auto after=QJsonDocument::fromJson(workspace.source(id).toUtf8()).object()["files"].toObject();
+            QCOMPARE(after["app.py"],before["app.py"]); QCOMPARE(after["style.css"],before["style.css"]);
+        }
+    }
     void agentReceivesStdinEofBeforeReplying() {
         QTemporaryDir dir;
         Workspace workspace(dir.path());
@@ -766,6 +849,24 @@ private slots:
             QVERIFY(!workspace.load(id).contains("agentActivity"));
             QTRY_VERIFY(snapshots.last().first().toJsonObject()["states"].toArray().first().toObject()["agentActivity"].toObject().isEmpty());
         }
+    }
+    void focusedEditStreamReportsShapeAndCountsWithoutPrivateContent() {
+        QTemporaryDir dir;Workspace workspace(dir.path());QString error;
+        const auto id=workspace.createProject("Stream metadata","",&error,"gtk4-v1");QVERIFY(!id.isEmpty());
+        const auto executable=dir.path()+"/agent";
+        const auto text=QString("{\"kind\":\"patch\",\"message\":\"SECRET_ANSWER\"");
+        const QJsonObject event{{"type","message_update"},{"assistantMessageEvent",QJsonObject{{"type","text_delta"},{"delta",text}}}};
+        QVERIFY(writeSlowAgent(executable,"cat <<'TEXT'\n"+QJsonDocument(event).toJson(QJsonDocument::Compact)+"\nTEXT\n"));
+        AgentOverride override(executable);Agent agent(nullptr,350);QSignalSpy failures(&agent,&Agent::failureReady);
+        agent.ask(workspace.projectPath(id),workspace.load(id),workspace.source(id));
+        QTRY_COMPARE_WITH_TIMEOUT(failures.size(),1,3000);
+        const auto details=failures.first()[2].toJsonObject();
+        QCOMPARE(details["lastActivePhase"].toString(),QString("receiving_edit"));
+        QCOMPARE(details["textUpdates"].toInt(),1);QCOMPARE(details["thinkingUpdates"].toInt(),1);
+        QCOMPARE(details["responseTextBytes"].toInt(),text.toUtf8().size());
+        QCOMPARE(details["ompToolExecutions"].toInt(),0);
+        QVERIFY(!QJsonDocument(details).toJson().contains("SECRET"));
+        QVERIFY(!QJsonDocument(details).toJson().contains("DO_NOT_PUBLISH"));
     }
     void agentDiagnosticsDistinguishQuietWaitingFromShutdown() {
         for (bool ended:{false,true}) {

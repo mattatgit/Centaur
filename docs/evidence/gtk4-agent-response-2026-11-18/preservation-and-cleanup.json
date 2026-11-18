@@ -1,0 +1,21 @@
+{
+  "ownerSourceMatchesInitial": true,
+  "ownerSourceAndStateUnchangedDuringCleanup": true,
+  "ownerSourceAndStateUnchangedAfterEveryRealRun": true,
+  "installedVersion": "0.4.0-preview+31220c4",
+  "installedPackage": "/nix/store/fbs40c0254jp2a6vwzc4kf07jsf8rk3n-centaur-gtk4-preview-0.4.0-preview",
+  "ownerProfileActivated": false,
+  "privateProjectCopiesRemoved": [
+    "baseline/data",
+    "candidate1/data",
+    "candidate2/data",
+    "verification/data"
+  ],
+  "privateGitDnsFixturesRemoved": [
+    "evidence-regression2/integration/desktop-config/git/config",
+    "evidence-regression3/integration/desktop-config/git/config"
+  ],
+  "privateCentaurProcessesRemaining": 0,
+  "ownerConfigOrCredentialsWritten": false,
+  "releasePublishedOrActivated": false
+}

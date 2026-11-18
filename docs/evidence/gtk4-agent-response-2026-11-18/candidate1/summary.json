@@ -1,0 +1,231 @@
+{
+  "label": "candidate1",
+  "ownerProfileActivated": false,
+  "privateSourceCopyOnlyInVm": true,
+  "seconds": 73.101,
+  "revisionBefore": 3,
+  "revisionAfter": 4,
+  "sourceChanged": true,
+  "failureDetails": [],
+  "completionMessageKinds": [
+    "human",
+    "agent",
+    "agent"
+  ],
+  "coordinatorErrors": [],
+  "ownerSourceAndStateUnchanged": true,
+  "runs": [
+    {
+      "seconds": 9.393,
+      "prompt": {
+        "bytes": 55597,
+        "fieldBytes": {
+          "adaptationInspection": 24,
+          "agentModel": 26,
+          "agentName": 9,
+          "annotations": 2,
+          "appFormat": 9,
+          "appHistory": 2,
+          "contributors": 8,
+          "decisions": 405,
+          "description": 18,
+          "epoch": 2,
+          "id": 38,
+          "import": 464,
+          "importDiagnostics": 1986,
+          "logicalRequestId": 38,
+          "messages": 6432,
+          "name": 10,
+          "proposal": 2,
+          "requestAuthor": 6,
+          "requestComment": 2,
+          "requestText": 174,
+          "revision": 1,
+          "sourceInspection": 1766,
+          "updated": 26
+        }
+      },
+      "events": {
+        "session": 1,
+        "agent_start": 1,
+        "turn_start": 1,
+        "message_start": 2,
+        "message_end": 2,
+        "message_update": 75,
+        "turn_end": 1,
+        "agent_end": 1
+      },
+      "streamCategories": {
+        "thinking_start": 1,
+        "thinking_delta": 2,
+        "thinking_end": 1,
+        "text_start": 1,
+        "text_delta": 69,
+        "text_end": 1
+      },
+      "stdoutBytes": 202214,
+      "responseTextBytes": 276,
+      "responseTextCharacters": 268,
+      "responseLineBreaks": 0,
+      "responseFieldsObserved": [],
+      "timeline": [
+        {
+          "seconds": 0.296,
+          "event": "session"
+        },
+        {
+          "seconds": 0.296,
+          "responseField": null
+        },
+        {
+          "seconds": 0.319,
+          "event": "agent_start"
+        },
+        {
+          "seconds": 0.345,
+          "event": "turn_start"
+        },
+        {
+          "seconds": 0.345,
+          "event": "message_start"
+        },
+        {
+          "seconds": 0.346,
+          "event": "message_end"
+        },
+        {
+          "seconds": 9.37,
+          "event": "turn_end"
+        },
+        {
+          "seconds": 9.374,
+          "event": "agent_end"
+        }
+      ],
+      "parsedResponse": {
+        "kind": "inspect",
+        "validJson": true,
+        "outputBytes": 276,
+        "fileBytes": {},
+        "toolOperation": "read",
+        "stopReason": "stop",
+        "usage": {
+          "input": 15813,
+          "output": 132,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 15945
+        }
+      },
+      "rawReasoningRetained": false,
+      "rawProviderOutputStored": false,
+      "toolFlagsDisabled": true
+    },
+    {
+      "seconds": 63.306,
+      "prompt": {
+        "bytes": 60348,
+        "fieldBytes": {
+          "adaptationInspection": 24,
+          "agentModel": 26,
+          "agentName": 9,
+          "annotations": 2,
+          "appFormat": 9,
+          "appHistory": 2,
+          "contributors": 8,
+          "decisions": 405,
+          "description": 18,
+          "epoch": 2,
+          "id": 38,
+          "import": 464,
+          "importDiagnostics": 6796,
+          "logicalRequestId": 38,
+          "messages": 6432,
+          "name": 10,
+          "proposal": 2,
+          "requestAuthor": 6,
+          "requestComment": 4,
+          "requestText": 113,
+          "revision": 1,
+          "sourceInspection": 1766,
+          "updated": 26
+        }
+      },
+      "events": {
+        "session": 1,
+        "agent_start": 1,
+        "turn_start": 1,
+        "message_start": 2,
+        "message_end": 2,
+        "message_update": 1971,
+        "turn_end": 1,
+        "agent_end": 1
+      },
+      "streamCategories": {
+        "thinking_start": 2,
+        "thinking_delta": 12,
+        "thinking_end": 2,
+        "text_start": 1,
+        "text_delta": 1953,
+        "text_end": 1
+      },
+      "stdoutBytes": 481951,
+      "responseTextBytes": 5078,
+      "responseTextCharacters": 5076,
+      "responseLineBreaks": 87,
+      "responseFieldsObserved": [],
+      "timeline": [
+        {
+          "seconds": 0.3,
+          "event": "session"
+        },
+        {
+          "seconds": 0.3,
+          "responseField": null
+        },
+        {
+          "seconds": 0.401,
+          "event": "agent_start"
+        },
+        {
+          "seconds": 0.423,
+          "event": "turn_start"
+        },
+        {
+          "seconds": 0.423,
+          "event": "message_start"
+        },
+        {
+          "seconds": 0.423,
+          "event": "message_end"
+        },
+        {
+          "seconds": 63.277,
+          "event": "turn_end"
+        },
+        {
+          "seconds": 63.285,
+          "event": "agent_end"
+        }
+      ],
+      "parsedResponse": {
+        "kind": "patch",
+        "validJson": true,
+        "outputBytes": 5078,
+        "fileBytes": {},
+        "toolOperation": null,
+        "stopReason": "stop",
+        "usage": {
+          "input": 18469,
+          "output": 2972,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 21441
+        }
+      },
+      "rawReasoningRetained": false,
+      "rawProviderOutputStored": false,
+      "toolFlagsDisabled": true
+    }
+  ]
+}

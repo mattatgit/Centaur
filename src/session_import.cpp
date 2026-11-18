@@ -132,7 +132,7 @@ bool Session::importCommand(const QJsonObject &command, QIODevice *sender) {
 void Session::importTool(const QString &id, QJsonObject state, const QJsonObject &reply, const QString &author) {
     auto info=state["import"].toObject(); auto local=state["importLocal"].toObject();
     info["requestAuthor"]=author;
-    local["requestId"]=m_activeRequest["id"];
+    local["requestId"]=m_activities.value(id).value("requestId");
     auto pause=[&](const QString &message) {
         info["status"]="awaitingAnswer"; state["import"]=info; state["importLocal"]=local;
         addMessage(state,state["agentName"].toString(),message,"agent"); persist(id,state); publish(id);
@@ -198,7 +198,12 @@ void Session::importJob(const QString &id, const QString &mode, QJsonObject payl
     if (mode=="acquire") local["networkRemaining"]=0;
     state["importLocal"]=local;
     if (!persist(id,state)) return;
-    advanceActivity(id,mode=="inspect" && (operation=="runtime_version" || operation=="validate_manifest" || operation=="diagnostics" || operation=="source_facts") ? operation : QString(phase));
+    auto observedPhase=mode=="inspect" && (operation=="runtime_version" || operation=="validate_manifest" || operation=="diagnostics" || operation=="source_facts") ? operation : QString(phase);
+    if (mode=="inspect" && operation=="read") {
+        const auto paths=payload.value("tool").toObject().value("paths").toArray();
+        for (const auto &path:paths) if (path.toString().endsWith("/mic_on.svg") || path.toString().endsWith("/mic_muted.svg")) observedPhase="reading_microphone_icon";
+    }
+    advanceActivity(id,observedPhase);
     if (payload.contains("hostResult")) {
         importResult(id,mode,{{"ok",true},{"toolResult",payload["hostResult"]}},epoch,attempt,operationId); return;
     }

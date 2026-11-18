@@ -1,0 +1,77 @@
+{
+  "active": true,
+  "calls": [
+    {
+      "seconds": 0.721,
+      "function": "pointer_pressed",
+      "held": false,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 0.722,
+      "function": "render_ptt",
+      "held": true,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 1.122,
+      "function": "pointer_released",
+      "held": true,
+      "argumentCount": 1
+    },
+    {
+      "seconds": 1.122,
+      "function": "render_ptt",
+      "held": false,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 1.994,
+      "function": "pointer_released",
+      "held": false,
+      "argumentCount": 4
+    },
+    {
+      "seconds": 1.994,
+      "function": "render_ptt",
+      "held": false,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 2.329,
+      "function": "pointer_pressed",
+      "held": false,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 2.329,
+      "function": "render_ptt",
+      "held": true,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 2.53,
+      "function": "pointer_released",
+      "held": true,
+      "argumentCount": 1
+    },
+    {
+      "seconds": 2.53,
+      "function": "render_ptt",
+      "held": false,
+      "argumentCount": 0
+    },
+    {
+      "seconds": 2.533,
+      "function": "pointer_released",
+      "held": false,
+      "argumentCount": 4
+    },
+    {
+      "seconds": 2.533,
+      "function": "render_ptt",
+      "held": false,
+      "argumentCount": 0
+    }
+  ]
+}

@@ -528,14 +528,23 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     publish(id);
 }
 
-void Session::finishAgent(const QJsonObject &reply) {
+void Session::finishAgent(const QJsonObject &agentReply) {
     QTimer::singleShot(0, this, &Session::nextRequest);
     const auto id = m_agentProject;
     const auto settle=qScopeGuard([this,id] { settleActivity(id); });
     const auto requester = m_agentAuthor;
+    auto state = m_workspace.load(id);
+    auto reply=agentReply;
+    if (reply["kind"]=="patch" && state["epoch"].toInt()==m_agentEpoch) {
+        QString error;
+        reply=state["appFormat"]=="gtk4-v1" ? Agent::resolvePatch(reply,m_workspace.source(id),&error) : QJsonObject();
+        if (reply.isEmpty()) {
+            agentError(error.isEmpty() ? "Focused changes are available only for an existing GTK app." : error,"coordinator_patch_invalid");
+            return;
+        }
+    }
     m_agentProject.clear();
     m_agentAuthor.clear();
-    auto state = m_workspace.load(id);
     bool automatic = false;
     state.remove("activeRequest");
     const bool sourceTool=reply["kind"]=="inspect" || reply["kind"]=="retry" || reply["kind"]=="artifact";
@@ -615,13 +624,14 @@ void Session::finishAgent(const QJsonObject &reply) {
     QTimer::singleShot(0, this, &Session::nextRequest);
 }
 
-void Session::agentError(const QString &message) {
+void Session::agentError(const QString &message, const QString &code) {
     const auto id = m_agentProject;
     m_agentProject.clear();
     m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
     auto details=m_agent.diagnostics();
+    if (!code.isEmpty()) { details["code"]=code; details["layer"]="centaur.coordinator"; }
     details["requestId"]=m_activities.value(id)["requestId"];
     const auto started=QDateTime::fromString(m_activities.value(id)["startedAt"].toString(),Qt::ISODateWithMs);
     if (started.isValid()) details["requestElapsedMs"]=qMax<qint64>(0,started.msecsTo(QDateTime::currentDateTimeUtc()));
@@ -725,6 +735,7 @@ void Session::nextRequest() {
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
         beginActivity(id,m_activeRequest);
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
+        request["logicalRequestId"]=m_activities.value(id).value("requestId");
         request.remove("importLocal");
         if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
         if (!state.value("import").toObject().isEmpty()) request["adaptationInspection"] = state.value("importLocal").toObject()["adaptation"];
