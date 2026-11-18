@@ -129,5 +129,28 @@ The VM's intermittent GitHub resolver problem still requires a disposable Git
 DNS fixture for functional import tests, with normal HTTPS verification; neither
 the product nor the owner's Git/network settings receive that override.
 
-Signed-release metadata and the Installer handoff follow publication. Engineering
-success does not mark the owner's acceptance complete.
+## Signed release — 18 November 2026
+
+Published **`0.4.0-preview+31220c4`**, immutable source
+`31220c4b3a365f1c3419d4085f63022ed25afe00` on `main`, store
+`/nix/store/fbs40c0254jp2a6vwzc4kf07jsf8rk3n-centaur-gtk4-preview-0.4.0-preview`.
+Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44210383784)
+and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44210383947)
+workflows passed. Exact-commit evidence confirms 29 native product checks, 19
+embedding checks and all 11 signed-updater checks. All 613 closure paths passed
+empty-store signature verification in CI and recursive verification in the VM;
+the advertised feed exactly matches the verified manifest.
+
+The actual published package also passed all 11 updater checks in a disposable
+ARM64 NixOS profile. Its final version and original animation bytes match. The
+first VM empty-store download hit a Cachix connection failure; subsequent
+read-only HTTPS checks succeeded without configuration changes, and a fresh
+retry passed. This does not establish which network component caused that
+temporary failure. The copied package-metadata cache and five private Git
+fixtures were removed; no disposable Centaur process remained.
+
+[Release verification](evidence/gtk4-agent-progress-2026-11-18/release-verification.json)
+records artifact digests, exact revisions, test boundaries and remaining
+historical uncertainty. No preview was activated on the owner's profile.
+Installation and manual acceptance remain in Installer (Centaur Install), one
+step at a time. Engineering success does not mark owner acceptance complete.

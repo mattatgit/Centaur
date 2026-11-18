@@ -1,5 +1,38 @@
 # Current state
 
+## Agent progress and timeout diagnostics — 18 November 2026
+
+Published signed preview: **`0.4.0-preview+31220c4`**, immutable source
+`31220c4b3a365f1c3419d4085f63022ed25afe00`. The original working animation now
+appears in the chronological chat flow. Observable OMP/broker events update one
+tile in place; prolonged waits show honest elapsed information. Readers retain
+their scroll position during concurrent chat. Failures offer safe, copyable
+Request details, and unchanged-app claims require a source comparison. The
+180-second per-OMP-response limit remains bounded and unchanged.
+
+Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44210383784)
+and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44210383947)
+workflows passed. ARM64 NixOS UTM verification passed 29 native product checks,
+94 Python tests with the packaged sandbox and zero skips, all three service
+suites, 19 embedding checks, a real OMP UI request and all 11 signed-updater
+checks in a disposable profile. All 613 signed closure paths, the exact final
+version and original animation bytes were verified in the VM; the release feed
+matches its artifact. [Release evidence](evidence/gtk4-agent-progress-2026-11-18/release-verification.json)
+records exact boundaries and a transient VM Cachix connection failure that
+recovered without configuration changes.
+
+The historical PTT failure was terminated by Centaur's invocation timer; the old
+build did not record enough telemetry to establish the provider's state. This
+release improves future diagnosis without claiming to repair an unproven
+upstream fault. No owner profile was activated, and existing data, OMP
+configuration, identities, Qt and NixOS settings remain preserved. General
+model terminal access stays disabled. Installation and owner acceptance remain
+in Centaur Install. [Details](GTK4_AGENT_PROGRESS.md).
+
+Pass 2 remains deferred. Its available-update icon must open the restart-warning
+modal before starting an update, require confirmation and allow deferral; this
+Pass 1 release leaves updater controls unchanged.
+
 ## V2 four-fix polish — 17 November 2026
 
 Published signed preview: **`0.4.0-preview+7a94994`**, immutable source

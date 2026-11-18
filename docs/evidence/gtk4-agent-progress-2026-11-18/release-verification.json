@@ -1,0 +1,292 @@
+{
+  "date": "2026-11-18",
+  "sourceRevision": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+  "sourceBranch": "main",
+  "version": "Centaur GTK4 0.4.0-preview+31220c4",
+  "storePath": "/nix/store/fbs40c0254jp2a6vwzc4kf07jsf8rk3n-centaur-gtk4-preview-0.4.0-preview",
+  "manifestMatchesAdvertisedFeed": true,
+  "signedClosurePaths": 613,
+  "vmFinalSignedClosureVerified": true,
+  "workflows": [
+    {
+      "id": 44210383947,
+      "name": "GTK4 embedding experiment",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44210383947",
+      "jobs": [
+        {
+          "id": 134486912656,
+          "name": "GTK4 viewport ARM64",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Check Python, process isolation and workflow",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Build isolated GTK4 experiment only",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Exercise separate app in a disposable display",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Save experiment evidence and limitations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8
+            },
+            {
+              "name": "Publish isolated test package after automated checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 19
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 20
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 21
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 44210383784,
+      "name": "GTK4 Centaur integration",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44210383784",
+      "jobs": [
+        {
+          "id": 134486912459,
+          "name": "GTK4 product and preserved service regressions ARM64",
+          "status": "completed",
+          "conclusion": "success",
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Check Python, bundle contract and workflow",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Build retained service and run core, network and Iroh regressions",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Cache service only after its regressions pass",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Build GTK4 development frontend",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8
+            },
+            {
+              "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9
+            },
+            {
+              "name": "Save native screenshots, reports and limitations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10
+            },
+            {
+              "name": "Publish GTK4 development preview after successful checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Exercise Settings update against the published signed package",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Save updater screenshots and transaction evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Advertise the verified in-app update",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 29
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 30
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 31
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14386990529,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:b9b9eb60ae2c85ede041a93286b97f1d643aa9f74c1190f9293dc3c51fd91e60",
+      "headSha": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14385798358,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:17c9bccd46215179670e9aae2e40828de68904c0a5b40ec31169b079ca9a9a5b",
+      "headSha": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14384954672,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:6dbe3e18801a9e14d4ab7e0990ef059dd361220839bd2689cf8caa1affc43149",
+      "headSha": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14386535074,
+      "name": "gtk4-phase1-aarch64-linux",
+      "digest": "sha256:c23fbcb3381154ec334da8f10a77b62ab85049f36452e9aa9ffa418fa8081d12",
+      "headSha": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14384798882,
+      "name": "gtk4-distribution-aarch64-linux",
+      "digest": "sha256:9fc5b86cf3d26f713db9c4378d90d310ec6c8bf7bd97b07dcbc3cdbac1f94410",
+      "headSha": "31220c4b3a365f1c3419d4085f63022ed25afe00",
+      "downloadDigestVerified": false
+    }
+  ],
+  "verification": {
+    "arm64NixosUtmNativeChecks": 29,
+    "pythonTests": 94,
+    "pythonSkips": 0,
+    "serviceSuites": 3,
+    "standaloneEmbeddingChecks": 19,
+    "ciNativeChecks": 29,
+    "ciUpdateChecks": 11,
+    "vmSignedUpdateChecks": 11,
+    "originalAssetHashesVerified": 64,
+    "realOmpNativeRequestSeconds": 2.61
+  },
+  "historicalTimeout": {
+    "terminatingLayer": "Centaur invocation timer",
+    "perInvocationDeadlineMs": 180000,
+    "providerState": "Unknown: the historical build did not retain intermediate lifecycle telemetry."
+  },
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false,
+  "boundaries": [
+    "VM product tests use candidate8; final candidate9 changes only two scope-neutral captions and their Python expectation. Candidate9 passed all service/Python checks. Both release workflows test exact immutable 31220c4.",
+    "Real OMP UI probe uses the same runtime before a checker-only native input acknowledgement; no login/logout, credential copying or model-setting writes were performed.",
+    "VM functional GitHub import uses a disposable Git DNS fixture with normal verified TLS; product/owner network and Git settings are unchanged. CI uses normal DNS.",
+    "Initial VM empty-store Cachix download failed to connect. Read-only HTTPS checks subsequently passed without configuration changes. A fresh disposable retry passed all 11 updater checks; the owner's profile was never activated.",
+    "VM updater uses a private Nix profile and a read-only backup of package metadata. Copied cache and 5 private Git fixtures were removed; no disposable Centaur process remained.",
+    "Original 64 asset hashes and waiting animation are unchanged; general model terminal access stays disabled. Owner acceptance remains in Centaur Install."
+  ]
+}
