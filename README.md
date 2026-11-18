@@ -1,6 +1,6 @@
 # Centaur
 
-A native workshop for families to build native apps together. One project is one Git repository and one app. A shared canvas and conversation are the workspace.
+A tool to build native apps collaboratively. One project is one Git repository and one app. A shared canvas and conversation are the workspace.
 
 **Current direction:** `main` contains the GTK4 frontend, GTK4 app-generation path and sandboxed import diagnostics. This is the baseline for the next UI pass. See [current state and verification](docs/CURRENT.md), [the GTK4 project contract](docs/GTK4_PROJECT_FORMAT.md) and [the UI reference](docs/GTK4_UI_REFERENCE.md). Installation and hands-on acceptance are coordinated in **Centaur Install**.
 
@@ -30,7 +30,7 @@ Centaur needs a graphical Linux session and its normal `XDG_RUNTIME_DIR`. It run
 
 ## Try the prototype
 
-Projects, Design Systems and Settings use the native sidebar adapted from Dialogue. In a workspace, switch between **Interact** (app input with chat still visible) and **Build** (Draw, Comment and Undo). The grid button and Settings share persistent 8-point grid preferences. Click the chat author footer to open Settings and use **Back to app** to return. Design Systems import and Deploy are not available yet. Original SVG/PNG provenance is recorded in [assets/dialogue](assets/dialogue/README.md).
+Projects, Design Systems and Settings are the main views. In a workspace, switch between **Interact** (app input with chat still visible) and **Build** (Draw, Comment and Undo). The grid button and Settings share persistent 8-point grid preferences. Click the chat author footer to open Settings and use **Back to app** to return. Design Systems import and Deploy are not available yet. Original SVG/PNG provenance is recorded in [assets/dialogue](assets/dialogue/README.md).
 
 1. Create a project. This makes a local Git repository with a working `App.qml`, initial checkpoint and README.
 2. On Linux, use the starter app inside the canvas: add a task, tick a checkbox, open the menu and dialog.
