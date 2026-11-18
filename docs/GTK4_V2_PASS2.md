@@ -113,6 +113,16 @@ and [edited import](evidence/gtk4-v2-pass2-2026-11-18/integration/pass2-imported
 Signed publication remains gated by the existing release workflow; its final
 receipt is added after publication.
 
+The first release attempt's new Settings updater check clicked an App control
+below the visible viewport. The gate stopped publication and the advertised
+feed stayed on `eb38227`. The checker now scrolls the full Settings page before
+activation. That test-only correction passed all 12 real signed updater checks
+on NixOS, including separate footer and Settings transactions, against signed
+candidate `22c4009`. The VM used a disposable copy of public Nix package
+metadata to avoid its cold-cache lookup delay. Signature verification, the
+empty-store real download check, profile switches and startup acknowledgements
+were unchanged. No owner profile was activated.
+
 ## Acceptance boundary
 
 The owner's GTK4 and Qt profiles, existing projects/conversations, collaboration

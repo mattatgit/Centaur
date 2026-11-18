@@ -1,0 +1,25 @@
+{
+  "signedCandidate": "22c4009d2e32cc36f4bc0d73ae9275572bbd02d4",
+  "checkerSha256": "a7c1c68efe4b6725f323d1a1dda1bb21dc9da94139118b73952402b9fa1b635e",
+  "checks": 12,
+  "transactions": [
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+22c4009",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    },
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+22c4009",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    }
+  ],
+  "privatePublicMetadataCacheFixture": true,
+  "signatureChecksUnchanged": true,
+  "ownerProfileUnchanged": true,
+  "ownerProfileActivated": false
+}

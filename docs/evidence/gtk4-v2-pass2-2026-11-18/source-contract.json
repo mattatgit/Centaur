@@ -1,6 +1,6 @@
 {
   "candidateArchiveSha256": "df0e8b78ac6ba77a95bb215eca34150a9d72185bac6a16d39183cc8789fc0c6f",
-  "runtimeAndTestSourcesUnchangedAfterVmRun": true,
+  "runtimeAndTestSourcesUnchangedAfterVmRun": false,
   "serviceCppMatchesAllThreeSource1Suites": true,
   "serviceVerificationArchiveSha256": "72df6d32089be714f78b63d2e5715c2b665453f7d9f2581a35ec66deddc4da27",
   "sourceFileHashes": {
@@ -230,5 +230,16 @@
     "tests/tst_network.cpp": "71c14b93a13f6c3354e346d331ee3499ca074604c23329ff9b81b43f02f0a9ed"
   },
   "liveAgentCandidate": "source6",
-  "liveAgentCoordinatorAndAgentSourcesMatchFinal": true
+  "liveAgentCoordinatorAndAgentSourcesMatchFinal": true,
+  "runtimeSourcesUnchangedAfterFullVmRun": true,
+  "testOnlyChangesAfterFullVmRun": [
+    "gtk4/embedding/updater_check.py"
+  ],
+  "releaseCheckerFix": {
+    "file": "gtk4/embedding/updater_check.py",
+    "sha256": "a7c1c68efe4b6725f323d1a1dda1bb21dc9da94139118b73952402b9fa1b635e",
+    "validatedAgainstSignedCandidate": "22c4009d2e32cc36f4bc0d73ae9275572bbd02d4",
+    "signedTransactions": 2,
+    "checks": 12
+  }
 }

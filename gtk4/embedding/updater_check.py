@@ -116,9 +116,19 @@ def main():
         driver.track_native(window,state); driver.resize(window,1440,1024)
         until(lambda:state().get('windowSize')==[1440,1024],'Update fixture did not allocate its native window')
         driver.ipc(f'[con_id={window}] move position 0 px 0 px')
+        def reach(name):
+            for _ in range(24):
+                x,y,w,h=target(state,name)
+                if name!='update-app' or 80<=y and y+h<=state()['windowSize'][1]-16: return x,y,w,h
+                # App is below the fold in the full Settings page. Exercise
+                # native scrolling instead of clicking an off-window target.
+                r=driver.rect(window)
+                driver.ipc(f"seat seat0 cursor set {round(r['x']+x+w/2)} {round(r['y']+state()['windowSize'][1]/2)}")
+                driver.seat_command('motion 0 0');driver.scroll(up=y<80)
+            raise AssertionError('Settings updater could not be scrolled into view')
         def click(name):
             if name in ('create','join'): click('project-menu')
-            x,y,w,h=target(state,name)
+            x,y,w,h=reach(name)
             driver.click(window,round(x+w/2),round(y+h/2)); time.sleep(.15)
         click('create'); until(lambda:state().get('form'),'Project form did not open')
         driver.type('Keep this project'); driver.key('Return')
@@ -230,8 +240,9 @@ def main():
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
         assert auth.read_text()=='opaque-test-credentials' and avatar.read_bytes()==avatar_bytes
         new_window=driver.find_window('org.centaur.Gtk4',new_pid);driver.track_native(new_window,state)
+        window=new_window;reach('update-app')
         driver.screenshot(new_window,folder/'settings-updated-app.png')
-        x,y,w,h=target(state,'update-app');driver.click(new_window,round(x+w/2),round(y+h/2))
+        click('update-app')
         until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
         assert state()['updater']['versionChip']=='v'+state()['updater']['version']
         driver.screenshot(new_window,folder/'footer-up-to-date.png')
