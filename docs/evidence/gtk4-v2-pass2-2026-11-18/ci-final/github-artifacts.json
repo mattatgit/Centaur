@@ -1,0 +1,56 @@
+{
+  "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b",
+  "runs": [
+    {
+      "id": 44261678189,
+      "name": "GTK4 embedding experiment",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44261678189",
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 44261678103,
+      "name": "GTK4 Centaur integration",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44261678103",
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14408506636,
+      "name": "gtk4-distribution-aarch64-linux",
+      "digest": "sha256:e2521ba23ad4f056afc4fb2e258253e2de87878b8567d6bca5688c331073ffa8",
+      "size": 10948,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14408023799,
+      "name": "gtk4-phase1-aarch64-linux",
+      "digest": "sha256:0969dbf394598f280b162b244a1bd0e518763e966a8194130d49c564bcafce80",
+      "size": 700676,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14409180841,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:7f10d69c62cd9dfcb991d5ab533921587c197458b92ab2c1a6e681ea5d523936",
+      "size": 19498,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14409141174,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:41b6cb40f6c85fe9b63cab8275b09359f68859d8f2e58b2b749914b5ad6a5656",
+      "size": 7567702,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14408293031,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:9c2d5ac8d7506b34b6346844e5388906d0ffbe81d0a3055a6fd031683e596aa6",
+      "size": 7104937,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    }
+  ],
+  "firstUnadvertisedCandidate": "22c4009d2e32cc36f4bc0d73ae9275572bbd02d4",
+  "failedGatePreservedOldFeed": "eb382277e3dd84dab6fc6d555341569462a5c32f"
+}

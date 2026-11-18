@@ -1,0 +1,90 @@
+{
+  "version": "0.4.0-preview+4144bb8",
+  "sourceRevision": "4144bb82a8c93724e94f88fc405d087aa7c4f80b",
+  "sourceBranch": "main",
+  "storePath": "/nix/store/vr0x56ni8y26lwzvg0ilc8yd9i4fsrx4-centaur-gtk4-preview-0.4.0-preview",
+  "installable": "github:mattatgit/Centaur/4144bb82a8c93724e94f88fc405d087aa7c4f80b#gtk4-preview",
+  "cacheUrl": "https://mattatgit-centaur.cachix.org",
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ],
+  "signedClosurePaths": 613,
+  "verifiedSignedClosureDownload": true,
+  "advertisedUpdateMatchesArtifact": true,
+  "unauthenticatedFeedVerified": true,
+  "ciRuns": [
+    {
+      "runId": 44261678103,
+      "jobId": 134656262809,
+      "conclusion": "success"
+    },
+    {
+      "runId": 44261678189,
+      "jobId": 134656262731,
+      "conclusion": "success"
+    }
+  ],
+  "artifactDigests": [
+    {
+      "id": 14408506636,
+      "name": "gtk4-distribution-aarch64-linux",
+      "digest": "sha256:e2521ba23ad4f056afc4fb2e258253e2de87878b8567d6bca5688c331073ffa8",
+      "size": 10948,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14408023799,
+      "name": "gtk4-phase1-aarch64-linux",
+      "digest": "sha256:0969dbf394598f280b162b244a1bd0e518763e966a8194130d49c564bcafce80",
+      "size": 700676,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14409180841,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:7f10d69c62cd9dfcb991d5ab533921587c197458b92ab2c1a6e681ea5d523936",
+      "size": 19498,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14409141174,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:41b6cb40f6c85fe9b63cab8275b09359f68859d8f2e58b2b749914b5ad6a5656",
+      "size": 7567702,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    },
+    {
+      "id": 14408293031,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:9c2d5ac8d7506b34b6346844e5388906d0ffbe81d0a3055a6fd031683e596aa6",
+      "size": 7104937,
+      "source": "4144bb82a8c93724e94f88fc405d087aa7c4f80b"
+    }
+  ],
+  "vmChecks": {
+    "product": 37,
+    "embedding": 19,
+    "python": 94,
+    "pythonSkips": 0,
+    "matchingServiceSuites": 3,
+    "finalSignedUpdater": 12
+  },
+  "ciChecks": {
+    "product": 37,
+    "embedding": 19,
+    "signedUpdater": 12
+  },
+  "exactFinalFrontendCodeAndOriginalAssetsVerifiedInNixos": true,
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false,
+  "generalModelTerminalEnabled": false,
+  "knownUnresolvedDesignMismatches": [],
+  "remainingAcceptance": "GNOME hands-on acceptance in Centaur Install",
+  "boundaries": [
+    "Primary engineering checks used ARM64 NixOS under UTM; required release CI used the existing ARM64 workflow.",
+    "The VM used a disposable copy of public Nix package metadata; signatures, real empty-store transfer and startup acknowledgements remained required.",
+    "An off-screen Settings test click stopped the first candidate before advertisement. Only the checker was corrected; both real signed entry-point transactions then passed.",
+    "Earlier real model runs used matching coordinator/agent code; final UI checks used deterministic fixtures.",
+    "One intermediate guest drawing input miss had no assigned product root cause; subsequent full runs and final CI passed."
+  ]
+}

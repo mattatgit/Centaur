@@ -1,0 +1,27 @@
+{
+  "version": "Centaur GTK4 0.4.0-preview+4144bb8",
+  "sourceRevision": "4144bb82a8c93724e94f88fc405d087aa7c4f80b",
+  "storePath": "/nix/store/vr0x56ni8y26lwzvg0ilc8yd9i4fsrx4-centaur-gtk4-preview-0.4.0-preview",
+  "checks": 12,
+  "transactions": [
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+4144bb8",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    },
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+4144bb8",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    }
+  ],
+  "privatePublicMetadataCacheFixture": true,
+  "signaturesAndEmptyStoreDownloadUnchanged": true,
+  "ownerProfileUnchanged": true,
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false
+}

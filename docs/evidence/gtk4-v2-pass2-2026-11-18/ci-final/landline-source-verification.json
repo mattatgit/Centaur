@@ -1,0 +1,12 @@
+{
+  "sourceUrl": "https://github.com/mattatgit/landline/tree/linux-nix",
+  "branch": "linux-nix",
+  "commit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+  "independentRemoteCommit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+  "framework": "Nix / Rust",
+  "linuxDirectoryPresent": true,
+  "linuxCargoAndMainPresent": true,
+  "linuxAgentContextVerified": true,
+  "macOsSwiftFilesAlsoPresent": true,
+  "passed": true
+}

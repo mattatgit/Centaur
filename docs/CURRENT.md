@@ -1,5 +1,29 @@
 # Current state
 
+## V2 completion and polish — 18 November 2026
+
+Published signed preview: **`0.4.0-preview+4144bb8`**, immutable source
+`4144bb82a8c93724e94f88fc405d087aa7c4f80b`. All eleven Pass 2 items are
+implemented using original Figma assets and the supplied animation. A supplied
+Create prompt now starts app creation through the existing bounded agent queue,
+as explicitly approved by the owner. Unchanged chat rows preserve keyboard
+focus, text selection and reader position during message arrivals.
+
+ARM64 NixOS UTM verification passed 37 product checks, 19 embedding checks,
+94 Python checks with zero skips and matching retained service suites. Both
+[product/update](https://github.com/mattatgit/Centaur/actions/runs/44261678103)
+and [embedding](https://github.com/mattatgit/Centaur/actions/runs/44261678189)
+CI passed. The exact signed package passed all 12 updater checks in disposable
+NixOS profiles, including confirmed updates from both Settings and the footer.
+The public feed exactly matches the verified artifact and its 613 signed closure
+paths. [Technical details and screenshots](GTK4_V2_PASS2.md) distinguish the final
+checks, earlier live model runs, test-only correction and VM metadata fixture.
+
+No owner profile was activated. Existing data, credentials/configuration,
+identities and Qt remain preserved; general model terminal access stays disabled.
+Installation and GNOME hands-on acceptance remain in Centaur Install. Sharing UX
+and generated Landline icon alignment remain deferred.
+
 ## Long-running agent response investigation — 18 November 2026
 
 Published signed preview: **`0.4.0-preview+eb38227`**, immutable source

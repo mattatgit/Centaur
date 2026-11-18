@@ -6,6 +6,16 @@ alignment remain outside this change. Installation and hands-on acceptance
 belong in Installer / Centaur Install; engineering verification does not mark
 owner acceptance complete.
 
+Published signed preview: **`0.4.0-preview+4144bb8`**, immutable source
+`4144bb82a8c93724e94f88fc405d087aa7c4f80b`.
+Both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44261678103)
+and [embedding](https://github.com/mattatgit/Centaur/actions/runs/44261678189)
+workflows passed. The [public feed receipt](evidence/gtk4-v2-pass2-2026-11-18/ci-final/public-feed-verification.json)
+confirms exact equality with the verified signed artifact, including source,
+version, store path and all 613 closure paths.
+The [release verification](evidence/gtk4-v2-pass2-2026-11-18/release-verification.json)
+records artifact digests, test boundaries and preservation status.
+
 ## Design and implementation
 
 The source is the original [V2 board](https://www.figma.com/design/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=43-689)
@@ -110,8 +120,13 @@ Relevant final screenshots: [updater warning](evidence/gtk4-v2-pass2-2026-11-18/
 [saved badge](evidence/gtk4-v2-pass2-2026-11-18/integration/pass2-settings-saved.png),
 [comment pointer](evidence/gtk4-v2-pass2-2026-11-18/integration/comment-100-placed.png)
 and [edited import](evidence/gtk4-v2-pass2-2026-11-18/integration/pass2-imported-edit-no-stray-button.png).
-Signed publication remains gated by the existing release workflow; its final
-receipt is added after publication.
+The final release passed the existing signed publication gates. The exact
+advertised package also passed all **12 signed updater checks** in disposable
+ARM64 NixOS profiles: both entry points completed real profile switches,
+restarts and startup acknowledgements. The
+[final VM receipt](evidence/gtk4-v2-pass2-2026-11-18/signed-final/verification.json)
+and [package comparison](evidence/gtk4-v2-pass2-2026-11-18/signed-final/package-verification.json)
+record the exact version and match to verified code/original artwork.
 
 The first release attempt's new Settings updater check clicked an App control
 below the visible viewport. The gate stopped publication and the advertised
@@ -129,6 +144,10 @@ The owner's GTK4 and Qt profiles, existing projects/conversations, collaboration
 identities, OMP credentials/configuration and model settings are preserved.
 No release is installed or activated on the owner's profile by this work.
 Private engineering profiles and release-test fixtures are separate.
+
+No unresolved design mismatch was observed in the final reviewed screenshots.
+Native GNOME hands-on acceptance remains pending; disposable Sway evidence
+does not substitute for it.
 
 GNOME desktop interaction and visual acceptance remain in Centaur Install.
 The new confirmation belongs to the new version: the accepted `eb38227`

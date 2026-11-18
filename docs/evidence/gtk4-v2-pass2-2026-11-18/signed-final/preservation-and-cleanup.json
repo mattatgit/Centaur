@@ -1,0 +1,12 @@
+{
+  "ownerGtk4Profile": "/nix/store/w3ay72cqv9ybwghg5v3yc75kqj28dqbr-centaur-gtk4-preview-0.4.0-preview",
+  "ownerGtk4ProfileUnchanged": true,
+  "ownerQtProfile": "/nix/store/rid9cdhgphzwz7whyjs8c8800913zlhq-centaur-0.3.1",
+  "ownerProfileActivated": false,
+  "privateProcessesStopped": 0,
+  "remainingPrivateProcesses": 0,
+  "privateTestDataAndProfilesRemoved": true,
+  "ownerProjectsOrCredentialsCopiedToEvidence": false,
+  "ownerConfigWritten": false,
+  "ownerAcceptanceComplete": false
+}

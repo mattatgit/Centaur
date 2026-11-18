@@ -1,0 +1,11 @@
+{
+  "githubUsername": "mattatgit",
+  "isPublic": true,
+  "name": "mattatgit-centaur",
+  "permission": "Read",
+  "preferredCompressionMethod": "ZSTD",
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ],
+  "uri": "https://mattatgit-centaur.cachix.org"
+}

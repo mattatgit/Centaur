@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "sourceRevision": "4144bb82a8c93724e94f88fc405d087aa7c4f80b",
+  "system": "aarch64-linux",
+  "version": "Centaur GTK4 experiment +4144bb8",
+  "storePath": "/nix/store/dg8qgkdw61shk4g4qyf4l61jf6ngdbyi-centaur-gtk4-embedding-test-0.1.0",
+  "packageAttribute": "gtk4-embedding-test",
+  "installable": "github:mattatgit/Centaur/4144bb82a8c93724e94f88fc405d087aa7c4f80b#gtk4-embedding-test",
+  "cacheUrl": "https://mattatgit-centaur.cachix.org",
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ],
+  "closurePathCount": 307,
+  "verifiedSignedClosureDownload": true,
+  "publishedAt": "2026-11-18T07:49:40.500411+00:00"
+}
