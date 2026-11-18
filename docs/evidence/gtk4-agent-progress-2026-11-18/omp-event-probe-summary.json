@@ -1,0 +1,65 @@
+{
+  "version": "OMP18.12.6",
+  "model": "openai-codex/gpt-6.1-sol",
+  "seconds": 66.035,
+  "exitCode": 0,
+  "events": {
+    "session": 1,
+    "agent_start": 1,
+    "turn_start": 1,
+    "message_start": 2,
+    "message_end": 2,
+    "message_update": 16,
+    "stream:thinking_start": 1,
+    "stream:thinking_end": 1,
+    "stream:text_start": 1,
+    "stream:text_delta": 12,
+    "stream:text_end": 1,
+    "turn_end": 1,
+    "agent_end": 1
+  },
+  "timeline": [
+    {
+      "seconds": 0.287,
+      "event": "session"
+    },
+    {
+      "seconds": 0.31,
+      "event": "agent_start"
+    },
+    {
+      "seconds": 0.334,
+      "event": "turn_start"
+    },
+    {
+      "seconds": 0.335,
+      "event": "message_start"
+    },
+    {
+      "seconds": 0.335,
+      "event": "message_end",
+      "stopReason": null
+    },
+    {
+      "seconds": 2.583,
+      "event": "message_update"
+    },
+    {
+      "seconds": 66.007,
+      "event": "message_end",
+      "stopReason": "stop"
+    },
+    {
+      "seconds": 66.009,
+      "event": "turn_end"
+    },
+    {
+      "seconds": 66.014,
+      "event": "agent_end"
+    }
+  ],
+  "expectedResponseReceived": true,
+  "agentEndReceived": true,
+  "stderrBytes": 0,
+  "rawOutputStored": false
+}

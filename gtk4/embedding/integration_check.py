@@ -14,6 +14,7 @@ from ink_check import check_ink, assert_capture,place_agent_pointer
 from window_controls_check import check_window_controls
 from import_check import check_imports
 from polish_check import check_provider_hovers,check_working_pixels
+from activity_check import check_activity
 
 
 class Bridge:
@@ -38,6 +39,9 @@ class Checks(list):
 
 
 def main():
+    if os.environ.get('CENTAUR_GTK4_REAL_AGENT_SMOKE')=='1':
+        from real_agent_check import main as real_agent_main
+        return real_agent_main()
     folder=Path(sys.argv[1]).resolve(); folder.mkdir(parents=True,exist_ok=False)
     for kind in ('CONFIG','DATA','CACHE'):
         desktop=folder/('desktop-'+kind.lower()); desktop.mkdir(mode=0o700)
@@ -58,6 +62,28 @@ def main():
     agent=folder/'agent'
     request_record=folder/'agent-request.txt'
     fixture="import pathlib,sys,json\nrecord=REQUEST_RECORD\nreply=REPLY_FILE\nif 'rpc' in sys.argv:\n connected=True\n catalog=[{'provider':'openai-codex','id':'runtime-one','name':'Runtime catalog one'},{'provider':'openai-codex','id':'runtime-two','name':'Runtime catalog two'}]\n model=catalog[0]\n for line in sys.stdin:\n  command=json.loads(line); kind=command.get('type'); success=True\n  if kind=='get_login_providers': data={'providers':[{'id':name,'name':name,'available':True,'authenticated':connected and name=='openai-codex'} for name in ('openai-codex','anthropic','openrouter','github-copilot','google-gemini-cli')]}\n  elif kind=='get_available_models': data={'models':catalog if connected else []}\n  elif kind=='get_state': data={'model':model}\n  elif kind=='set_model': model=next(m for m in catalog if m['id']==command['modelId']); data=model\n  elif kind=='get_logout_accounts': data={'accounts':[{'provider':'openai-codex','credentialId':17,'label':'Disposable test account','active':True}]}\n  elif kind=='logout': connected=False; data={}\n  else: success=False; data={}\n  print(json.dumps({'type':'response','id':command.get('id'),'command':kind,'success':success,'data':data}),flush=True)\n sys.exit(0)\nfor arg in sys.argv[1:]:\n if arg.startswith('@') and arg.endswith('.txt'): pathlib.Path(record).write_text(pathlib.Path(arg[1:]).read_text())\np=pathlib.Path(reply); answer=p.read_text()\nrequest=json.loads(pathlib.Path(record).read_text().split('PROJECT AND CONVERSATION:\\n',1)[1].split('\\n\\nCURRENT ',1)[0])\nif request.get('importDiagnostics',{}).get('capabilities',{}).get('retryAcquire'): answer=json.dumps({'kind':'retry','message':'The connection was interrupted. I’ll try copying it again.','operation':'acquire'})\nif json.loads(answer).get('fixtureWait'): __import__('time').sleep(120)\nprint(answer)\nif json.loads(answer).get('kind')=='inspect': p.write_text(json.dumps({'kind':'question','message':'I checked the imported source.'}))\n"
+    gated="""cfg=json.loads(answer)
+if cfg.get('fixtureProgressGate'):
+ gate=pathlib.Path(cfg['fixtureProgressGate']); phase=''
+ print(json.dumps({'type':'agent_start'}),flush=True)
+ print(json.dumps({'type':'message_update','assistantMessageEvent':{'type':'thinking_start','private':'PRIVATE_ACTIVITY_CANARY'}}),flush=True)
+ end=__import__('time').monotonic()+60
+ while __import__('time').monotonic()<end:
+  value=gate.read_text() if gate.exists() else ''
+  if value!=phase:
+   phase=value
+   if phase=='response': print(json.dumps({'type':'message_update','assistantMessageEvent':{'type':'text_delta','delta':'PRIVATE_ACTIVITY_CANARY'}}),flush=True)
+   if phase=='retry': print(json.dumps({'type':'auto_retry_start','errorMessage':'SECRET_PROVIDER_CANARY'}),flush=True)
+   if phase=='fail': print('SECRET_STDERR_CANARY',file=sys.stderr,flush=True);sys.exit(2)
+   if phase=='finish':
+    answer=json.dumps({'kind':'question','message':cfg['message']})
+    final={'role':'assistant','content':[{'type':'text','text':answer}],'stopReason':'stop'}
+    print(json.dumps({'type':'message_end','message':final}),flush=True)
+    print(json.dumps({'type':'agent_end','messages':[final]}),flush=True);sys.exit(0)
+  __import__('time').sleep(.04)
+ sys.exit(3)
+"""
+    fixture=fixture.replace("p=pathlib.Path(reply); answer=p.read_text()\n","p=pathlib.Path(reply); answer=p.read_text()\n"+gated)
     agent.write_text('#!'+sys.executable+'\n'+fixture.replace('REQUEST_RECORD',repr(str(request_record))).replace('REPLY_FILE',repr(str(reply_file))))
     agent.chmod(0o700)
     # The disposable compositor has no desktop portal. Exercise GTK's native
@@ -314,6 +340,7 @@ def main():
         summary['checks'].append('exact-history-restore-propagates-to-both-profiles')
         # Stop must cancel the current request while preserving accepted
         # work, the shared identity and conversation, then accept a new prompt.
+        summary['checks']+=check_activity(driver,folder,hs,hw,gs,gw,click,message,control,reply_file)
         preserved_revision=hs()['project']['revision']
         preserved_messages={m['id'] for m in hs()['project']['messages']}
         reply_file.write_text(json.dumps({'kind':'question','message':'Slow fixture','fixtureWait':True}))

@@ -16,7 +16,7 @@
 class Session : public QObject {
     Q_OBJECT
 public:
-    explicit Session(const QString &root, QObject *parent = nullptr);
+    explicit Session(const QString &root, QObject *parent = nullptr, int agentDeadlineMs = 180000);
     ~Session() override;
     void start(bool background = false);
     bool connected() const { return m_host || m_client.state() == QLocalSocket::ConnectedState; }
@@ -42,6 +42,11 @@ private:
     void applyProposal(const QString &id, QJsonObject state);
     void nextRequest();
     void retryRequest(QJsonObject &state);
+    void beginActivity(const QString &id, const QJsonObject &request);
+    void advanceActivity(const QString &id, const QString &phase, const QJsonObject &details = {});
+    void endActivity(const QString &id);
+    void settleActivity(const QString &id);
+    QByteArray appDigest(const QString &id) const;
     bool importCommand(const QJsonObject &command, QIODevice *sender);
     bool correctImportBranch(const QString &id, QJsonObject &state, const QString &text, const QString &author);
     void importJob(const QString &id, const QString &mode, QJsonObject payload = {});
@@ -51,6 +56,9 @@ private:
     void queueImport(QJsonObject &state, const QString &text, const QString &author);
     QHash<QString, QProcess *> m_imports;
     QJsonObject m_activeRequest;
+    QHash<QString,QJsonObject> m_activities;
+    QHash<QString,QByteArray> m_activitySources;
+    QString m_expectedAgentRun;
     QTimer m_reconnect;
     std::unique_ptr<CollaborationHost> m_network;
     QString m_socketName;

@@ -40,6 +40,18 @@ static bool writeAgentEvents(const QString &path, const QJsonArray &events) {
         && QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
 }
 
+static bool writeSlowAgent(const QString &path,const QByteArray &during = {}) {
+    const auto shell=QStandardPaths::findExecutable("sh").toUtf8();
+    const QByteArray events=R"JSON({"type":"agent_start"}
+{"type":"message_start","message":{"role":"assistant","provider":"fixture","model":"slow-model","content":[]}}
+{"type":"message_update","assistantMessageEvent":{"type":"thinking_start","private":"DO_NOT_PUBLISH"}}
+{"type":"message_update","assistantMessageEvent":{"type":"thinking_delta","delta":"DO_NOT_PUBLISH"}}
+)JSON";
+    return !shell.isEmpty() && Workspace::writeFile(path,"#!"+shell+"\ncat >/dev/null\ncat <<'EVENTS'\n"+events+
+        "EVENTS\nprintf 'SECRET_ERROR_CHANNEL' >&2\n"+during+"sleep 10\n")
+        && QFile::setPermissions(path,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner);
+}
+
 class AgentOverride {
 public:
     explicit AgentOverride(const QString &path) : m_hadValue(qEnvironmentVariableIsSet("CENTAUR_AGENT")),
@@ -701,6 +713,77 @@ private slots:
             QVERIFY(failed.isEmpty());
             QCOMPARE(completed.last().first().toJsonObject()["message"].toString(), QString("Connection test"));
             QVERIFY(!agent.busy());
+        }
+    }
+    void agentProgressTimeoutMetadataIsSafeAndProcessGroupIsReaped() {
+        QTemporaryDir dir; Workspace workspace(dir.path()); QString error;
+        const auto id=workspace.createProject("Progress","",&error,"gtk4-v1"); QVERIFY(!id.isEmpty());
+        const auto executable=dir.path()+"/agent"; const auto childFile=dir.path()+"/child";
+        QVERIFY(writeSlowAgent(executable,"sleep 20 &\nprintf '%s' $! > '"+childFile.toUtf8()+"'\n"));
+        AgentOverride override(executable); Agent agent(nullptr,350);
+        QSignalSpy progress(&agent,&Agent::progress),failures(&agent,&Agent::failureReady),completed(&agent,&Agent::completed);
+        agent.ask(workspace.projectPath(id),workspace.load(id),workspace.source(id),{},"first-run");
+        QTRY_COMPARE_WITH_TIMEOUT(failures.size(),1,3000);
+        QTRY_VERIFY(!agent.busy()); QVERIFY(completed.isEmpty()); QVERIFY(!progress.isEmpty());
+        const auto details=failures.first()[2].toJsonObject();
+        QCOMPARE(details["runId"].toString(),QString("first-run"));
+        QCOMPARE(details["code"].toString(),QString("agent_deadline"));
+        QCOMPARE(details["layer"].toString(),QString("centaur.agent"));
+        QCOMPARE(details["deadlineMs"].toInt(),350); QVERIFY(details["streamUpdates"].toInt()>0);
+        QVERIFY(details["stderrBytes"].toInt()>0); QVERIFY(details["lastProviderActivityMs"].toInt(-1)>=0);
+        QVERIFY(!QJsonDocument(details).toJson().contains("SECRET"));
+        for (const auto &event:progress) QVERIFY(!QJsonDocument(event.first().toJsonObject()).toJson().contains("DO_NOT_PUBLISH"));
+#ifdef Q_OS_LINUX
+        QFile file(childFile);QVERIFY(file.open(QIODevice::ReadOnly));const auto pid=file.readAll().toLongLong();QVERIFY(pid>0);
+        auto dead=[pid] { QFile stat("/proc/"+QString::number(pid)+"/stat");return !stat.open(QIODevice::ReadOnly) || stat.readAll().split(' ').value(2)=="Z"; };
+        QTRY_VERIFY_WITH_TIMEOUT(dead(),2000);
+#endif
+        QVERIFY(writeAgentReply(executable,{{"kind","question"},{"message","Next request"}}));
+        agent.ask(workspace.projectPath(id),workspace.load(id),workspace.source(id),{},"second-run");
+        QTRY_COMPARE_WITH_TIMEOUT(completed.size(),1,3000);
+        QCOMPARE(failures.size(),1); QCOMPARE(agent.diagnostics()["runId"].toString(),QString("second-run"));
+    }
+    void timeoutOnlyClaimsUnchangedAfterComparingSavedSource() {
+        for (bool externalChange:{false,true}) {
+            QTemporaryDir dir;Workspace workspace(dir.path());QString error;
+            const auto id=workspace.createProject("Timeout proof","",&error,"gtk4-v1");QVERIFY(!id.isEmpty());
+            const auto executable=dir.path()+"/agent";QVERIFY(writeSlowAgent(executable));AgentOverride override(executable);
+            Session host(dir.path(),nullptr,350);QSignalSpy snapshots(&host,&Session::snapshot);host.start();
+            host.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","@centaur A controlled slow request"}});
+            bool observed=false;
+            for (const auto &frame:snapshots) for (const auto &s:frame.first().toJsonObject()["states"].toArray())
+                if (!s.toObject()["agentActivity"].toObject().isEmpty()) observed=true;
+            QVERIFY(observed);
+            if (externalChange) {
+                const auto path=workspace.projectPath(id)+"/App.gtk.json";QFile source(path);QVERIFY(source.open(QIODevice::ReadOnly));const auto bytes=source.readAll();source.close();
+                QVERIFY(Workspace::writeFile(path,bytes+"\n"));
+            }
+            QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject().contains("agentDiagnostics"),3000);
+            const auto last=workspace.load(id)["messages"].toArray().last().toObject();const auto details=last["agentDiagnostics"].toObject();
+            QCOMPARE(details["sourceComparisonAvailable"].toBool(),true);
+            QCOMPARE(details["sourceUnchanged"].toBool(),!externalChange);
+            QCOMPARE(last["text"].toString().contains("saved app is unchanged"),!externalChange);
+            QVERIFY(!workspace.load(id).contains("agentActivity"));
+            QTRY_VERIFY(snapshots.last().first().toJsonObject()["states"].toArray().first().toObject()["agentActivity"].toObject().isEmpty());
+        }
+    }
+    void agentDiagnosticsDistinguishQuietWaitingFromShutdown() {
+        for (bool ended:{false,true}) {
+            QTemporaryDir dir;Workspace workspace(dir.path());QString error;
+            const auto id=workspace.createProject("Observed stage","",&error);QVERIFY(!id.isEmpty());
+            const auto executable=dir.path()+"/agent";
+            const auto shell=QStandardPaths::findExecutable("sh").toUtf8();
+            const QByteArray event=ended ? QByteArray("printf '%s\\n' '{\"type\":\"agent_end\",\"messages\":[]}'\n") : QByteArray();
+            QVERIFY(Workspace::writeFile(executable,"#!"+shell+"\ncat >/dev/null\n"+event+"sleep 10\n"));
+            QVERIFY(QFile::setPermissions(executable,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+            AgentOverride override(executable);Agent agent(nullptr,250);QSignalSpy failures(&agent,&Agent::failureReady);
+            agent.ask(workspace.projectPath(id),workspace.load(id),workspace.source(id));
+            QTRY_COMPARE_WITH_TIMEOUT(failures.size(),1,3000);
+            const auto details=failures.first()[2].toJsonObject();
+            QCOMPARE(details["code"].toString(),ended ? QString("agent_shutdown_deadline") : QString("agent_deadline"));
+            QCOMPARE(details["lastActivePhase"].toString(),ended ? QString("finishing") : QString("waiting"));
+            QCOMPARE(details["lastProviderActivityMs"].toInt(),-1);
+            QVERIFY(details["processStarted"].toBool());
         }
     }
     void cancellingAndDestroyingARunningAgentReapsItsProcess() {

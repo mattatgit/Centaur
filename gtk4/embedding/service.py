@@ -26,7 +26,7 @@ class Service:
             finally:
                 self.process.wait()
                 if not self.closing:
-                    GLib.idle_add(self.deliver, {'type':'error', 'message':'The local service stopped. Reopen Centaur to reconnect; your projects are saved.'})
+                    GLib.idle_add(self.deliver, {'type':'error','code':'local_service_disconnected', 'message':'The local service stopped. Reopen Centaur to reconnect; your projects are saved.'})
         self.reader = threading.Thread(target=read, daemon=True)
         self.reader.start()
 
@@ -41,7 +41,7 @@ class Service:
             self.process.stdin.flush()
             return True
         except (BrokenPipeError, OSError, ValueError):
-            self.deliver({'type':'error', 'message':'The local service is unavailable. Your draft stays here.'})
+            self.deliver({'type':'error','code':'local_service_disconnected', 'message':'The local service is unavailable. Your draft stays here.'})
             return False
 
     def close(self):

@@ -1,0 +1,24 @@
+{
+  "ownerProfileActivated": false,
+  "rawProviderOutputStored": false,
+  "samples": [
+    {
+      "seconds": 0.0,
+      "phase": "waiting",
+      "caption": "Waiting for agent response\u2026"
+    },
+    {
+      "seconds": 2.33,
+      "phase": "responding",
+      "caption": "Receiving agent response\u2026"
+    }
+  ],
+  "requestId": "2f9d0e36-f1af-47ae-92e1-494f3766c8ef",
+  "seconds": 2.61,
+  "failureDetails": [],
+  "sourceUnchanged": true,
+  "revisionUnchanged": true,
+  "inline": true,
+  "animationStopped": true,
+  "passed": true
+}

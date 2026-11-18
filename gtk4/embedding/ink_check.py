@@ -19,8 +19,14 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
 
     def stroke(state,window,tool,points):
         click(state,window,'tool-'+tool)
+        until(lambda:state().get('mode')=='Build','Drawing mode did not reach the native client')
         x,y=map(round,location(state,*points[0]))
         moves=[(round(px)-x,round(py)-y) for px,py in (location(state,*p) for p in points[1:])]
+        rect=driver.rect(window);serial=state().get('nativePointerSerial',0)
+        driver.ipc(f"seat seat0 cursor set {rect['x']+x} {rect['y']+y}");driver.seat_command('motion 0 0')
+        until(lambda:state().get('nativePointerSerial',0)>serial and
+              all(abs(a-b)<1 for a,b in zip(state().get('nativePointer') or [],(x,y))),
+              'Drawing start did not reach the focused native client')
         driver.drag_path(window,x,y,moves)
 
     def blue(state,window,name,point):

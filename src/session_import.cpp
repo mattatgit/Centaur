@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 #include <QUuid>
 #include <QCryptographicHash>
+#include <QScopeGuard>
 
 static QString importRoot(const Workspace &workspace, const QString &id) {
     const auto storage=workspace.load(id)["import"].toObject()["storage"].toString();
@@ -17,8 +18,11 @@ static QString importRoot(const Workspace &workspace, const QString &id) {
 
 void Session::queueImport(QJsonObject &state, const QString &text, const QString &author) {
     auto queue = state["agentQueue"].toArray();
-    queue.append(QJsonObject{{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)},
-        {"author", author}, {"text", text}, {"import", true}});
+    QJsonObject request{{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)},
+        {"author", author}, {"text", text}, {"import", true}};
+    const auto activity=m_activities.value(state["id"].toString());
+    if (!activity.isEmpty()) request["continuationOf"]=activity["requestId"];
+    queue.append(request);
     state["agentQueue"] = queue;
     auto info = state["import"].toObject(); info["status"] = "investigating"; state["import"] = info;
 }
@@ -179,6 +183,10 @@ void Session::importTool(const QString &id, QJsonObject state, const QJsonObject
 }
 
 void Session::importJob(const QString &id, const QString &mode, QJsonObject payload) {
+    const auto operation=payload.value("tool").toObject().value("operation").toString(
+        payload.value("hostResult").toObject().value("operation").toString());
+    const auto phase=mode=="inspect" ? (operation=="search" ? "searching" : "inspecting")
+        : mode=="stage" || mode=="bundle" ? "saving" : "acquiring";
     if (m_imports.contains(id)) return;
     auto state=m_workspace.load(id); auto local=state["importLocal"].toObject();
     const auto attempt=state["import"].toObject()["storage"].toString(); const int epoch=state["epoch"].toInt();
@@ -190,6 +198,7 @@ void Session::importJob(const QString &id, const QString &mode, QJsonObject payl
     if (mode=="acquire") local["networkRemaining"]=0;
     state["importLocal"]=local;
     if (!persist(id,state)) return;
+    advanceActivity(id,mode=="inspect" && (operation=="runtime_version" || operation=="validate_manifest" || operation=="diagnostics" || operation=="source_facts") ? operation : QString(phase));
     if (payload.contains("hostResult")) {
         importResult(id,mode,{{"ok",true},{"toolResult",payload["hostResult"]}},epoch,attempt,operationId); return;
     }
@@ -227,6 +236,7 @@ void Session::importJob(const QString &id, const QString &mode, QJsonObject payl
 }
 
 void Session::importResult(const QString &id, const QString &mode, const QJsonObject &result, int epoch, const QString &attempt, const QString &operationId) {
+    const auto settle=qScopeGuard([this,id] { settleActivity(id); });
     auto state = m_workspace.load(id); if (state.isEmpty()) return;
     auto info = state["import"].toObject(); auto local = state["importLocal"].toObject();
     if ((!attempt.isEmpty() && info["storage"].toString()!=attempt)

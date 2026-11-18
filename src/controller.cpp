@@ -65,7 +65,8 @@ void Controller::start(bool background) {
 QString Controller::author() const { return remoteProject() ? m_shared.value(m_projectId)->author() : m_author; }
 bool Controller::canContribute() const { return remoteProject() ? m_shared.value(m_projectId)->writable() : m_session.connected(); }
 bool Controller::agentAvailable() const { return remoteProject() ? m_shared.value(m_projectId)->agentAvailable() : m_agentAvailable; }
-bool Controller::agentBusy() const { return remoteProject() ? m_shared.value(m_projectId)->busy() : m_busyProject == m_projectId && !m_projectId.isEmpty(); }
+bool Controller::agentBusy() const { return remoteProject() ? m_shared.value(m_projectId)->busy() :
+    (!m_projectId.isEmpty() && (m_busyProject==m_projectId || !project().value("agentActivity").toMap().isEmpty())); }
 bool Controller::updateBlocked() const {
     if (m_localSnapshot["updateBlocked"].toBool() || m_localSnapshot["localWindows"].toInt()>1 || joining() || inviting()) return true;
     for (auto *shared : m_shared) if (shared->busy() || shared->pendingCount() > 0) return true;

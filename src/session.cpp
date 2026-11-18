@@ -11,6 +11,8 @@
 #include <QThread>
 #include <QPointer>
 #include <QSettings>
+#include <QScopeGuard>
+#include <QDateTime>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 static QString runner(bool gtk = false) {
@@ -22,7 +24,7 @@ static QString proposalSource(const QJsonObject &proposal) {
     return proposal["gtk"].isObject() ? QString::fromUtf8(QJsonDocument(proposal["gtk"].toObject()).toJson(QJsonDocument::Compact)) : proposal["qml"].toString();
 }
 
-Session::Session(const QString &root, QObject *parent) : QObject(parent), m_workspace(root) {
+Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QObject(parent), m_workspace(root), m_agent(nullptr,agentDeadlineMs) {
     m_updateToken = qEnvironmentVariable("CENTAUR_UPDATE_STARTING");
     m_socketName = "centaur-" + QString::fromLatin1(QCryptographicHash::hash(
         QFileInfo(root).absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex().left(24));
@@ -36,9 +38,17 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
     connect(&m_reconnect, &QTimer::timeout, this, [this] {
         if (m_client.state() == QLocalSocket::UnconnectedState) m_client.connectToServer(m_socketName);
     });
-    connect(&m_agent, &Agent::completed, this, &Session::finishAgent);
-    connect(&m_agent, &Agent::failed, this, &Session::agentError);
-    connect(&m_agent, &Agent::idle, this, [this] { QTimer::singleShot(0, this, &Session::nextRequest); });
+    connect(&m_agent, &Agent::resultReady, this, [this](const QString &run,const QJsonObject &reply) {
+        if (run==m_expectedAgentRun && !m_agentProject.isEmpty()) finishAgent(reply);
+    });
+    connect(&m_agent, &Agent::failureReady, this, [this](const QString &run,const QString &message,const QJsonObject &) {
+        if (run==m_expectedAgentRun && !m_agentProject.isEmpty()) agentError(message);
+    });
+    connect(&m_agent, &Agent::progress, this, [this](const QJsonObject &event) {
+        if (m_agentProject.isEmpty() || event["runId"]!=m_expectedAgentRun) return;
+        advanceActivity(m_agentProject,event["phase"].toString(),event);
+    });
+    connect(&m_agent, &Agent::idle, this, [this] { publish(); QTimer::singleShot(0, this, &Session::nextRequest); });
     connect(&m_agent, &Agent::modelReported, this, [this](const QString &model) {
         if (m_agentProject.isEmpty()) return;
         auto state = m_workspace.load(m_agentProject);
@@ -52,6 +62,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
         addMessage(state, state["agentName"].toString(), "Could not start the native app checker. Your app is unchanged.", "system");
         persist(m_validatingProject, state);
         m_validatingProject.clear();
+        endActivity(state["id"].toString());
         state.remove("activeRequest"); persist(state["id"].toString(), state);
         publish();
         QTimer::singleShot(0, this, &Session::nextRequest);
@@ -61,6 +72,7 @@ Session::Session(const QString &root, QObject *parent) : QObject(parent), m_work
             const auto id = m_validatingProject;
             if (id.isEmpty()) { QTimer::singleShot(0, this, &Session::nextRequest); return; }
             m_validatingProject.clear();
+            endActivity(id);
             auto state = m_workspace.load(id);
             QString error;
             state.remove("activeRequest");
@@ -250,6 +262,8 @@ void Session::publish(const QString &id) {
         state["queueCount"] = state["agentQueue"].toArray().size();
         state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
         state.remove("importLocal");
+        state.remove("agentActivity");
+        if (m_activities.contains(state["id"].toString())) state["agentActivity"]=m_activities.value(state["id"].toString());
         states.append(state);
     }
     QJsonObject data{{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(m_workspace.projects())},
@@ -502,6 +516,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear();
         }
         if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
+        endActivity(id);
         state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
         auto local=state["importLocal"].toObject(); local.remove("pending"); local.remove("currentTool"); state["importLocal"]=local;
         auto imported=state["import"].toObject();
@@ -516,6 +531,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
 void Session::finishAgent(const QJsonObject &reply) {
     QTimer::singleShot(0, this, &Session::nextRequest);
     const auto id = m_agentProject;
+    const auto settle=qScopeGuard([this,id] { settleActivity(id); });
     const auto requester = m_agentAuthor;
     m_agentProject.clear();
     m_agentAuthor.clear();
@@ -605,10 +621,21 @@ void Session::agentError(const QString &message) {
     m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
+    auto details=m_agent.diagnostics();
+    details["requestId"]=m_activities.value(id)["requestId"];
+    const auto started=QDateTime::fromString(m_activities.value(id)["startedAt"].toString(),Qt::ISODateWithMs);
+    if (started.isValid()) details["requestElapsedMs"]=qMax<qint64>(0,started.msecsTo(QDateTime::currentDateTimeUtc()));
+    const auto before=m_activitySources.value(id); const auto after=appDigest(id);
+    const bool verified=!before.isEmpty() && !after.isEmpty();
+    details["sourceComparisonAvailable"]=verified;
+    if (verified) details["sourceUnchanged"]=before==after;
     state.remove("activeRequest");
     auto imported=state.value("import").toObject();
     if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="awaitingAnswer"; state["import"]=imported; }
-    addMessage(state, state["agentName"].toString(), message, "system");
+    addMessage(state, state["agentName"].toString(), message+(verified && before==after ? " Your saved app is unchanged." : ""), "system");
+    auto messages=state["messages"].toArray(); auto last=messages.last().toObject(); last["agentDiagnostics"]=details;
+    messages[messages.size()-1]=last; state["messages"]=messages;
+    endActivity(id);
     persist(id, state);
     publish(id);
     QTimer::singleShot(0, this, &Session::nextRequest);
@@ -628,6 +655,7 @@ void Session::applyProposal(const QString &id, QJsonObject state) {
     if (!gtk) { env.insert("QT_QPA_PLATFORM", "offscreen"); env.insert("QT_QUICK_BACKEND", "software"); }
     m_validator.setProcessEnvironment(env);
     m_validator.start(runner(gtk), {"--check", candidate});
+    advanceActivity(id,"validating");
     const int epoch = m_validatingEpoch;
     QTimer::singleShot(10000, &m_validator, [this, id, epoch] {
         if (m_validatingProject == id && m_validatingEpoch == epoch && m_validator.state() != QProcess::NotRunning) m_validator.kill();
@@ -638,6 +666,52 @@ void Session::retryRequest(QJsonObject &state) {
     if (m_activeRequest.isEmpty()) return;
     auto queue = state["agentQueue"].toArray(); queue.prepend(m_activeRequest); state["agentQueue"] = queue;
 }
+
+QByteArray Session::appDigest(const QString &id) const {
+    const auto state=m_workspace.load(id);
+    if (state.isEmpty()) return {};
+    QFile file(m_workspace.projectPath(id)+"/"+Workspace::sourceName(state));
+    if (!file.exists()) return QByteArray("absent");
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    const auto bytes=file.readAll();
+    if (file.error()!=QFile::NoError) return {};
+    return QCryptographicHash::hash(bytes,QCryptographicHash::Sha256);
+}
+
+void Session::beginActivity(const QString &id,const QJsonObject &request) {
+    auto activity=m_activities.value(id);
+    if (activity.isEmpty() || (request["continuationOf"]!=activity["requestId"] && request["id"]!=activity["requestId"])) {
+        const auto messages=m_workspace.load(id)["messages"].toArray();
+        activity=QJsonObject{{"requestId",request["id"]},{"startedAt",Workspace::now()},
+            {"afterMessage",messages.isEmpty() ? QJsonValue("") : messages.last().toObject()["id"]}};
+        m_activitySources[id]=appDigest(id);
+    }
+    m_expectedAgentRun=uid(); activity["runId"]=m_expectedAgentRun;
+    activity["phase"]="starting"; activity["updatedAt"]=Workspace::now(); activity.remove("diagnostics");
+    m_activities[id]=activity;
+}
+
+void Session::advanceActivity(const QString &id,const QString &phase,const QJsonObject &details) {
+    if (!m_activities.contains(id)) return;
+    auto activity=m_activities.value(id);
+    activity["phase"]=phase; activity["updatedAt"]=Workspace::now();
+    if (!details.isEmpty()) activity["diagnostics"]=details;
+    m_activities[id]=activity;
+    publish(id);
+}
+
+void Session::endActivity(const QString &id) {
+    m_activities.remove(id); m_activitySources.remove(id);
+}
+
+void Session::settleActivity(const QString &id) {
+    if (!m_activities.contains(id) || m_imports.contains(id) || m_validatingProject==id || (m_agentProject==id && m_agent.busy())) return;
+    const QJsonValue requestId=m_activities.value(id).value("requestId");
+    for (const auto &value:m_workspace.load(id)["agentQueue"].toArray())
+        if (value.toObject()["continuationOf"]==requestId) return;
+    endActivity(id); publish(id);
+}
+
 void Session::nextRequest() {
     if (!m_host || m_updateStopping || !m_updateToken.isEmpty() || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
     for (const auto &project : m_workspace.projects()) {
@@ -649,6 +723,7 @@ void Session::nextRequest() {
         state["activeRequest"] = m_activeRequest;
         if (!persist(id, state)) return;
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
+        beginActivity(id,m_activeRequest);
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request.remove("importLocal");
         if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
@@ -674,7 +749,7 @@ void Session::nextRequest() {
         // by OMP. Read per request so an already-running host sees UI changes.
         const QSettings preferences(m_workspace.root() + "/preferences.ini", QSettings::IniFormat);
         m_agent.setModel(preferences.value("agent/model").toString());
-        m_agent.ask(m_workspace.projectPath(id), request, pendingImport ? QString() : m_workspace.source(id), image);
+        m_agent.ask(m_workspace.projectPath(id), request, pendingImport ? QString() : m_workspace.source(id), image,m_expectedAgentRun);
         publish(id); return;
     }
 }

@@ -1,0 +1,19 @@
+{
+  "initialTile": [
+    24.0,
+    580.0,
+    400.0,
+    64.0
+  ],
+  "scroller": [
+    8.0,
+    136.0,
+    416.0,
+    524.0
+  ],
+  "requestId": "0ba095a1-3510-4865-8971-82b38f0959b9",
+  "nativeScrollDelta": 1299.9226778468392,
+  "diagnosticCode": "agent_process_exit",
+  "sourceUnchanged": true,
+  "copiedDetails": true
+}

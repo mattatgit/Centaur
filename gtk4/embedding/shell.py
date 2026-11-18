@@ -27,6 +27,7 @@ from comment_pointer import CommentPointer,paint_arrow
 from update_ui import UpdateControls
 from desktop import APP_ID, launch_settings, register as register_desktop
 from import_ui import show_import
+from agent_activity import caption as activity_caption, details_text as activity_details
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, original, picture, close_art, send_art, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal, ZoomMenu,
                 label, box, margins, button, button_text, selected, accessible)
@@ -279,7 +280,24 @@ class Centaur(Gtk.Application):
         self.chat_scrollbar=Gtk.Scrollbar(orientation=Gtk.Orientation.VERTICAL,adjustment=self.chat_scroll.get_vadjustment())
         self.chat_scrollbar.add_css_class('chat-scrollbar'); self.chat_scrollbar.set_margin_top(16); self.chat_scrollbar.set_margin_bottom(16)
         self.chat_scrollbar.set_sensitive(False)
+        self.chat_scroll_generation=0; self.chat_follow=True; self.chat_follow_generation=0
+        scroll_input=Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        scroll_input.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        def scrolled(*unused):
+            self.chat_scroll_generation+=1; self.chat_follow=False; return False
+        scroll_input.connect('scroll',scrolled); self.chat_scroll.add_controller(scroll_input)
+        scroll_keys=Gtk.EventControllerKey()
+        def scroll_key(controller,keyval,*unused):
+            if keyval in (Gdk.KEY_Up,Gdk.KEY_Down,Gdk.KEY_Page_Up,Gdk.KEY_Page_Down,Gdk.KEY_Home,Gdk.KEY_End): scrolled()
+            return False
+        scroll_keys.connect('key-pressed',scroll_key); self.chat_scroll.add_controller(scroll_keys)
+        scroll_drag=Gtk.GestureClick(); scroll_drag.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
+        scroll_drag.connect('pressed',scrolled); self.chat_scrollbar.add_controller(scroll_drag)
         self.chat_scroll.get_vadjustment().connect('changed',lambda a:self.chat_scrollbar.set_sensitive(a.get_upper()>a.get_page_size()))
+        def range_changed(adjustment):
+            if self.chat_follow and self.chat_follow_generation==self.chat_scroll_generation:
+                GLib.idle_add(self.settle_chat_bottom,self.message_key,self.chat_scroll_generation)
+        self.chat_scroll.get_vadjustment().connect('changed',range_changed)
         scroll_row.append(self.chat_scrollbar)
         message_overlay=Gtk.Overlay(vexpand=True); message_overlay.set_child(scroll_row)
         self.empty_chat=box(True,16); self.empty_chat.set_halign(Gtk.Align.FILL); self.empty_chat.set_valign(Gtk.Align.CENTER)
@@ -290,7 +308,8 @@ class Centaur(Gtk.Application):
         message_overlay.add_overlay(self.empty_chat); chat.append(message_overlay)
         self.busy=box(spacing=8,css='busy'); self.working_mark=WorkingMark(); self.busy.append(self.working_mark); self.busy_text=label('Centaur is working…','chat-status muted'); self.busy_text.set_hexpand(True); self.busy.append(self.busy_text)
         self.busy_text.set_ellipsize(Pango.EllipsizeMode.END)
-        self.stop_button=button('Stop',lambda:self.service.send('cancel'),tone='plain'); self.busy.append(self.stop_button); chat.append(self.busy); self.busy.set_visible(False)
+        self.stop_button=button('Stop',lambda:self.service.send('cancel'),tone='plain'); self.busy.append(self.stop_button); self.busy.set_visible(False)
+        self.targets['activity-tile']=self.busy; self.targets['activity-text']=self.busy_text
         self.targets['stop-agent']=self.stop_button
         self.proposal=box(True,8,'proposal'); chat.append(self.proposal); self.proposal.set_visible(False)
         self.import_actions=box(spacing=8); chat.append(self.import_actions); self.import_actions.set_visible(False)
@@ -307,11 +326,11 @@ class Centaur(Gtk.Application):
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)
-        for item in (heading,self.busy,self.proposal,self.import_actions,self.composer,self.update_footer):
+        for item in (heading,self.proposal,self.import_actions,self.composer,self.update_footer):
             item.set_margin_start(16); item.set_margin_end(16)
-        for item in (self.busy,self.proposal,self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
+        for item in (self.proposal,self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
         self.update_footer.set_margin_top(0); self.update_footer.set_size_request(-1,48)
-        self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider})
+        self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider,'chat-scroller':self.chat_scroll})
         self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
         self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
         self.root_overlay.add_overlay(self.comment_overlay)
@@ -429,6 +448,9 @@ class Centaur(Gtk.Application):
         if data.get('type') in ('settingsSaved','error'): self.settings.receive(data)
         if data.get('type')=='settingsSaved': return
         if data.get('type')=='error':
+            if data.get('code')=='local_service_disconnected':
+                self.project.pop('agentActivity',None); self.data['busy']=False
+                self.message_key=None; self.refresh_messages(); self.working_mark.set_working(False); self.update_send()
             self.pending_message=None; self.update_send()
             self.error_label.set_text(data.get('message','Could not complete that action.')); self.error_label.set_visible(True); return
         if data.get('type')=='sent': return
@@ -439,6 +461,7 @@ class Centaur(Gtk.Application):
         new_id=self.project.get('id')
         buffer=self.editor.get_buffer()
         if old_id!=new_id:
+            self.chat_follow=True; self.chat_follow_generation=self.chat_scroll_generation
             self.cancel_comment()
             if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
             buffer.set_text(self.drafts.get(new_id,'')); self.pending_message=None
@@ -470,13 +493,14 @@ class Centaur(Gtk.Application):
             self.chat_status.set_text(status+' · '+(model or 'Model not reported yet') if data.get('agentAvailable') else status+' · Agent unavailable')
             button_text(self.mention,'@'+self.project.get('agentName','centaur'))
             self.composer.placeholder.set_text('Message, or ask @'+self.project.get('agentName','centaur'))
-            self.busy.set_visible(data.get('busy',False)); self.update_send()
+            self.update_send()
             queued=self.project.get('queueCount',0)
-            self.busy_text.set_text(self.project.get('agentName','centaur').capitalize()+' is working…'+(' · '+str(queued)+' queued' if queued else ''))
+            activity=self.current_activity()
+            self.busy_text.set_text(activity_caption(activity)+(' · '+str(queued)+' queued' if queued else ''))
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
             self.deploy_button.set_sensitive(not remote)
             self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
-            messages=json.dumps([self.project.get('id'),self.project.get('messages',[])],sort_keys=True)
+            messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
             self.refresh_proposal()
@@ -489,7 +513,7 @@ class Centaur(Gtk.Application):
             working=bool(imported) and not imported.get('previewReady')
             self.import_working.set_visible(working)
             self.import_working.update(phase)
-            self.working_mark.set_working(data.get('busy',False))
+            self.working_mark.set_working(bool(activity))
             if self.page=='workspace': GLib.idle_add(self.start_preview)
         elif old_id:
             self.stop_preview(); self.navigate('projects')
@@ -598,10 +622,39 @@ class Centaur(Gtk.Application):
             self.notice('Source unavailable','The saved imported source could not be found.'); return
         Gio.AppInfo.launch_default_for_uri(path.as_uri(),None)
 
+    def current_activity(self):
+        if self.data.get('remote') and not self.data.get('connected'): return {}
+        return self.project.get('agentActivity') or {}
+
+    def settle_chat_bottom(self,key,generation):
+        if self.chat_follow and generation==self.chat_scroll_generation and key==self.message_key:
+            adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size()))
+        return False
+
     def refresh_messages(self):
-        self.clear(self.messages)
+        adj=self.chat_scroll.get_vadjustment()
+        follow=(adj.get_value()>=max(0,adj.get_upper()-adj.get_page_size())-24 or
+                (self.chat_follow and self.chat_follow_generation==self.chat_scroll_generation))
+        generation=self.chat_scroll_generation
+        self.chat_follow=follow; self.chat_follow_generation=generation
+        for key in list(self.targets):
+            if key.startswith('agent-details-'): del self.targets[key]
+        activity=self.current_activity()
+        self.busy.set_visible(bool(activity))
+        child=self.messages.get_first_child()
+        while child:
+            following=child.get_next_sibling()
+            if child!=self.busy or not activity: self.messages.remove(child)
+            child=following
         self.message_rows=[]
-        self.empty_chat.set_visible(not self.project.get('messages'))
+        def put_activity(after=None):
+            # Reordering an existing child preserves its frame clock while
+            # concurrent human messages arrive; progress never rebuilds it.
+            if self.busy.get_parent() is None: self.messages.append(self.busy)
+            self.messages.reorder_child_after(self.busy,after)
+        inserted=False
+        if activity and not activity.get('afterMessage'): put_activity(); inserted=True
+        self.empty_chat.set_visible(not self.project.get('messages') and not activity)
         for message in self.project.get('messages',[]):
             item=box(spacing=8,css='chat-card'); column=box(True,2); column.set_hexpand(True); head=box(spacing=8)
             author=message.get('author','')
@@ -636,12 +689,22 @@ class Centaur(Gtk.Application):
             body.set_attributes(attributes)
             self.chat_body=body
             column.append(body); item.append(column); self.messages.append(item)
+            if message.get('agentDiagnostics'):
+                details=message['agentDiagnostics']
+                action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
+                action.set_halign(Gtk.Align.START); column.append(action)
+                self.targets['agent-details-'+message['id']]=action
             self.message_rows.append((avatar,name,stamp,body))
             self.targets.update({'chat-name':name,'chat-body':body,'chat-time':stamp})
+            if activity and activity.get('afterMessage')==message.get('id'):
+                put_activity(item); inserted=True
+        if activity and not inserted:
+            last=self.messages.get_last_child()
+            put_activity(last if last!=self.busy else self.busy.get_prev_sibling())
         message_key=self.message_key
         def bottom():
-            if message_key==self.message_key:
-                adj=self.chat_scroll.get_vadjustment(); adj.set_value(max(0,adj.get_upper()-adj.get_page_size()))
+            if follow and generation==self.chat_scroll_generation and message_key==self.message_key:
+                self.settle_chat_bottom(message_key,generation)
             return False
         def after_layout(widget,clock):
             # Tick runs before GTK's layout phase; its queued idle runs after
@@ -789,6 +852,16 @@ class Centaur(Gtk.Application):
             self.dismiss_dialog(dialog)
         row.append(button(action,done,tone='dark')); content.append(row); dialog.present()
         if confirm: cancel.grab_focus()
+
+    def show_agent_details(self,details):
+        dialog,content=self.dialog('Agent request details',408)
+        text=activity_details(details);body=label(text,'small',True);body.set_selectable(True);content.append(body)
+        row=box(spacing=8);row.set_halign(Gtk.Align.END)
+        copy=button('Copy details',lambda:self.window.get_clipboard().set(text),tone='plain')
+        done=button('Done',lambda:self.dismiss_dialog(dialog),tone='dark')
+        row.append(copy);row.append(done);content.append(row)
+        self.targets.update({'agent-details-copy':copy,'agent-details-done':done})
+        dialog.present()
 
     def join(self):
         from v2_ui import form_card,field,prompt_field,cancel_button
@@ -1016,7 +1089,11 @@ class Centaur(Gtk.Application):
     def poll(self):
         if self.closing: return False
         self.updates.tick()
-        self.working_mark.set_working(self.data.get('busy',False))
+        activity=self.current_activity()
+        self.working_mark.set_working(bool(activity))
+        if activity:
+            queued=self.project.get('queueCount',0)
+            self.busy_text.set_text(activity_caption(activity)+(' · '+str(queued)+' queued' if queued else ''))
         comment_geometry=self.comment_points()
         if comment_geometry!=self.comment_geometry:
             self.comment_geometry=comment_geometry; self.comment_overlay.queue_draw()
@@ -1066,6 +1143,10 @@ class Centaur(Gtk.Application):
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
             data['focusedTargets']=[name for name,widget in self.targets.items() if widget.has_focus()]
+            data['activity']={'inConversation':self.busy.get_parent()==self.messages,
+                'widget':id(self.busy),'caption':self.busy_text.get_text(),
+                'animationEpoch':getattr(self.working_mark,'epoch',None),
+                'requestId':self.current_activity().get('requestId'),'phase':self.current_activity().get('phase')}
             focus=self.window.get_focus()
             if focus!=getattr(self,'report_focus',None):
                 self.report_focus=focus; self.report_focus_sequence=getattr(self,'report_focus_sequence',0)+1

@@ -342,6 +342,11 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     state["queueCount"] = state["agentQueue"].toArray().size();
     state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
     state.remove("importLocal");
+    state.remove("agentActivity");
+    for (const auto &value:m_snapshot["states"].toArray()) {
+        const auto current=value.toObject();
+        if (current["id"]==peer.project && current.contains("agentActivity")) state["agentActivity"]=current["agentActivity"];
+    }
     auto messages = state["messages"].toArray();
     int size = QJsonDocument(messages).toJson(QJsonDocument::Compact).size();
     while (messages.size() > 1 && size > 2 * 1024 * 1024) {
@@ -354,7 +359,7 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     state["decisions"] = decisions;
     auto proposal = state["proposal"].toObject(); proposal.remove("qml"); proposal.remove("gtk"); state["proposal"] = proposal;
     write(socket, {{"type", "project"}, {"version", 1}, {"state", state}, {"source", source},
-        {"sourceHash", digest(source.toUtf8())}, {"busy", m_snapshot["busyProject"] == peer.project}, {"agentAvailable", m_snapshot["agentAvailable"]}});
+        {"sourceHash", digest(source.toUtf8())}, {"busy", m_snapshot["busyProject"] == peer.project || !state["agentActivity"].toObject().isEmpty()}, {"agentAvailable", m_snapshot["agentAvailable"]}});
 }
 
 SharedProject::SharedProject(QString root, QJsonObject connection, QObject *parent) : QObject(parent), m_root(std::move(root)), m_connection(std::move(connection)) {

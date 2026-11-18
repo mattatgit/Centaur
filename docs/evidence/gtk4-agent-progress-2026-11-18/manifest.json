@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-18",
+  "platform": "ARM64 NixOS under UTM",
+  "nativeChecks": 29,
+  "pythonTests": 94,
+  "pythonSkips": 0,
+  "serviceSuites": 3,
+  "embeddingChecks": 19,
+  "originalAssetHashesVerified": 64,
+  "originalAnimationSha256": "b976ac19686b3c3c59d29291fb9a9a1bf7b43f74464270d6cbb2c3c68234f78c",
+  "nativeSourceArchiveSha256": "b857c61859a75d7ec8b20dccd608d61a128b84387efd915e8de406b99173a741",
+  "finalSourceArchiveSha256": "f022678ce3d28f68ac554edd0556420b3d32280e428e792ad6e2d2aac261ed0a",
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false,
+  "boundaries": [
+    "Full VM native run uses source8. Final source9 changes only the two scope-neutral file captions and their Python expectation. Both signed-release workflows test the exact immutable commit.",
+    "Real OMP UI check uses source7; source8 adds only a native test-input acknowledgement. No owner project or account configuration is used for this disposable project.",
+    "VM functional GitHub import uses a private Git DNS fixture with normal verified TLS; owner network and Git configuration remain unchanged. CI uses normal DNS.",
+    "Only safe event names, timing and counts were retained from the standalone OMP probe; no raw provider transcript, stderr or private reasoning was exported.",
+    "These are engineering results. Installation and owner acceptance remain in Centaur Install."
+  ],
+  "files": {
+    "activity-metrics.json": {
+      "bytes": 321,
+      "sha256": "bf0dcc8f3898b895520d6b6699a869c51ccbc812edcb7fb58ea70dfad04e9e99"
+    },
+    "agent-request-details.png": {
+      "bytes": 140437,
+      "sha256": "70a912ea065b604086691a6da5a4f6415f4ac3e8db614fd5c3884a7fcbd973ad"
+    },
+    "inline-agent-processing.png": {
+      "bytes": 87541,
+      "sha256": "ce2ae0c86d167a37537f9d2441a2fd79006cfac2b6c8bc3b2547e76d5430d88a"
+    },
+    "inline-agent-reading-history.png": {
+      "bytes": 85258,
+      "sha256": "bff561651ccfbd29ee31309a54859d7e68914f56a2e07acbb8cb718f940365c9"
+    },
+    "omp-event-probe-summary.json": {
+      "bytes": 1219,
+      "sha256": "cd4bac39079704d357a67df7fccda970edb48c16a805a65a992ea305eb436e49"
+    },
+    "original-working-playback.gif": {
+      "bytes": 1698,
+      "sha256": "90936ba602ea114989300f1be67e233385ac802abf83cea943fd89cc84e36f00"
+    },
+    "real-agent-complete.png": {
+      "bytes": 79967,
+      "sha256": "6aeaf25c92e2106aa6d1ebb6c3d8f5f1d1cce942edbd18ab9937d803af7fe870"
+    },
+    "vm-embedding-summary.json": {
+      "bytes": 878,
+      "sha256": "c5a18e1ec7f2ae20d916a42c9db700c94221fb3b895b4b03fa2e050da422a7d4"
+    },
+    "vm-native-summary.json": {
+      "bytes": 2353,
+      "sha256": "9fae5a43eb127e36f67dc45649cbde9834ebb2cbbe1247499971a96f3988128b"
+    },
+    "vm-real-agent-summary.json": {
+      "bytes": 538,
+      "sha256": "ca9255690c5f6b267d4572c9a0a7ebf2088d61c73824206a494590b35eadc4bc"
+    },
+    "working-playback-metrics.json": {
+      "bytes": 2350,
+      "sha256": "dceea3103b6e4755b9be145aaf821faab2a7e56af8a04a15c333e406d236c335"
+    }
+  }
+}
