@@ -19,6 +19,8 @@ public:
     void cancel();
     void setModel(const QString &model) { m_selectedModel = model; }
     static QJsonObject parseReply(const QByteArray &text, QString *error);
+    static QJsonObject prepareContext(QJsonObject state);
+    static QJsonObject resolvePatch(const QJsonObject &patch, const QString &source, QString *error);
     QJsonObject diagnostics() const;
 signals:
     void idle();
@@ -42,6 +44,7 @@ private:
     QByteArray m_pendingOutput;
     QByteArray m_textOutput;
     QByteArray m_replyOutput;
+    QByteArray m_responsePrefix;
     QString m_reportedModel;
     QString m_selectedModel, m_requestedModel;
     bool m_structuredOutput = false;
@@ -49,8 +52,10 @@ private:
     QString m_runId, m_phase, m_lastActivePhase, m_failureCode, m_lastEvent, m_providerOutcome;
     qint64 m_lastEventMs = -1, m_lastProviderMs = -1, m_lastPublishedMs = -1000;
     qint64 m_stdoutBytes = 0, m_stderrBytes = 0, m_promptBytes = 0;
+    qint64 m_responseTextBytes = 0;
     int m_eventCount = 0, m_deltaCount = 0, m_retryCount = 0;
+    int m_textUpdates = 0, m_thinkingUpdates = 0, m_turnCount = 0, m_nativeToolStarts = 0;
     int m_deadlineMs;
     qint64 m_processGroup = 0;
-    bool m_started = false, m_agentEnded = false, m_resolving = false;
+    bool m_started = false, m_agentEnded = false, m_resolving = false, m_streamIsPatch = false;
 };

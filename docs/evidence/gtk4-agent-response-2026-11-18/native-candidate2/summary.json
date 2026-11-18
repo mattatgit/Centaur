@@ -1,0 +1,80 @@
+{
+  "originalMicOnBytesEmbedded": true,
+  "originalMicOnContentReused": true,
+  "ownerProfileActivated": false,
+  "idle": {
+    "redPixels": 4822,
+    "greenPixels": 0,
+    "images": [
+      {
+        "type": null,
+        "themeIcon": true
+      }
+    ],
+    "classes": [
+      "image-button",
+      "ptt"
+    ]
+  },
+  "held": {
+    "redPixels": 0,
+    "greenPixels": 4868,
+    "images": [
+      {
+        "type": "MemoryTexture",
+        "themeIcon": false,
+        "textureSha256": "1cfbd9d924fb8a95118d3c5c474ffa2b0e60f0380999f277d5983d5c548f4fa5"
+      }
+    ],
+    "classes": [
+      "image-button",
+      "ptt",
+      "transmitting"
+    ]
+  },
+  "stillHeld": {
+    "redPixels": 0,
+    "greenPixels": 4868,
+    "images": [
+      {
+        "type": "MemoryTexture",
+        "themeIcon": false,
+        "textureSha256": "1cfbd9d924fb8a95118d3c5c474ffa2b0e60f0380999f277d5983d5c548f4fa5"
+      }
+    ],
+    "classes": [
+      "image-button",
+      "ptt",
+      "transmitting"
+    ]
+  },
+  "released": {
+    "redPixels": 4822,
+    "greenPixels": 0,
+    "images": [
+      {
+        "type": null,
+        "themeIcon": true
+      }
+    ],
+    "classes": [
+      "image-button",
+      "ptt"
+    ]
+  },
+  "outside": {
+    "redPixels": 4822,
+    "greenPixels": 0,
+    "images": [
+      {
+        "type": null,
+        "themeIcon": true
+      }
+    ],
+    "classes": [
+      "image-button",
+      "ptt"
+    ]
+  },
+  "passed": true
+}

@@ -1,0 +1,142 @@
+{
+  "label": "baseline",
+  "ownerProfileActivated": false,
+  "privateSourceCopyOnlyInVm": true,
+  "seconds": 180.028,
+  "revisionBefore": 3,
+  "revisionAfter": 3,
+  "sourceChanged": false,
+  "failureDetails": [
+    {
+      "agentEndObserved": false,
+      "code": "agent_deadline",
+      "deadlineMs": 180000,
+      "elapsedMs": 179792,
+      "events": 8219,
+      "lastActivePhase": "responding",
+      "lastEvent": "message_update",
+      "lastEventMs": 179505,
+      "lastProviderActivityMs": 179505,
+      "layer": "centaur.agent",
+      "model": "openai-codex/gpt-6.1-sol",
+      "phase": "failed",
+      "processStarted": true,
+      "promptBytes": 152527,
+      "providerOutcome": "",
+      "requestElapsedMs": 179797,
+      "requestId": "f81ef84d-57ea-4280-a5f6-38b87a528467",
+      "retries": 0,
+      "runId": "fee591cc-a384-406f-83ac-5f638a490015",
+      "schemaVersion": 1,
+      "sourceComparisonAvailable": true,
+      "sourceUnchanged": true,
+      "stderrBytes": 0,
+      "stdoutBytes": 1176724,
+      "streamUpdates": 8208
+    }
+  ],
+  "completionMessageKinds": [
+    "human",
+    "system"
+  ],
+  "coordinatorErrors": [],
+  "ownerSourceAndStateUnchanged": true,
+  "runs": [
+    {
+      "seconds": 179.169,
+      "prompt": {
+        "bytes": 152527,
+        "fieldBytes": {
+          "adaptationInspection": 4,
+          "agentModel": 26,
+          "agentName": 9,
+          "annotations": 2,
+          "appFormat": 9,
+          "appHistory": 2,
+          "contributors": 8,
+          "decisions": 405,
+          "description": 18,
+          "epoch": 2,
+          "id": 38,
+          "import": 464,
+          "importDiagnostics": 27186,
+          "messages": 7077,
+          "name": 10,
+          "proposal": 2,
+          "requestAuthor": 6,
+          "requestComment": 2,
+          "requestText": 174,
+          "revision": 1,
+          "sourceInspection": 74404,
+          "updated": 26
+        }
+      },
+      "events": {
+        "session": 1,
+        "agent_start": 1,
+        "turn_start": 1,
+        "message_start": 2,
+        "message_end": 1,
+        "message_update": 8182
+      },
+      "streamCategories": {
+        "thinking_start": 2,
+        "thinking_delta": 8,
+        "thinking_end": 2,
+        "text_start": 1,
+        "text_delta": 8169
+      },
+      "stdoutBytes": 1173531,
+      "responseTextBytes": 32060,
+      "responseTextCharacters": 32043,
+      "responseLineBreaks": 451,
+      "responseFieldsObserved": [
+        "app.py",
+        "app.ui",
+        "style.css"
+      ],
+      "timeline": [
+        {
+          "seconds": 0.32,
+          "event": "session"
+        },
+        {
+          "seconds": 0.32,
+          "responseField": null
+        },
+        {
+          "seconds": 0.355,
+          "event": "agent_start"
+        },
+        {
+          "seconds": 0.379,
+          "event": "turn_start"
+        },
+        {
+          "seconds": 0.383,
+          "event": "message_start"
+        },
+        {
+          "seconds": 0.384,
+          "event": "message_end"
+        },
+        {
+          "seconds": 28.636,
+          "responseField": "app.py"
+        },
+        {
+          "seconds": 81.254,
+          "responseField": "app.ui"
+        },
+        {
+          "seconds": 170.227,
+          "responseField": "style.css"
+        }
+      ],
+      "parsedResponse": {},
+      "rawReasoningRetained": false,
+      "rawProviderOutputStored": false,
+      "toolFlagsDisabled": true
+    }
+  ]
+}

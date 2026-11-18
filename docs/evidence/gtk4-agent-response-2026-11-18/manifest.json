@@ -1,0 +1,112 @@
+{
+  "date": "2026-11-18",
+  "platform": "ARM64 NixOS under UTM",
+  "branch": "codex/agent-response-investigation",
+  "baseCommit": "fa0d349",
+  "publishedOwnerVersionUnchanged": "0.4.0-preview+31220c4",
+  "nativeChecks": 29,
+  "embeddingChecks": 19,
+  "pythonTests": 94,
+  "pythonSkips": 0,
+  "serviceSuites": 3,
+  "originalAssetHashesVerified": 64,
+  "originalAnimationSha256": "b976ac19686b3c3c59d29291fb9a9a1bf7b43f74464270d6cbb2c3c68234f78c",
+  "candidate2SourceArchiveSha256": "fd923e2e85100839a1366d6bb6689cb7a7b9a71afd1fbfc7ea6fc28358bfee82",
+  "candidate3SourceArchiveSha256": "50fd820150b6484d089853652efdfd4e62819143b7417f315b7e7b373a3250ca",
+  "ownerProfileActivated": false,
+  "releasePublished": false,
+  "ownerAcceptanceComplete": false,
+  "boundaries": [
+    "Baseline uses the actual installed 31220c4 services and unchanged selected owner app/context in a private project. New UUID/Git baseline and later conversation state mean this is not a byte-exact replay of the historical 150400-byte prompt.",
+    "Baseline observer metrics are the last safe sample at 179.169 seconds, before forced process-group cleanup; Centaur reports final wire counts separately. Obsolete currentSourceBytes measurements that included prompt guidance were removed from baseline/candidate1 metadata.",
+    "Candidate1 saved a focused change but failed the native hold test. It is retained as rejected intermediate evidence; no generated app was hand-edited to obtain later success.",
+    "Two fresh real-model requests (candidate2 and verification) and both unmodified native generated apps passed useful completion, with original mic_on.svg bytes embedded. Model nondeterminism and unavailable historical response text remain.",
+    "Final 29-product/19-embedding run and 94-Python suite use candidate3. Its C++ service/test source matches candidate2, whose three service suites passed. The test-only clipboard receipt fixes asynchronous paste acknowledgement, not product editor behaviour.",
+    "Final engineering probes received script-only guard/launcher fixes after candidate3 packaging; their VM syntax, read-only guard, real edit and native interaction checks passed separately. vm-source-verification.json records the exact final code and script hashes; documentation/evidence additions do not change tested runtime files.",
+    "Functional GitHub import uses a disposable Git DNS fixture with normally verified TLS for the VM resolver issue. Both fixtures and all four private project copies were removed; owner configuration/credentials, model settings, identities and Qt were not changed.",
+    "Only safe counters, protocol shape/timing, relative public repository filenames and cropped button images are exported. No raw provider output, reasoning, owner conversation, source bundle or credentials is included.",
+    "No signed update/release or owner profile activation was performed. The absolute 180-second response deadline and bounded cancellation remain. Acceptance stays in Centaur Install; partially verified owner concurrent-message tile positioning stays partial."
+  ],
+  "files": {
+    "baseline/summary.json": {
+      "bytes": 3443,
+      "sha256": "2535300b6aa64e27afb305cc14810dec488cf1a04851446ac357c02603d01f4c"
+    },
+    "candidate1/native-event-trace.json": {
+      "bytes": 1446,
+      "sha256": "5e8137a735e67a06e15fc6f010de7b6231924417f0a22cf94862dfe6fcdf1311"
+    },
+    "candidate1/summary.json": {
+      "bytes": 5400,
+      "sha256": "4fe5ac1b24008acf59d94cb6887bbcf0762ef59d2217e9a273da4c3220bea5e6"
+    },
+    "candidate2/summary.json": {
+      "bytes": 6022,
+      "sha256": "c24edb413fd2fb80f1695cd264f21ccd838696f3c8cc869653bbbaac56902398"
+    },
+    "initial-input-summary.json": {
+      "bytes": 1887,
+      "sha256": "834da93584d780a3c86083063900f39ea9f683a30ade0e3a243d0be35217fd83"
+    },
+    "native-candidate2/summary.json": {
+      "bytes": 1427,
+      "sha256": "101d10343dd014031dedbe83bb9d1277c84172e34a7f57b8761396fe351ea88f"
+    },
+    "native-final/ptt-held-button.png": {
+      "bytes": 2018,
+      "sha256": "6ae937b77cd111d13513d382ece20b5646d0546404b30938c077bf4492e2e584"
+    },
+    "native-final/ptt-idle-button.png": {
+      "bytes": 2307,
+      "sha256": "32aec55d14133c63466d12e75cccdff83fd5585c85691d9f2d73c5c254bae65c"
+    },
+    "native-final/ptt-release-outside-button.png": {
+      "bytes": 2307,
+      "sha256": "32aec55d14133c63466d12e75cccdff83fd5585c85691d9f2d73c5c254bae65c"
+    },
+    "native-final/ptt-released-button.png": {
+      "bytes": 2342,
+      "sha256": "b87cab244f8689c2508aff64527d438f2a2ccc870ab1d70e5bcc1c572ad26c39"
+    },
+    "native-final/ptt-still-held-button.png": {
+      "bytes": 2018,
+      "sha256": "6ae937b77cd111d13513d382ece20b5646d0546404b30938c077bf4492e2e584"
+    },
+    "native-final/summary.json": {
+      "bytes": 1419,
+      "sha256": "f4ab478fcba1c3c97bf8116e60d23ebe0a59e455d22aad4d3ded8526bd104c0a"
+    },
+    "preservation-and-cleanup.json": {
+      "bytes": 763,
+      "sha256": "5aeb079bb373df708f0a69da3ff5bba085c2e031659292d8a4a55c41861163a7"
+    },
+    "python-test-summary.json": {
+      "bytes": 186,
+      "sha256": "c1f284e9dd0442854121e3004dba65b0e3e244dfcfdc700eee54039e46209edd"
+    },
+    "regression/activity-metrics.json": {
+      "bytes": 322,
+      "sha256": "a745d398615d0f531eef78d26a31e1c64ae73a69f6e170bd8763507e9fcccc41"
+    },
+    "regression/embedding-summary.json": {
+      "bytes": 879,
+      "sha256": "a09076179b4a16a877324bb55445f17efce4c3c64562518980274f055598a3a6"
+    },
+    "regression/integration-summary.json": {
+      "bytes": 2354,
+      "sha256": "4eb9d33e1a4ff55e6be7f02131d1f8e258a79a1b1576932ffb6a4aa8b504a5a1"
+    },
+    "service-test-summary.json": {
+      "bytes": 440,
+      "sha256": "9024bdd12b5d2ffb72a2ae9cd1ad36641a4e0bbddb1978147f3bd608492cdff6"
+    },
+    "verification/summary.json": {
+      "bytes": 6026,
+      "sha256": "d2f5503706535989167ece0ddafa6eca08526925b7622ac3450549476a56da18"
+    },
+    "vm-source-verification.json": {
+      "bytes": 1605,
+      "sha256": "a7bca26e8a758212273baf4b6b2f376d9063d06fc4c9544b3d5c58ac8d748b7c"
+    }
+  }
+}

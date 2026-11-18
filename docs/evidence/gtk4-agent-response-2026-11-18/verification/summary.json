@@ -1,0 +1,263 @@
+{
+  "label": "verification",
+  "ownerProfileActivated": false,
+  "privateSourceCopyOnlyInVm": true,
+  "seconds": 73.21,
+  "revisionBefore": 3,
+  "revisionAfter": 4,
+  "sourceChanged": true,
+  "failureDetails": [],
+  "completionMessageKinds": [
+    "human",
+    "agent",
+    "agent"
+  ],
+  "coordinatorErrors": [],
+  "ownerSourceAndStateUnchanged": true,
+  "observedPhases": [
+    "starting",
+    "waiting",
+    "processing",
+    "responding",
+    "finishing",
+    "complete",
+    "reading_microphone_icon",
+    "receiving_edit",
+    "validating"
+  ],
+  "brokerResults": [
+    {
+      "operation": "read",
+      "ok": true,
+      "files": [
+        "LandlineNix/assets/mic_on.svg"
+      ]
+    }
+  ],
+  "unchangedFiles": [
+    "app.ui"
+  ],
+  "runs": [
+    {
+      "seconds": 11.309,
+      "prompt": {
+        "bytes": 56158,
+        "fieldBytes": {
+          "adaptationInspection": 24,
+          "agentModel": 26,
+          "agentName": 9,
+          "annotations": 2,
+          "appFormat": 9,
+          "appHistory": 2,
+          "contributors": 8,
+          "decisions": 405,
+          "description": 18,
+          "epoch": 2,
+          "id": 38,
+          "import": 464,
+          "importDiagnostics": 1986,
+          "logicalRequestId": 38,
+          "messages": 6432,
+          "name": 10,
+          "proposal": 2,
+          "requestAuthor": 6,
+          "requestComment": 2,
+          "requestText": 174,
+          "revision": 1,
+          "sourceInspection": 1766,
+          "updated": 26
+        },
+        "currentSourceJsonBytes": 31411
+      },
+      "events": {
+        "session": 1,
+        "agent_start": 1,
+        "turn_start": 1,
+        "message_start": 2,
+        "message_end": 2,
+        "message_update": 61,
+        "turn_end": 1,
+        "agent_end": 1
+      },
+      "streamCategories": {
+        "thinking_start": 1,
+        "thinking_delta": 2,
+        "thinking_end": 1,
+        "text_start": 1,
+        "text_delta": 55,
+        "text_end": 1
+      },
+      "stdoutBytes": 202617,
+      "responseTextBytes": 220,
+      "responseTextCharacters": 214,
+      "responseLineBreaks": 0,
+      "responseFieldsObserved": [],
+      "timeline": [
+        {
+          "seconds": 0.284,
+          "event": "session"
+        },
+        {
+          "seconds": 0.284,
+          "responseField": null
+        },
+        {
+          "seconds": 0.313,
+          "event": "agent_start"
+        },
+        {
+          "seconds": 0.336,
+          "event": "turn_start"
+        },
+        {
+          "seconds": 0.337,
+          "event": "message_start"
+        },
+        {
+          "seconds": 0.337,
+          "event": "message_end"
+        },
+        {
+          "seconds": 11.288,
+          "event": "turn_end"
+        },
+        {
+          "seconds": 11.29,
+          "event": "agent_end"
+        }
+      ],
+      "parsedResponse": {
+        "kind": "inspect",
+        "validJson": true,
+        "outputBytes": 220,
+        "fileBytes": {},
+        "editCount": 0,
+        "editedFiles": [],
+        "toolOperation": "read",
+        "stopReason": "stop",
+        "usage": {
+          "input": 15924,
+          "output": 130,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 16054
+        }
+      },
+      "rawReasoningRetained": false,
+      "rawProviderOutputStored": false,
+      "toolFlagsDisabled": true
+    },
+    {
+      "seconds": 61.466,
+      "prompt": {
+        "bytes": 58387,
+        "fieldBytes": {
+          "adaptationInspection": 24,
+          "agentModel": 26,
+          "agentName": 9,
+          "annotations": 2,
+          "appFormat": 9,
+          "appHistory": 2,
+          "contributors": 8,
+          "decisions": 405,
+          "description": 18,
+          "epoch": 2,
+          "id": 38,
+          "import": 464,
+          "importDiagnostics": 4274,
+          "logicalRequestId": 38,
+          "messages": 6432,
+          "name": 10,
+          "proposal": 2,
+          "requestAuthor": 6,
+          "requestComment": 4,
+          "requestText": 113,
+          "revision": 1,
+          "sourceInspection": 1766,
+          "updated": 26
+        },
+        "currentSourceJsonBytes": 31411
+      },
+      "events": {
+        "session": 1,
+        "agent_start": 1,
+        "turn_start": 1,
+        "message_start": 2,
+        "message_end": 2,
+        "message_update": 1862,
+        "turn_end": 1,
+        "agent_end": 1
+      },
+      "streamCategories": {
+        "thinking_start": 2,
+        "thinking_delta": 10,
+        "thinking_end": 2,
+        "text_start": 1,
+        "text_delta": 1846,
+        "text_end": 1
+      },
+      "stdoutBytes": 462471,
+      "responseTextBytes": 4628,
+      "responseTextCharacters": 4624,
+      "responseLineBreaks": 71,
+      "responseFieldsObserved": [],
+      "timeline": [
+        {
+          "seconds": 0.29,
+          "event": "session"
+        },
+        {
+          "seconds": 0.29,
+          "responseField": null
+        },
+        {
+          "seconds": 0.391,
+          "event": "agent_start"
+        },
+        {
+          "seconds": 0.412,
+          "event": "turn_start"
+        },
+        {
+          "seconds": 0.412,
+          "event": "message_start"
+        },
+        {
+          "seconds": 0.413,
+          "event": "message_end"
+        },
+        {
+          "seconds": 61.439,
+          "event": "turn_end"
+        },
+        {
+          "seconds": 61.446,
+          "event": "agent_end"
+        }
+      ],
+      "parsedResponse": {
+        "kind": "patch",
+        "validJson": true,
+        "outputBytes": 4628,
+        "fileBytes": {},
+        "editCount": 3,
+        "editedFiles": [
+          "app.py",
+          "style.css"
+        ],
+        "toolOperation": null,
+        "stopReason": "stop",
+        "usage": {
+          "input": 17113,
+          "output": 2886,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 19999
+        }
+      },
+      "rawReasoningRetained": false,
+      "rawProviderOutputStored": false,
+      "toolFlagsDisabled": true
+    }
+  ]
+}

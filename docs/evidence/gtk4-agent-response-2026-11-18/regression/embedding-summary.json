@@ -1,0 +1,34 @@
+{
+  "casilda_approved": false,
+  "checks": [
+    "separate-process-private-wayland-render",
+    "pointer-keyboard-text",
+    "scroll",
+    "popup",
+    "modal-dialog",
+    "host-client-focus",
+    "host-resize-recentres-and-preserves-app-dimensions",
+    "zoom-input-popup-dialog-50%",
+    "zoom-input-popup-dialog-75%",
+    "endpoint-return-grab-100%",
+    "zoom-input-popup-dialog-100%",
+    "zoom-input-popup-dialog-125%",
+    "endpoint-return-grab-150%",
+    "zoom-input-popup-dialog-150%",
+    "zoom-input-popup-dialog-Fit",
+    "fit-updates-on-resize",
+    "restart-1",
+    "restart-2",
+    "restart-3"
+  ],
+  "host_backend": "wayland",
+  "runtime": {
+    "gtk": "4.24.0",
+    "casilda": "1.6.0-centaur3"
+  },
+  "clipboard_client_to_host": true,
+  "clipboard_host_to_client": true,
+  "automated_core_passed": true,
+  "host_exit_code": 0,
+  "child_stopped_on_close": true
+}

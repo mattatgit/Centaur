@@ -10,6 +10,8 @@ PHASES={
     'validating':'Checking the proposed app…', 'complete':'Finishing agent request…',
     'runtime_version':'Checking the diagnostic runtime…', 'validate_manifest':'Checking a manifest…',
     'diagnostics':'Reviewing recorded diagnostics…', 'source_facts':'Reviewing recorded source facts…',
+    'reading_microphone_icon':'Reading the microphone artwork…',
+    'receiving_edit':'Receiving a focused app change…',
     'failed':'Resolving agent request…',
 }
 
@@ -24,7 +26,7 @@ def caption(activity,now=None):
     seconds=age(activity.get('startedAt'),now);phase=activity.get('phase','waiting')
     text=PHASES.get(phase,PHASES['waiting'])
     if seconds>=60:
-        if phase in ('starting','waiting','processing','responding') and age(activity.get('updatedAt'),now)>=60:
+        if phase in ('starting','waiting','processing','responding','receiving_edit') and age(activity.get('updatedAt'),now)>=60:
             text='Still waiting for the agent…'
         text+=' · '+str(seconds//60)+'m '+str(seconds%60).zfill(2)+'s'
     return text
@@ -41,7 +43,9 @@ def details_text(details):
         value=details.get(key)
         if isinstance(value,(int,float)) and value>=0:lines.append(title+': '+str(round(value/1000,1))+'s')
     for key,title in [('events','Events received'),('streamUpdates','Stream updates'),('retries','OMP retries'),
-                      ('stdoutBytes','Output bytes'),('stderrBytes','Error-channel bytes'),('promptBytes','Request bytes')]:
+                      ('textUpdates','Answer updates'),('thinkingUpdates','Private-processing updates (content omitted)'),
+                      ('responseTextBytes','Answer text bytes'),('turns','OMP turns'),('ompToolExecutions','OMP tool executions'),
+                      ('stdoutBytes','JSON event-stream bytes'),('stderrBytes','Error-channel bytes'),('promptBytes','Request bytes')]:
         value=details.get(key)
         if isinstance(value,(int,float)) and value>=0:lines.append(title+': '+str(int(value)))
     if details.get('sourceComparisonAvailable'):

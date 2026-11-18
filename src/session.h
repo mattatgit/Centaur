@@ -38,7 +38,7 @@ private:
     void addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind = "human", const QJsonObject &comment = {});
     bool persist(const QString &id, QJsonObject state);
     void finishAgent(const QJsonObject &reply);
-    void agentError(const QString &message);
+    void agentError(const QString &message, const QString &code = {});
     void applyProposal(const QString &id, QJsonObject state);
     void nextRequest();
     void retryRequest(QJsonObject &state);

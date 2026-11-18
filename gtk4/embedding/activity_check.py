@@ -1,5 +1,5 @@
 """Native conversation-flow, truthful progress and in-app diagnostic checks."""
-import json,time
+import json,time,hashlib
 from check import until,target
 from agent_activity import details_text
 
@@ -76,7 +76,10 @@ def check_activity(driver,folder,hs,hw,gs,gw,click,message,control,reply_file):
     # A background Wayland client cannot read another client's clipboard.
     # Paste through the focused native UI instead; this is a disposable chat.
     copied=details_text(details)
-    click(hs,hw,'editor');driver.key('ctrl+a');driver.key('ctrl+v');driver.key('Return')
+    click(hs,hw,'editor');driver.key('ctrl+a');driver.key('ctrl+v')
+    digest=hashlib.sha256(copied.encode()).hexdigest()
+    until(lambda:hs().get('draft',{}).get('sha256')==digest,'Copied details did not reach the native editor')
+    driver.key('Return')
     until(lambda:any(m.get('text')==copied for m in hs()['project']['messages']),'Request details could not be copied and pasted')
     assert 'SECRET_' not in copied and 'PRIVATE_ACTIVITY_CANARY' not in copied
     checks.append('failure-resolves-inline-activity-and-public-correlated-diagnostics-copy-without-provider-secrets')

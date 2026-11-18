@@ -1,0 +1,9 @@
+{
+  "sourceArchive": "candidate3",
+  "tests": 94,
+  "seconds": 4.628,
+  "result": "OK",
+  "skips": 0,
+  "actualPackagedSandbox": true,
+  "source": "Captured ARM64 NixOS worker output"
+}

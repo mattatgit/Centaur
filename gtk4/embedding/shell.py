@@ -2,6 +2,7 @@
 import argparse
 import uuid
 import json
+import hashlib
 import os
 import re
 from pathlib import Path
@@ -1143,6 +1144,9 @@ class Centaur(Gtk.Application):
                   'error':self.error_label.get_text() if self.error_label.get_visible() else '',
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
             data['focusedTargets']=[name for name,widget in self.targets.items() if widget.has_focus()]
+            draft_buffer=self.editor.get_buffer()
+            draft=draft_buffer.get_text(draft_buffer.get_start_iter(),draft_buffer.get_end_iter(),False).encode()
+            data['draft']={'bytes':len(draft),'sha256':hashlib.sha256(draft).hexdigest()}
             data['activity']={'inConversation':self.busy.get_parent()==self.messages,
                 'widget':id(self.busy),'caption':self.busy_text.get_text(),
                 'animationEpoch':getattr(self.working_mark,'epoch',None),

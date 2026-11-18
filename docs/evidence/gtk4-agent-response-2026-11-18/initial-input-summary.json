@@ -1,0 +1,87 @@
+{
+  "sourceBytes": 31411,
+  "sourceSha256": "5f7e24bb9d284ffa55def198810af12360da8953cdd9e330257f8b9fd8760d8b",
+  "revision": 3,
+  "stateFieldBytes": {
+    "agentModel": 26,
+    "agentName": 9,
+    "agentQueue": 2,
+    "annotations": 2,
+    "appFormat": 9,
+    "contributors": 8,
+    "decisions": 405,
+    "description": 18,
+    "epoch": 2,
+    "id": 38,
+    "import": 464,
+    "importLocal": 101726,
+    "messages": 6771,
+    "name": 10,
+    "proposal": 2,
+    "revision": 1,
+    "updated": 26
+  },
+  "bundleFileBytes": {
+    "app.py": 6996,
+    "app.ui": 19122,
+    "style.css": 3911
+  },
+  "contextBytes": {
+    "context": 74404,
+    "adaptation": 4,
+    "diagnostics": 27048
+  },
+  "contextFileBytes": {
+    "context": {
+      "LandlineMac/ContentView.swift": 24012,
+      "LandlineMac/DesignTokens.swift": 1465,
+      "LandlineMac/IrohClient.swift": 22412,
+      "LandlineMac/IrohSettingsView.swift": 8339,
+      "LandlineMac/IrohWire.swift": 1827,
+      "LandlineMac/LandlineMacApp.swift": 6422,
+      "LandlineMac/MicrophoneCapture.swift": 12,
+      "LandlineNix/Cargo.toml": 845,
+      "LandlineNix/src/main.rs": 682,
+      "flake.nix": 4020
+    },
+    "adaptation": {}
+  },
+  "diagnosticResultBytes": [
+    {
+      "operation": "read",
+      "bytes": 18236,
+      "ok": true
+    },
+    {
+      "operation": "diagnostics",
+      "bytes": 793,
+      "ok": true
+    },
+    {
+      "operation": "runtime_version",
+      "bytes": 516,
+      "ok": true
+    },
+    {
+      "operation": "runtime_version",
+      "bytes": 512,
+      "ok": true
+    },
+    {
+      "operation": "runtime_version",
+      "bytes": 512,
+      "ok": true
+    },
+    {
+      "operation": "read",
+      "bytes": 4691,
+      "ok": true
+    }
+  ],
+  "importState": {
+    "branch": "linux-nix",
+    "commit": "205fc1185335dc1c85b359af7673f6e5d7653222",
+    "previewReady": true,
+    "status": "investigating"
+  }
+}
