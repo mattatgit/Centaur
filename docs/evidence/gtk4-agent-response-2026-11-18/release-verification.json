@@ -1,0 +1,338 @@
+{
+  "date": "2026-11-18",
+  "sourceRevision": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+  "sourceBranch": "main",
+  "investigationCommit": "1becefc670c73ecf91b3c5e0583b6352ba67c0b9",
+  "mergedRemoteMain": "12e677d564011bd3a2dcf2c15ebd1a2f7e12d3e0",
+  "readmePreserved": true,
+  "version": "Centaur GTK4 0.4.0-preview+eb38227",
+  "storePath": "/nix/store/w3ay72cqv9ybwghg5v3yc75kqj28dqbr-centaur-gtk4-preview-0.4.0-preview",
+  "manifestMatchesAdvertisedFeed": true,
+  "publicFeedReadWithoutAuthentication": true,
+  "signedClosurePaths": 613,
+  "ciEmptyStoreSignedClosureVerified": true,
+  "workflows": [
+    {
+      "id": 44232399503,
+      "name": "GTK4 embedding experiment",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44232399503",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 134560360666,
+          "name": "GTK4 viewport ARM64",
+          "status": "completed",
+          "conclusion": "success",
+          "run_id": 44232399503,
+          "logs_url": null,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Check Python, process isolation and workflow",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Build isolated GTK4 experiment only",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Exercise separate app in a disposable display",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Save experiment evidence and limitations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8
+            },
+            {
+              "name": "Publish isolated test package after automated checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 19
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 20
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 21
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 44232399512,
+      "name": "GTK4 Centaur integration",
+      "url": "https://github.com/mattatgit/Centaur/actions/runs/44232399512",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "status": "completed",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 134560360424,
+          "name": "GTK4 product and preserved service regressions ARM64",
+          "status": "completed",
+          "conclusion": "success",
+          "run_id": 44232399512,
+          "logs_url": null,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 1
+            },
+            {
+              "name": "Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 2
+            },
+            {
+              "name": "Run cachix/install-nix-action@v31",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 3
+            },
+            {
+              "name": "Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 4
+            },
+            {
+              "name": "Check Python, bundle contract and workflow",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 5
+            },
+            {
+              "name": "Build retained service and run core, network and Iroh regressions",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 6
+            },
+            {
+              "name": "Cache service only after its regressions pass",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 7
+            },
+            {
+              "name": "Build GTK4 development frontend",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 8
+            },
+            {
+              "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 9
+            },
+            {
+              "name": "Save native screenshots, reports and limitations",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 10
+            },
+            {
+              "name": "Publish GTK4 development preview after successful checks",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 11
+            },
+            {
+              "name": "Save signed-cache metadata",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 12
+            },
+            {
+              "name": "Exercise Settings update against the published signed package",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 13
+            },
+            {
+              "name": "Save updater screenshots and transaction evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 14
+            },
+            {
+              "name": "Advertise the verified in-app update",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 15
+            },
+            {
+              "name": "Post Run cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 29
+            },
+            {
+              "name": "Post Run actions/checkout@v4",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 30
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "number": 31
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14396465303,
+      "name": "gtk4-phase1-aarch64-linux",
+      "digest": "sha256:52298074328c7f75247ceba14bbb2755d751a20c588def1955a3aa6c6767722f",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "localFile": "embedding.zip",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14395389422,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:c9d8d78ba87ab4f5d681140e71087d92ba75ae894c599a073a3e4bca31ab7bf6",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "localFile": "native.zip",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14396905238,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:bf791b6b4fb196337266803bd63c3a53d69b373b1ddcd59555c08d27551463cb",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "localFile": "distribution.zip",
+      "downloadDigestVerified": true
+    },
+    {
+      "id": 14395723043,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:38fc9703aa4822051b0e83f189eba0ac75711d73668bdc3118e29c5caef92b6d",
+      "headSha": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+      "localFile": "updater.zip",
+      "downloadDigestVerified": true
+    }
+  ],
+  "verification": {
+    "priorArm64NixosUtmNativeChecks": 29,
+    "priorArm64NixosUtmPythonTests": 94,
+    "priorArm64NixosUtmPythonSkips": 0,
+    "serviceSuites": 3,
+    "ciNativeChecks": 29,
+    "ciEmbeddingChecks": 19,
+    "ciStandaloneEmbeddingChecks": 19,
+    "ciSignedUpdaterChecks": 11,
+    "realPttTaskSeconds": [
+      60.577,
+      73.21
+    ],
+    "originalAssetHashesVerified": 64,
+    "ciPythonTests": 94,
+    "ciPythonSkips": 1,
+    "ciPythonSkippedCheck": "test_real_fixed_versions_and_manifest_results_are_bounded_and_read_only: requires packaged ARM64 NixOS UTM sandbox; passed in prior UTM run on identical runtime source"
+  },
+  "ownerVmAccessedDuringRelease": false,
+  "ownerVmReleaseInstalled": false,
+  "ownerProfileActivated": false,
+  "ownerAcceptanceComplete": false,
+  "boundaries": [
+    "The immutable release integrates the exact tested investigation commit with remote main. README.md is the only difference from 1becefc; all recorded final ARM64 NixOS UTM code/script hashes still match.",
+    "The real-model PTT tasks and physical hold/release checks used disposable ARM64 NixOS UTM projects during the investigation. They were not rerun on the final version wrapper. CI independently tests the exact immutable merged source.",
+    "Existing release workflows run on ubuntu-24.04-arm with the pinned Nix toolchain. Full closure download/signature verification and real updater activation/restart use disposable CI stores/profiles only. No VM commands, downloads, installations or profile activations were performed for publication.",
+    "The previous investigation used a private Git DNS fixture for VM functional imports; it was removed. Release CI uses normal DNS. Existing owner data, credentials, OMP/model settings, identities and Qt remain outside this release work.",
+    "The absolute 180-second response deadline and bounded cancellation remain. General model terminal access stays disabled. Pass 2 visual/updater refinements remain deferred.",
+    "All downloaded evidence ZIP digests match GitHub artifact metadata. The unauthenticated public prerelease body matches the complete verified distribution manifest, including immutable revision, store path, version, signing keys and timestamp.",
+    "Original truncated owner output/provider internals remain unavailable; reproduced orchestration findings and model nondeterminism limits remain as documented. Installation and hands-on acceptance stay in Centaur Install."
+  ],
+  "ciLogSummary": "ci-log-summary.json",
+  "localEvidenceFiles": {
+    "release-manifest.json": {
+      "bytes": 808,
+      "sha256": "d85022443d4ddccda1dab0758b7efc6bd86c8e4c21b3ac84ac98f67a9d77b20e"
+    },
+    "release-integration-provenance.json": {
+      "bytes": 1608,
+      "sha256": "23ca7a71d134abd6cb7c24487ccb1816b566c3c8d57bad0ef6737cd8b71eacea"
+    },
+    "ci-native-integration-summary.json": {
+      "bytes": 2354,
+      "sha256": "4eb9d33e1a4ff55e6be7f02131d1f8e258a79a1b1576932ffb6a4aa8b504a5a1"
+    },
+    "ci-native-embedding-summary.json": {
+      "bytes": 879,
+      "sha256": "a09076179b4a16a877324bb55445f17efce4c3c64562518980274f055598a3a6"
+    },
+    "ci-standalone-summary.json": {
+      "bytes": 879,
+      "sha256": "a09076179b4a16a877324bb55445f17efce4c3c64562518980274f055598a3a6"
+    },
+    "ci-updater-summary.json": {
+      "bytes": 828,
+      "sha256": "3a56cf9921afae57e9a633343781e1748f244fffa759fa73f49bdc828dce0fb7"
+    },
+    "ci-log-summary.json": {
+      "bytes": 829,
+      "sha256": "53cd8ee2c63638727f598c1b02523499c9f9e4d53d7743396d9e1abd46dca26d"
+    }
+  }
+}

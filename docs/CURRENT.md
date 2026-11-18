@@ -2,8 +2,11 @@
 
 ## Long-running agent response investigation — 18 November 2026
 
-Unreleased work on `codex/agent-response-investigation` reproduced the PTT
-timeout: Centaur required a full three-file replacement for a small edit and
+Published signed preview: **`0.4.0-preview+eb38227`**, immutable source
+`eb382277e3dd84dab6fc6d555341569462a5c32f`. It integrates tested investigation
+commit `1becefc` with remote main `12e677d`, preserving the separate README
+change. The investigation reproduced the PTT timeout: Centaur required a full
+three-file replacement for a small edit and
 included roughly 100 KB of old import context. The reply was still serializing
 the bundle when the deadline ended it; no tool/retry loop was observed.
 Focused, source-hash-bound edits and current-request context completed two
@@ -12,10 +15,19 @@ green held button using the original repository mic-on SVG, including a hold
 past the click threshold and release outside the button. The 180-second
 absolute response limit and bounded cancellation remain in place.
 
-ARM64 NixOS UTM checks passed 29 product checks, 19 embedding checks, 94 Python
-checks with zero skips and all three service suites. Owner app/state and the
-installed `0.4.0-preview+31220c4` remain unchanged. Nothing was published or
-activated; acceptance stays in Centaur Install and Pass 2 remains deferred.
+Prior ARM64 NixOS UTM checks passed 29 product checks, 19 embedding checks,
+94 Python checks with zero skips and all three service suites. The exact merged
+source passed both [product/update](https://github.com/mattatgit/Centaur/actions/runs/44232399512)
+and [standalone embedding](https://github.com/mattatgit/Centaur/actions/runs/44232399503)
+workflows, including native regression, all 11 signed-updater checks and an
+empty-store download/signature check of all 613 closure paths. The public feed
+exactly matches the verified distribution manifest. [Release evidence](evidence/gtk4-agent-response-2026-11-18/release-verification.json)
+records artifact digests, source preservation and CI/UTM test boundaries.
+
+No VM access, download, installation or activation was performed for publication.
+The owner's installation was last verified as `0.4.0-preview+31220c4` after the
+investigation; owner data/configuration remain preserved. Acceptance stays in
+Centaur Install and Pass 2 remains deferred.
 [Findings, fixes and limits](GTK4_AGENT_RESPONSE_INVESTIGATION.md) distinguish
 the reproduced orchestration problem from uncertainty about the original
 provider response and record the intermediate generated-code error caught by

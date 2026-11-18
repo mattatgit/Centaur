@@ -1,10 +1,10 @@
 # Long-running GTK agent response investigation
 
-18 November 2026. Engineering work on `codex/agent-response-investigation`,
-tested only on ARM64 NixOS under UTM. This is **not a published update**. The
-owner's installation remains `0.4.0-preview+31220c4`; installation and hands-on
-acceptance remain in Installer (Centaur Install). Pass 2 visual refinements
-remain deferred.
+18 November 2026. Investigation work on `codex/agent-response-investigation`
+was tested only on ARM64 NixOS under UTM. It is now published as signed preview
+**`0.4.0-preview+eb38227`** after exact-source ARM64 release CI. No release was
+installed or activated on the owner's VM. Installation and hands-on acceptance
+remain in Installer (Centaur Install). Pass 2 visual refinements remain deferred.
 
 ## Established cause and attribution
 
@@ -139,6 +139,44 @@ the evidence. Reusable engineering probes are
 help describes required built-package/disposable-compositor inputs; these are
 engineering checks, not installation instructions.
 
-No release was activated or published. Automated engineering success does not
-change the owner's partially verified concurrent-message tile-position result
-from Pass 1. Further installation and acceptance belong in Centaur Install.
+The investigation did not publish or activate a release. The subsequent signed
+publication is recorded below. Automated engineering success does not change
+the owner's partially verified concurrent-message tile-position result from
+Pass 1. Further installation and acceptance belong in Centaur Install.
+
+## Signed release — 18 November 2026
+
+The owner subsequently authorised publication of the verified fix. Immutable
+source **`eb382277e3dd84dab6fc6d555341569462a5c32f`** merges investigation commit
+`1becefc670c73ecf91b3c5e0583b6352ba67c0b9` with remote main
+`12e677d564011bd3a2dcf2c15ebd1a2f7e12d3e0`. `README.md` is the only difference
+from the tested investigation commit; its separate change is preserved. All
+recorded final UTM code/script hashes still match. The published version is
+**Centaur GTK4 `0.4.0-preview+eb38227`**, store
+`/nix/store/w3ay72cqv9ybwghg5v3yc75kqj28dqbr-centaur-gtk4-preview-0.4.0-preview`.
+
+Both [product/update CI](https://github.com/mattatgit/Centaur/actions/runs/44232399512)
+and [standalone embedding CI](https://github.com/mattatgit/Centaur/actions/runs/44232399503)
+passed for that exact immutable source. They verify the retained three service
+suites, 29 product checks, 19 embedding checks and all 11 real signed-updater
+checks. Publication downloaded all **613 closure paths** into an empty CI store
+and verified their signatures with builds disabled. All four downloaded CI
+evidence archives match their GitHub artifact SHA-256 digests. An unauthenticated
+read of the public update feed exactly matches the complete verified manifest,
+including revision, version, store path, signing keys and timestamp.
+
+Release CI runs on `ubuntu-24.04-arm` using the pinned Nix toolchain and private
+stores/profiles. Its initial Python run reports 94 tests with one skip; the
+actual packaged-sandbox check was already included in the prior 94-test,
+zero-skip UTM run on identical runtime source. The real-model PTT checks belong
+to that investigation, not a new model invocation against the final version
+wrapper. [Release verification](evidence/gtk4-agent-response-2026-11-18/release-verification.json)
+and [manifest](evidence/gtk4-agent-response-2026-11-18/release-manifest.json)
+record these boundaries explicitly.
+
+No VM commands, downloads, installations or profile activations were performed
+for this publication. The prior owner installation was verified as `31220c4`;
+existing projects, conversations, model settings, OMP configuration/credentials,
+identities and Qt remain outside this release work. General model terminal
+access stays disabled, the absolute 180-second response limit remains and Pass 2
+is still deferred. Installation and hands-on acceptance stay in Centaur Install.

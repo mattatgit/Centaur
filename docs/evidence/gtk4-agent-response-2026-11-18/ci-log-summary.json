@@ -1,0 +1,14 @@
+{
+  "workflowRun": 44232399512,
+  "job": 134560360424,
+  "sourceRevision": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+  "lines": [
+    "2026-11-18T03:43:47.6217924Z Ran 94 tests in 4.163s",
+    "2026-11-18T03:43:47.6218223Z OK (skipped=1)",
+    "2026-11-18T03:47:43.5643019Z centaur-services> 1/3 Test #1: iroh .............................   Passed    7.58 sec",
+    "2026-11-18T03:47:44.3103497Z centaur-services> 2/3 Test #3: core .............................   Passed    8.33 sec",
+    "2026-11-18T03:47:45.7998765Z centaur-services> 3/3 Test #2: network ..........................   Passed    9.82 sec",
+    "2026-11-18T03:47:45.8000486Z centaur-services> 100% tests passed out of 3",
+    "2026-11-18T03:53:22.6187989Z Published GTK4 update eb38227 at https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview"
+  ]
+}

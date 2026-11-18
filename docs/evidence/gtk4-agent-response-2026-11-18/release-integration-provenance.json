@@ -1,0 +1,24 @@
+{
+  "sourceRevision": "eb382277e3dd84dab6fc6d555341569462a5c32f",
+  "investigationCommit": "1becefc670c73ecf91b3c5e0583b6352ba67c0b9",
+  "mergedRemoteMain": "12e677d564011bd3a2dcf2c15ebd1a2f7e12d3e0",
+  "readmeMatchesRemoteMain": true,
+  "differenceFromInvestigation": [
+    "README.md"
+  ],
+  "verifiedFileSha256": {
+    "gtk4/embedding/activity_check.py": "f881e8cee8fb06c4d1a60433d12d8d7c122cefa6ee6714e20080aa8fbaff86d0",
+    "gtk4/embedding/agent_activity.py": "2e4cd6af5491dbcb3cb5a914ebe429869b49dc43a090b47578d5e5af40575528",
+    "gtk4/embedding/shell.py": "262bb997379d45124fa3beefa33b0f74a490e9b6efcb15f68f9bdf96d0480d5f",
+    "src/agent.cpp": "eb2684a35f82dd8516ad23e2ffe03c0686500363604689b58c5132e9bc7dde58",
+    "src/agent.h": "da133ea972668d4e8af44b13e49895b2d17afba66d00cc5708e48d8b6cd33b6c",
+    "src/session.cpp": "ae583e8c7389cb2ec058595097c1706754760add3dddf4b526c1b188fc29f9b7",
+    "src/session.h": "f4ce48b37e0d9370fed746a5120c93bfe979a427727ad03d5e9e04a89c55a1d1",
+    "src/session_import.cpp": "2ed84116247f6570a86fa19a18a10c805383ac3b586e35fb906a5a7e91056061",
+    "tests/tst_core.cpp": "4744ffafba1a219a1d5b1bb3c61864eadf9dd75460639605c7cff860d301f4da",
+    "scripts/investigate-agent-edit.py": "cc4a0e5bdca7d16dfeeac5bc1581836017a23488476fde581a7611fb176d783c",
+    "scripts/observe-omp-stream.py": "0bc8a0735014474e334cafeedfdd2be6e7267989a5f6e62d77460692d73cc7e6",
+    "scripts/check-ptt-interaction.py": "efc77ed2634de043bf86544aac5f31748006d57ef7568cb2f4cd58dc6c4d46a4",
+    "scripts/ptt-probe-app.py": "879d28c4a7dad8e41d3d38468cbca63d9c61b4feda50661aafea9d9eeda7fec3"
+  }
+}
