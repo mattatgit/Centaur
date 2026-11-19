@@ -1,4 +1,6 @@
 """GTK frame-clock motion for the Projects/Edit scene and mode selector."""
+from math import pi
+
 from gi.repository import Graphene, Gtk
 from ui import box, button, selected
 
@@ -48,23 +50,43 @@ class Motion:
         self.callback = self.widget.add_tick_callback(frame)
 
 
-class SlidePane(Gtk.Widget):
-    """Translate the painted panel while keeping its native allocation fixed."""
-    def __init__(self, child, distance):
+def smoothstep(t):
+    t = max(0, min(1, t))
+    return t * t * (3 - 2 * t)
+
+
+def fill_rounded(cr, x, y, width, height, radius, gray):
+    radius = min(radius, width / 2, height / 2)
+    cr.new_sub_path()
+    cr.arc(x + width - radius, y + radius, radius, -pi / 2, 0)
+    cr.arc(x + width - radius, y + height - radius, radius, 0, pi / 2)
+    cr.arc(x + radius, y + height - radius, radius, pi / 2, pi)
+    cr.arc(x + radius, y + radius, radius, pi, 3 * pi / 2)
+    cr.close_path()
+    cr.set_source_rgb(gray, gray, gray)
+    cr.fill()
+
+
+class MotionLayer(Gtk.Widget):
+    """Move only the rendering so the live chat and embedded app stay allocated."""
+    def __init__(self, child):
         super().__init__(layout_manager=Gtk.BinLayout(), hexpand=True, vexpand=True)
         self.child = child
-        self.distance = distance
-        self.progress = 1
+        self.offset = 0
+        self.opacity = 1
         child.set_parent(self)
 
-    def show_progress(self, progress):
-        self.progress = progress
+    def pose(self, offset, opacity):
+        self.offset = offset
+        self.opacity = opacity
         self.queue_draw()
 
     def do_snapshot(self, snapshot):
+        if self.opacity == 0:
+            return
         snapshot.save()
-        snapshot.translate(Graphene.Point().init(self.distance * (1 - self.progress), 0))
-        snapshot.push_opacity(self.progress)
+        snapshot.translate(Graphene.Point().init(self.offset, 0))
+        snapshot.push_opacity(self.opacity)
         self.snapshot_child(self.child, snapshot)
         snapshot.pop()
         snapshot.restore()
@@ -76,11 +98,8 @@ class SlidePane(Gtk.Widget):
 class ModeSwitch:
     def __init__(self, on_change, targets):
         self.widget = Gtk.Overlay(valign=Gtk.Align.CENTER, css_classes=['mode-switch'])
-        self.widget.set_size_request(136, 24)
-        self.track = Gtk.Fixed(can_target=False)
-        self.indicator = box(css='mode-indicator')
-        self.indicator.set_can_target(False)
-        self.track.put(self.indicator, 0, 0)
+        self.track = Gtk.DrawingArea(content_width=136, content_height=24, can_target=False)
+        self.track.set_draw_func(self.draw)
         self.widget.set_child(self.track)
         row = box(spacing=0)
         self.buttons = {}
@@ -92,21 +111,20 @@ class ModeSwitch:
             row.append(segment)
             self.buttons[mode] = targets['mode-' + mode] = segment
         self.widget.add_overlay(row)
-        self.motion = Motion(self.widget, 180, self.render)
+        self.motion = Motion(self.widget, 220, self.track.queue_draw)
         self.widget.connect('unmap', self.on_unmap)
-        self.render()
 
     def select(self, mode):
         for name, segment in self.buttons.items():
             selected(segment, name == mode)
-        self.motion.move(int(mode == 'Build'), lambda t: t * t * (3 - 2 * t))
+        self.motion.move(int(mode == 'Build'), smoothstep)
 
-    def render(self):
+    def draw(self, area, cr, width, height):
         position = self.motion.value
-        self.track.move(self.indicator, 72 * position, 0)
-        self.indicator.set_size_request(round(72 - 8 * position), 24)
+        fill_rounded(cr, 0, 0, width, height, 8, 248 / 255)
+        fill_rounded(cr, 72 * position, 0, 72 - 8 * position, height, 8, 235 / 255)
 
     def on_unmap(self, *unused):
         self.motion.stop()
         self.motion.value = self.motion.destination
-        self.render()
+        self.track.queue_draw()

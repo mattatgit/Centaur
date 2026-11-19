@@ -1,8 +1,40 @@
 """Native navigation, mode control and authenticated project roster checks."""
+from contextlib import contextmanager
 import json
+import os
+import signal
+import subprocess
 import time
 from PIL import Image
 from check import target, until
+
+
+@contextmanager
+def record_motion(driver, window, path, crop=None):
+    if os.environ.get('CENTAUR_GTK4_RECORD_MOTION') != '1':
+        yield
+        return
+    assert driver.wayland, 'Motion recordings require the disposable Wayland session'
+    driver.ipc(f'[con_id={window}] focus')
+    rect=driver.rect(window)
+    x,y,w,h=crop or (0,0,rect['width'],rect['height'])
+    region=f"{rect['x']+x},{rect['y']+y} {w}x{h}"
+    args=['wf-recorder','--no-dmabuf','-D','-g',region,'-c','libx264','-p','preset=ultrafast',
+          '-p','crf=16','-x','yuv420p','-f',str(path)]
+    with subprocess.Popen(args,stdin=subprocess.DEVNULL) as recorder:
+        try:
+            time.sleep(.65)
+            yield
+            time.sleep(.65)
+        finally:
+            if recorder.poll() is None:
+                recorder.send_signal(signal.SIGINT)
+            try:
+                recorder.wait(timeout=8)
+            except subprocess.TimeoutExpired:
+                recorder.kill()
+                raise
+    assert recorder.returncode==0 and path.stat().st_size>0, f'Could not record {path.name}'
 
 
 def move_over(driver, window, bounds):
@@ -29,21 +61,23 @@ def check_workspace_polish(driver, folder, hs, hw, gs, gw, click, project_id):
         tap(hs,hw,'mode-Interact',interact)
     until(lambda:hs()['mode']=='Interact' and hs()['motion']['mode']==0,'Interact indicator did not settle')
     driver.screenshot(hw,folder/'polish-mode-interact.png')
-    tap(hs,hw,'mode-Build',build)
-    time.sleep(.05)
-    driver.screenshot(hw,folder/'polish-mode-slide-right.png',focus=False)
-    until(lambda:hs()['mode']=='Build' and hs()['motion']['mode']==1,'Build indicator did not settle')
-    driver.screenshot(hw,folder/'polish-mode-build.png')
-    tap(hs,hw,'mode-Interact',interact)
-    time.sleep(.05)
-    driver.screenshot(hw,folder/'polish-mode-slide-left.png',focus=False)
+    x,y,_,_=map(round,switch)
+    with record_motion(driver,hw,folder/'mode-switch.mp4',(x-36,y-20,272,116)):
+        tap(hs,hw,'mode-Build',build)
+        time.sleep(.07)
+        driver.screenshot(hw,folder/'polish-mode-slide-right.png',focus=False)
+        until(lambda:hs()['mode']=='Build' and hs()['motion']['mode']==1,'Build indicator did not settle')
+        driver.screenshot(hw,folder/'polish-mode-build.png')
+        tap(hs,hw,'mode-Interact',interact)
+        time.sleep(.07)
+        driver.screenshot(hw,folder/'polish-mode-slide-left.png',focus=False)
+        until(lambda:hs()['mode']=='Interact' and hs()['motion']['mode']==0,'Interact indicator did not return')
     tap(hs,hw,'mode-Build',build)
     tap(hs,hw,'mode-Interact',interact)
     until(lambda:hs()['mode']=='Interact' and hs()['motion']['mode']==0,'Rapid mode toggles selected the wrong mode')
     driver.key('Tab');driver.key('space')
     until(lambda:hs()['mode']=='Build' and hs()['motion']['mode']==1,'Native keyboard did not select Build')
     tap(hs,hw,'mode-Interact',interact)
-    x,y,_,_=map(round,switch)
     for name,selected_x,idle_x in [('interact',4,132),('build',132,4)]:
         with Image.open(folder/('polish-mode-'+name+'.png')) as image:
             pixels=image.convert('RGB')
@@ -57,10 +91,11 @@ def check_workspace_polish(driver, folder, hs, hw, gs, gw, click, project_id):
     driver.scroll(up=True)
     time.sleep(.25)
     saved=hs()
-    tap(hs,hw,'nav-projects')
-    time.sleep(.07)
-    driver.screenshot(hw,folder/'polish-workspace-to-projects.png',focus=False)
-    settle(hs,'projects')
+    with record_motion(driver,hw,folder/'edit-to-projects.mp4'):
+        tap(hs,hw,'nav-projects')
+        time.sleep(.14)
+        driver.screenshot(hw,folder/'polish-workspace-to-projects.png',focus=False)
+        settle(hs,'projects')
     assert hs()['childPid']==pid and hs()['windowSize']==size
 
     def check_roster(state, window, expected_self, name):
@@ -82,10 +117,11 @@ def check_workspace_polish(driver, folder, hs, hw, gs, gw, click, project_id):
         return people
 
     host_roster=check_roster(hs,hw,'Matt','host')
-    tap(hs,hw,'open-'+project_id)
-    time.sleep(.07)
-    driver.screenshot(hw,folder/'polish-projects-to-workspace.png',focus=False)
-    settle(hs,'workspace')
+    with record_motion(driver,hw,folder/'projects-to-edit.mp4'):
+        tap(hs,hw,'open-'+project_id)
+        time.sleep(.17)
+        driver.screenshot(hw,folder/'polish-projects-to-workspace.png',focus=False)
+        settle(hs,'workspace')
     after=hs()
     assert after['childPid']==pid and after['windowSize']==size
     assert after['project']['id']==saved['project']['id']
@@ -127,8 +163,10 @@ def check_workspace_polish(driver, folder, hs, hw, gs, gw, click, project_id):
             'actual-host-and-connected-guest-avatars-hover-only-with-unobstructed-project-menu']
 
 
-def check_unshared_hover(driver, folder, state, window, project_id):
+def check_unshared_hover(driver, folder, state, window, project_id, scenario='unshared'):
     move_over(driver,window,target(state,'open-'+project_id))
     time.sleep(.3)
+    project=next(p for p in state()['projects'] if p['id']==project_id)
+    assert not project.get('collaborators'), 'An unshared project reported participants'
     assert 'collaborators-'+project_id not in state()['targets']
-    driver.screenshot(window,folder/'polish-unshared-hover.png')
+    driver.screenshot(window,folder/f'polish-{scenario}-hover.png')

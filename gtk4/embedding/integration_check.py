@@ -228,6 +228,14 @@ if cfg.get('fixtureProgressGate'):
         control.send('invite',address='127.0.0.1')
         code=until(lambda:control.data.get('invitation'),'LAN invitation failed')
         control.close(); control=None
+        until(lambda:hs()['project'].get('sharing',{}).get('enabled'),'Invitation did not enable the test share')
+        click(hs,hw,'nav-projects')
+        until(lambda:hs()['page']=='projects' and not hs()['motion']['workspaceRunning'],'Projects did not settle')
+        check_unshared_hover(driver,folder,hs,hw,project_id,'unused-invitation')
+        click(hs,hw,'open-'+project_id)
+        until(lambda:hs()['page']=='workspace' and not hs()['motion']['workspaceRunning'],'Workspace did not settle')
+        assert hs()['childPid']==original_pid
+        summary['checks'].append('unredeemed-project-invitation-does-not-show-owner-avatar')
         guest,gs,gw=launch('guest')
         click(gs,gw,'nav-settings'); click(gs,gw,'settings-name'); driver.key('ctrl+a'); driver.type('Guest')
         until(lambda:(roots[1]/'preferences.ini').is_file() and gs().get('settings',{}).get('status')=='Changes saved' and 'Guest' in (roots[1]/'preferences.ini').read_text(),'Configured guest name did not persist')

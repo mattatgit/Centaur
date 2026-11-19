@@ -56,12 +56,19 @@ textview, textview text { background: transparent; color: #171717; padding: 0; }
 .sidebar.compact .flat-button.profile { padding: 0 16px; }
 .breadcrumb { font-size: 12px; font-weight: 600; }
 .section-title { font-size: 14px; font-weight: 600; min-height: 24px; }
-.mode-switch { background: #f8f8f8; border-radius: 8px; padding: 0; }
-.mode-indicator { background: #ebebeb; border-radius: 8px; }
 .mode-button .button-label { font-weight: 500; }
-.flat-button.mode-button { min-height: 24px; padding: 0 8px; color: #9ea39e; }
-.flat-button.mode-button:hover, .flat-button.mode-button.selected { background: transparent; color: #171717; }
+.mode-switch button.mode-button,
+.mode-switch button.mode-button:hover,
+.mode-switch button.mode-button:active,
+.mode-switch button.mode-button:checked,
+.mode-switch button.mode-button:focus-visible {
+    min-height: 24px; padding: 0 8px; margin: 0; border: 0;
+    background: transparent; background-image: none; box-shadow: none; outline: none; color: #9ea39e;
+}
+.mode-switch button.mode-button:hover, .mode-switch button.mode-button.selected { color: #171717; }
+.mode-switch button.mode-button:focus-visible .button-label { text-decoration-line: underline; }
 .panel, .chat, .canvas-panel { background: white; border-radius: 16px; }
+.workspace-transition .canvas-panel { background: transparent; }
 .canvas-bar { padding: 0 16px; }
 .canvas-bar > * { margin-top: 16px; margin-bottom: 15px; }
 paned > separator { min-width: 8px; min-height: 0; padding: 0; margin: 0; background: transparent; border: 0; box-shadow: none; }

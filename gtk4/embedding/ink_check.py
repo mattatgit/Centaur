@@ -90,8 +90,11 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
     zoom(hs,hw,2)
     stroke(hs,hw,'draw',[(-.08,.35),(.2,.35),(-.08,.4)]); synced(1)
     saved=hs()['project']['annotations']
-    click(hs,hw,'nav-projects'); click(hs,hw,'open-'+project_id)
-    until(lambda:(hs().get('child') or {}).get('ready'),'Ink test project did not reopen')
+    click(hs,hw,'nav-projects')
+    until(lambda:hs()['page']=='projects' and not hs()['motion']['workspaceRunning'],'Projects did not settle before reopening')
+    click(hs,hw,'open-'+project_id)
+    until(lambda:hs()['page']=='workspace' and not hs()['motion']['workspaceRunning']
+          and (hs().get('child') or {}).get('ready'),'Ink test project did not reopen')
     assert hs()['project']['annotations']==saved,'Project navigation lost the saved mark'
     resize_host(1200,860)
     blue(hs,hw,'ink-after-resize-and-reopen',(-.04,.35))

@@ -79,7 +79,9 @@ QJsonArray Controller::projectCollaborators(const QString &id) const {
     append(current, true);
     if (remote) append(sharing["owner"].toString());
     for (const auto &value : sharing["members"].toArray()) append(value.toString());
-    return result;
+    // An invitation may enable a listener before anyone joins. A cached
+    // guest project can also lack a roster from an older host.
+    return result.size() >= 2 ? result : QJsonArray{};
 }
 bool Controller::canContribute() const { return remoteProject() ? m_shared.value(m_projectId)->writable() : m_session.connected(); }
 bool Controller::agentAvailable() const { return remoteProject() ? m_shared.value(m_projectId)->agentAvailable() : m_agentAvailable; }

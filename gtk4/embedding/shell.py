@@ -30,7 +30,7 @@ from update_ui import UpdateControls
 from desktop import APP_ID, launch_settings, register as register_desktop
 from import_ui import show_import
 from agent_activity import caption as activity_caption, details_text as activity_details
-from workspace_motion import ModeSwitch, Motion, SlidePane
+from workspace_motion import ModeSwitch, Motion, MotionLayer, fill_rounded, smoothstep
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, original, picture, close_art, send_art, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal, ZoomMenu,
                 label, box, margins, button, button_text, selected, accessible)
@@ -277,8 +277,8 @@ class Centaur(Gtk.Application):
         self.canvas_column.append(self.canvas_bar); self.canvas_column.append(rule('2115d.svg')); self.canvas_column.append(self.overlay)
         canvas=Gtk.Overlay(); canvas.set_child(self.canvas_column); canvas.add_overlay(self.import_working)
         self.targets['canvas-panel']=canvas
-        self.canvas_slide=SlidePane(canvas,320)
-        self.panes.set_end_child(self.canvas_slide); self.panes.set_resize_end_child(True); self.panes.set_shrink_end_child(False)
+        self.canvas_layer=MotionLayer(canvas)
+        self.panes.set_end_child(self.canvas_layer); self.panes.set_resize_end_child(True); self.panes.set_shrink_end_child(False)
         self.chat=box(True,0,'chat'); self.chat.set_size_request(CHAT_MIN,-1)
         self.targets['chat-panel']=self.chat
         chat=box(True,0); chat.set_vexpand(True); self.chat.append(chat)
@@ -363,11 +363,14 @@ class Centaur(Gtk.Application):
         self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
         self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
         self.root_overlay.add_overlay(self.comment_overlay)
-        self.chat_slide=SlidePane(self.chat,-232)
-        self.panes.set_start_child(self.chat_slide); self.panes.set_resize_start_child(False); self.panes.set_shrink_start_child(False)
+        self.chat_layer=MotionLayer(self.chat)
+        self.panes.set_start_child(self.chat_layer); self.panes.set_resize_start_child(False); self.panes.set_shrink_start_child(False)
+        self.canvas_surface=Gtk.DrawingArea(can_target=False, hexpand=True, vexpand=True)
+        self.canvas_surface.set_draw_func(self.draw_canvas_surface)
+        self.scene.add_overlay(self.canvas_surface)
         self.scene.add_overlay(wrapper)
         self.scene.set_clip_overlay(wrapper,True)
-        self.workspace_motion=Motion(self.scene,320,self.render_workspace)
+        self.workspace_motion=Motion(self.scene,330,self.render_workspace)
         self.render_workspace()
         self.set_tool('draw')
         self.chat_split=CHAT_WIDTH
@@ -435,27 +438,58 @@ class Centaur(Gtk.Application):
             self.project_pages.set_visible(True)
             self.workspace.set_visible(True)
             self.workspace.set_can_target(False)
-            if {page,previous}=={'projects','workspace'}:
-                self.workspace_motion.move(int(workspace),lambda t: t * t * (3 - 2 * t))
+            if {page,previous}=={'projects','workspace'} and self.window.get_width()>=720:
+                self.workspace_motion.move(int(workspace),lambda t:t)
             else:
                 self.workspace_motion.stop()
                 self.workspace_motion.value=self.workspace_motion.destination=int(workspace)
-                self.render_workspace()
+            self.render_workspace()
         if hasattr(self,'updates'):
             self.updates.refresh_footer()
 
     def render_workspace(self):
         progress=self.workspace_motion.value
-        self.chat_slide.show_progress(progress)
-        self.canvas_slide.show_progress(progress)
         if self.workspace_motion.callback is None:
             editing=self.page=='workspace'
+            self.workspace.remove_css_class('workspace-transition')
+            self.canvas_surface.set_visible(False)
+            self.sidebar.set_opacity(1)
+            self.projects_inner.set_opacity(1)
+            self.stack.set_opacity(1)
+            self.chat_layer.pose(0,1)
+            self.canvas_layer.pose(0,1)
             self.workspace.set_visible(editing)
             self.workspace.set_can_target(editing)
             self.project_pages.set_visible(not editing)
+            self.project_pages.set_can_target(not editing)
             self.sidebar.set_visible(not editing)
-        else:
-            self.sidebar.set_visible(True)
+            return
+
+        # The prototype first clears the Projects content, then moves the left
+        # edge of its white surface right to reveal chat. Unwind the same pose
+        # on return. Keep the Paned and the embedded app at their live sizes.
+        self.sidebar.set_visible(True)
+        self.workspace.add_css_class('workspace-transition')
+        project_opacity=1-smoothstep(progress/.36)
+        self.project_pages.set_can_target(self.page=='projects' and project_opacity>0)
+        self.sidebar.set_opacity(project_opacity)
+        self.projects_inner.set_opacity(project_opacity)
+        self.stack.set_opacity(int(project_opacity>0))
+        self.canvas_surface.set_visible(project_opacity==0)
+        self.canvas_surface.queue_draw()
+        _, bounds=self.canvas_layer.compute_bounds(self.scene)
+        travel=smoothstep((progress-.36)/.52)
+        offset=(self.sidebar.get_width()-bounds.get_x())*(1-travel)
+        self.chat_layer.pose(offset,smoothstep(travel/.75))
+        self.canvas_layer.pose(offset/2,smoothstep((progress-.58)/.42))
+
+    def draw_canvas_surface(self, area, cr, width, height):
+        ok, bounds=self.canvas_layer.compute_bounds(self.scene)
+        if not ok or bounds.get_width()<=0 or bounds.get_height()<=0:
+            return
+        left=bounds.get_x()+2*self.canvas_layer.offset
+        right=bounds.get_x()+bounds.get_width()
+        fill_rounded(cr,left,bounds.get_y(),right-left,bounds.get_height(),16,1)
 
     def layout_workspace(self):
         narrow=self.window.get_width()<720
@@ -1424,8 +1458,8 @@ class Centaur(Gtk.Application):
         self.closing=True; self.stop_preview()
         self.workspace_motion.stop()
         self.mode_switch.motion.stop()
-        self.chat_slide.release()
-        self.canvas_slide.release()
+        self.chat_layer.release()
+        self.canvas_layer.release()
         if self.active_form: self.dismiss_dialog(self.active_form)
         if hasattr(self,'service'): self.service.close()
         self.composer.release(); self.cards.clear(); self.settings_limit.release(); self.empty_limit.release()
