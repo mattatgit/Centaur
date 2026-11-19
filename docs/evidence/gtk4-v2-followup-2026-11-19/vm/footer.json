@@ -1,0 +1,30 @@
+{
+  "checks": [
+    "original-disabled-16px-download-art-and-static-right-version-chip",
+    "real-background-check-schedule-no-focus-theft-stable-geometry",
+    "both-entry-points-cancel-and-confirm-keyboard-no-download-before-consent",
+    "original-named-stroke-rotates-arrow-stays-still-reduced-motion",
+    "complete-checkmark-only-after-real-helper-complete-phase",
+    "settings-receipt-awaits-first-edit-and-keeps-original-deadline-across-navigation"
+  ],
+  "passed": true,
+  "icon": [
+    24,
+    191,
+    16,
+    16
+  ],
+  "button": [
+    24,
+    187,
+    16,
+    24
+  ],
+  "versionChip": [
+    409,
+    191,
+    127,
+    16
+  ],
+  "confirmationCount": 2
+}

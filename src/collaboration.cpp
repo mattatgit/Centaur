@@ -186,7 +186,8 @@ QJsonObject CollaborationHost::sharing(const QString &id) const {
     const auto share = m_shares[id].toObject();
     QJsonArray names;
     for (const auto &value : share["members"].toObject()) names.append(value.toObject()["name"]);
-    return {{"enabled", !share.isEmpty() && (m_server.isListening() || m_internetServer.isListening())}, {"internetReady", m_iroh.ready()}, {"members", names}};
+    return {{"enabled", !share.isEmpty() && (m_server.isListening() || m_internetServer.isListening())},
+        {"internetReady", m_iroh.ready()}, {"owner", share["owner"]}, {"members", names}};
 }
 bool CollaborationHost::stopSharing(const QString &id, QString *error) {
     for (const auto serial : m_invitations.keys()) if (m_invitations[serial].id == id) {
@@ -339,6 +340,8 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
         write(socket, {{"type", "removed"}, {"message", "The owner removed this project."}}); socket->disconnectFromHost(); return;
     }
     const auto source = m_workspace.source(peer.project);
+    // Authenticated members receive display names for this project only.
+    state["sharing"] = sharing(peer.project);
     state["queueCount"] = state["agentQueue"].toArray().size();
     state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
     state.remove("importLocal");

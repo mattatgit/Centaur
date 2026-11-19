@@ -259,6 +259,31 @@ def check_window_controls(driver, folder):
         assert not hasattr(other_close.get_child(),'centaur_image'), 'Centaur artwork leaked into an unscoped window'
         report['checks'].append('inactive-and-unscoped-native-window-unchanged')
         other.destroy(); window.present(); settle()
+        from workspace_motion import ModeSwitch, Motion
+        mode_switch=ModeSwitch(lambda mode:mode_switch.select(mode),{})
+        content.append(mode_switch.widget)
+        settle()
+        samples=[]
+        scene=Motion(content,320,lambda:samples.append(scene.value))
+        prop=animation.motion_property
+        preference=settings.get_property(prop)
+        try:
+            settings.set_property(prop,Gtk.ReducedMotion.NO_PREFERENCE if prop=='gtk-interface-reduced-motion' else True)
+            scene.move(1,lambda t:t);mode_switch.select('Build');settle(.09)
+            assert 0<scene.value<1 and 0<mode_switch.motion.value<1
+            scene.move(0,lambda t:t);mode_switch.select('Interact');settle(.4)
+            assert scene.value==mode_switch.motion.value==0
+            assert any(0<value<1 for value in samples)
+            settings.set_property(prop,Gtk.ReducedMotion.REDUCE if prop=='gtk-interface-reduced-motion' else False)
+            scene.move(1,lambda t:t);mode_switch.select('Build')
+            assert scene.value==mode_switch.motion.value==1
+            assert scene.callback is None and mode_switch.motion.callback is None
+            report['checks'].append('workspace-and-mode-frame-clock-reversal-and-reduced-motion')
+            report['workspaceMotionSamples']=samples
+        finally:
+            scene.stop()
+            settings.set_property(prop,preference)
+            content.remove(mode_switch.widget)
         allow_close[0] = True
         window.close(); settle()
         assert not window.get_mapped(), 'Native close did not destroy the window'

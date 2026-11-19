@@ -28,7 +28,14 @@ int main(int argc, char **argv) {
     auto snapshot = [&] {
         const auto state = QJsonObject::fromVariantMap(controller.project());
         const auto path = controller.dataRoot() + (controller.remoteProject() ? "/shared/" : "/projects/") + controller.projectId();
-        output({{"type", "snapshot"}, {"projects", QJsonArray::fromVariantList(controller.projects())},
+        QJsonArray projects;
+        for (const auto &entry : controller.projects()) {
+            auto project = QJsonObject::fromVariantMap(entry.toMap());
+            const auto collaborators = controller.projectCollaborators(project["id"].toString());
+            if (!collaborators.isEmpty()) project["collaborators"] = collaborators;
+            projects.append(project);
+        }
+        output({{"type", "snapshot"}, {"projects", projects},
             {"project", state}, {"author", controller.author()}, {"remote", controller.remoteProject()},
             {"connected", controller.canContribute()}, {"status", controller.connectionStatus()},
             {"busy", controller.agentBusy()}, {"agentAvailable", controller.agentAvailable()},

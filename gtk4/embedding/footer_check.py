@@ -89,7 +89,7 @@ def check_footer(driver,folder):
             click(controls.button);assert len(started)==1
             click(owner.targets['update-confirm']);assert len(started)==2 and started[1]==manifest
         evidence['checks'].append('both-entry-points-cancel-and-confirm-keyboard-no-download-before-consent')
-        work=folder/'transaction';work.mkdir();controls.work=work;controls.completed=False
+        work=folder/'transaction';work.mkdir();controls.work=work
         for phase in ('starting','downloading','verifying','ready'):
             write_json(work/'status.json',{'phase':phase,'message':'Downloaded 2.1 of 16.5 MB'})
             controls.tick();settle(.06)
@@ -109,11 +109,37 @@ def check_footer(driver,folder):
         evidence['checks'].append('original-named-stroke-rotates-arrow-stays-still-reduced-motion')
         # Failed and intermediate helper phases cannot manufacture completion.
         write_json(work/'status.json',{'phase':'failed','message':'Disposable failure'});controls.tick();settle()
-        assert controls.icon.state!='complete' and not controls.completed;photo('failure')
+        assert controls.icon.state!='complete' and not controls.completion_waiting and not controls.completion_until
+        photo('failure')
+        controls.origin_page='workspace'
         controls.work=work;write_json(work/'status.json',{'phase':'complete','message':'Centaur updated.'});controls.tick();settle()
         assert controls.icon.state=='complete' and not controls.footer_button.get_sensitive();photo('complete')
         assert [bounds(controls.footer_button),bounds(controls.footer_version)]==stable
         evidence['checks'].append('complete-checkmark-only-after-real-helper-complete-phase')
+        with patch('update_ui.time.monotonic',return_value=controls.completion_until):
+            controls.refresh_footer()
+        assert controls.icon.state=='disabled' and controls.icon.filename.endswith('/418fd.svg')
+        controls.origin_page='settings'
+        controls.work=work
+        owner.page='settings'
+        with patch('update_ui.time.monotonic',return_value=100):
+            controls.tick()
+        assert controls.completion_waiting and controls.icon.state=='disabled'
+        owner.page='workspace'
+        with patch('update_ui.time.monotonic',return_value=130):
+            controls.refresh_footer()
+        assert controls.completion_until==135 and controls.icon.state=='complete'
+        owner.page='projects'
+        with patch('update_ui.time.monotonic',return_value=131):
+            controls.refresh_footer()
+        owner.page='workspace'
+        with patch('update_ui.time.monotonic',return_value=134):
+            controls.refresh_footer()
+        assert controls.completion_until==135 and not controls.completion_waiting
+        with patch('update_ui.time.monotonic',return_value=135):
+            controls.refresh_footer()
+        assert controls.icon.state=='disabled'
+        evidence['checks'].append('settings-receipt-awaits-first-edit-and-keeps-original-deadline-across-navigation')
         evidence.update(passed=True,icon=bounds(controls.icon),button=stable[0],versionChip=stable[1],confirmationCount=len(started))
     finally:
         if owner.active_form:dismiss(owner.active_form)

@@ -46,6 +46,7 @@ public:
     QVariantMap project() const { return m_states.value(m_projectId).toVariantMap(); }
     QString projectId() const { return m_projectId; }
     QString author() const;
+    QJsonArray projectCollaborators(const QString &id) const;
     void setAuthor(const QString &author);
     bool setAgentDefaults(const QJsonObject &settings);
     QString defaultAgentName() const { return m_preferences.value("agent/name", "centaur").toString(); }

@@ -1,0 +1,20 @@
+{
+  "sourceArchiveSha256": "09a26122c3af1757c16dffc59aa73603b2686a1fbbc8f1de70cd9fc23e978564",
+  "changedFileSha256": {
+    "gtk4/embedding/footer_check.py": "f74be43afa59c0031f9ebe09e03c9ee059ece2c175595cf66cda062afc4fd6c1",
+    "gtk4/embedding/integration_check.py": "2cbd5209d04add3775eab99aee70186af2e8af91095467a981f83fd18867208e",
+    "gtk4/embedding/shell.css": "ba22bf3f2d28943234670aa88fb04642f8c4f495f17079753114a5ab322f21ca",
+    "gtk4/embedding/shell.py": "02d07debf72a082074f660069a847aaad9f5c61100a0df28eb994c9c2e9bedb6",
+    "gtk4/embedding/update_ui.py": "8e8e04c64dbfd8d55673481c9ea8199960302e37b23b0985ca7d574ebd8f7901",
+    "gtk4/embedding/updater_check.py": "e5b49c844cd5f890377b41332b9f28c07399dbce825b7655069389d8f6ee12db",
+    "gtk4/embedding/window_controls_check.py": "5a570d167c585c727b4c92370f00a2aee7c1e95cd818bb5abd9b199f4c5edc2d",
+    "gtk4/embedding/workspace_motion.py": "a0d1f091d19ebe51a17be25e5ee815afbcd1d7208036bb3b1c2dd56b1bd48460",
+    "gtk4/embedding/workspace_polish_check.py": "797df92c41c1e6f83ecefa9841e0983eb2665428809b61cecc9002c0519911c9",
+    "src/collaboration.cpp": "5fa00b87c90e0b08ca73dc6b75c73f5c3e7df726c58b73a2e48d5226cd93f396",
+    "src/controller.cpp": "fc81891a6d4119ee41d1d2e27a58b72326eeb593e4f74f0d8cc7ed0e5510ae14",
+    "src/controller.h": "1b85e1ca0ff518b7a48d2b315649bf0afdb054b99c6f75e85cf28e2440272563",
+    "src/gtk_bridge_main.cpp": "df852faaed8a0c0d19ec5d219ae2009c2d8480d7f6cf792122d9d122a9b36a8a"
+  },
+  "originalFigmaExports": 67,
+  "originalAnimationSha256": "b976ac19686b3c3c59d29291fb9a9a1bf7b43f74464270d6cbb2c3c68234f78c"
+}

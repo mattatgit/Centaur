@@ -216,6 +216,13 @@ def main():
         new_window=driver.find_window('org.centaur.Gtk4',new_pid)
         driver.track_native(new_window,state); driver.screenshot(new_window,folder/'updated-app.png')
         assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        edit_deadline=state()['updater']['completionUntil']
+        assert 8<edit_deadline-time.monotonic()<=10, 'Edit completion did not start a ten-second receipt'
+        until(lambda:time.monotonic()>=edit_deadline-.35,'Edit receipt clock did not progress')
+        assert state()['updater']['iconState']=='complete'
+        until(lambda:state()['updater']['iconState']=='disabled','Edit completion did not return to idle',timeout=3)
+        assert any(item['file']=='v2/418fd.svg' for item in state()['assetSlots'])
+        driver.screenshot(new_window,folder/'edit-completion-expired.png')
         # Repeat the real transaction from Settings, using only the disposable
         # CI profile and already-built previous-version fixture.
         os.kill(new_pid,signal.SIGTERM)
@@ -234,7 +241,8 @@ def main():
         assert read(work/'status.json')['phase']=='complete'
         new_pid=read(work/'ready.json')['pid']
         until(lambda:state().get('pid')==new_pid and state()['page']=='settings' and state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 '),'Settings update did not restore its page/version')
-        until(lambda:state()['updater']['iconState']=='complete','Settings completion did not show the real checkmark')
+        until(lambda:state()['updater']['completionWaiting'],'Settings completion did not preserve its receipt')
+        assert state()['updater']['iconState']=='disabled' and not state()['updater']['completionUntil']
         assert profile.resolve()==Path(manifest['storePath'])
         for name,content in before.items():assert (data/name).read_bytes()==content,'Settings update changed saved data '+name
         assert qt.resolve()==previous and (qt_data/'keep').read_text()=='preserved Qt data'
@@ -242,6 +250,20 @@ def main():
         new_window=driver.find_window('org.centaur.Gtk4',new_pid);driver.track_native(new_window,state)
         window=new_window;reach('update-app')
         driver.screenshot(new_window,folder/'settings-updated-app.png')
+        click('nav-projects');click('open-'+project_id)
+        until(lambda:state()['page']=='workspace' and state()['updater']['iconState']=='complete','First Edit visit did not show the Settings receipt')
+        settings_deadline=state()['updater']['completionUntil']
+        assert 4<settings_deadline-time.monotonic()<=5, 'First Edit visit did not start a five-second receipt'
+        driver.screenshot(new_window,folder/'settings-completion-in-edit.png')
+        until(lambda:time.monotonic()>=settings_deadline-.35,'Settings receipt clock did not progress',timeout=6)
+        assert state()['updater']['iconState']=='complete'
+        until(lambda:state()['updater']['iconState']=='disabled','Settings completion did not return to idle',timeout=3)
+        assert any(item['file']=='v2/418fd.svg' for item in state()['assetSlots'])
+        click('nav-projects');click('open-'+project_id)
+        until(lambda:state()['page']=='workspace' and not state()['motion']['workspaceRunning'],'Second Edit visit did not settle')
+        assert state()['updater']['iconState']=='disabled' and not state()['updater']['completionWaiting']
+        driver.screenshot(new_window,folder/'settings-completion-second-edit-visit.png')
+        click('nav-projects');click('nav-settings')
         click('update-app')
         until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
         assert state()['updater']['versionChip']=='v'+state()['updater']['version']
@@ -252,6 +274,7 @@ def main():
                             'both-entry-points-restart-warning-and-not-now-without-transaction',
                             'confirmed-footer-live-status-detached-download-signature-verification',
                             'confirmed-settings-real-profile-switch-restart-and-restored-settings-page',
+                            'edit-success-ten-seconds-and-settings-first-edit-visit-five-seconds-then-original-idle-art',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
                             'qt-profile-and-data-preserved']
         maintenance(folder,env); summary['checks'].append('real-host-maintenance-gate-and-busy-agent-refusal')

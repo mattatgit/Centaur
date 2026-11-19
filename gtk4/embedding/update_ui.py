@@ -22,7 +22,9 @@ class UpdateControls:
         self.footer_hover_suppressed=False; self.footer_focus_suppressed=False
         self.footer_notice_until=0
         self.next_check=time.monotonic()+2
-        self.completed=False; self.confirmation=None
+        self.completion_until=0
+        self.completion_waiting=False
+        self.confirmation=None
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
         self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
         self.restore_page_pending=bool(owner.update_session)
@@ -36,6 +38,7 @@ class UpdateControls:
         self.set_sensitive(not self.starting)
         if owner.update_session:
             self.work=owner.update_session
+            self.origin_page=read_json(self.work/'request.json').get('originPage',self.resume.get('page'))
             self.status.set_text(read_json(self.work/'status.json').get('message','Starting the updated app…'))
 
     def build_footer(self):
@@ -92,7 +95,14 @@ class UpdateControls:
 
     def refresh_footer(self):
         busy=bool(self.work or self.process or self.starting)
-        name='updating' if busy else 'available' if self.manifest else 'complete' if self.completed else 'disabled'
+        now=time.monotonic()
+        if self.completion_waiting and getattr(self.owner,'page',None)=='workspace':
+            motion=getattr(self.owner,'workspace_motion',None)
+            if motion is None or motion.value==1:
+                self.completion_waiting=False
+                self.completion_until=now+5
+        complete=now<self.completion_until
+        name='updating' if busy else 'complete' if complete else 'available' if self.manifest else 'disabled'
         self.icon.set_state(name)
         self.footer_labels.set_visible_child_name(name)
         self.owner.targets['update-caption']=self.footer_labels.get_visible_child()
@@ -102,7 +112,7 @@ class UpdateControls:
         accessible(self.footer_status,'Update status',message or '')
         accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'No update available'}[name],
                    'Installed version '+self.owner.version())
-        self.footer_button.set_sensitive(bool(self.manifest and not busy and not self.checking))
+        self.footer_button.set_sensitive(name=='available' and not self.checking)
         accessible(self.button,'Update app' if self.manifest else 'Check for updates')
         button_text(self.button,'Update app' if self.manifest else 'Check for updates')
 
@@ -173,15 +183,19 @@ class UpdateControls:
 
     def start_update(self,manifest):
         if self.checking or self.process or self.starting or self.work: return
-        self.footer_feedback=True; self.completed=False
+        self.footer_feedback=True
         if self.blocked(): self.status.set_text('Finish the current work before updating.'); self.refresh_footer(); return
         owner=self.owner
+        self.completion_until=0
+        self.completion_waiting=False
+        self.origin_page=owner.page
         try:
             base=state_path(); base.mkdir(parents=True,exist_ok=True,mode=0o700)
             self.work=base/('run-'+uuid.uuid4().hex); self.work.mkdir(mode=0o700)
             package=os.environ['CENTAUR_GTK_PACKAGE']
             write_json(self.work/'manifest.json',manifest)
             write_json(self.work/'request.json',{'dataDir':str(owner.root),'package':package,
+                       'originPage':self.origin_page,
                        'parentPid':os.getpid(),'parentIdentity':process_identity(os.getpid()),
                        'reportDir':str(owner.reports) if owner.reports else None,
                        'omp':os.environ.get('CENTAUR_AGENT') or owner.data.get('agentExecutable','')})
@@ -222,6 +236,12 @@ class UpdateControls:
         self._tick()
         self.refresh_footer()
 
+    def record_completion(self):
+        self.manifest=None
+        self.footer_feedback=False
+        self.completion_waiting=getattr(self,'origin_page',None)!='workspace'
+        self.completion_until=0 if self.completion_waiting else time.monotonic()+10
+
     def _tick(self):
         owner=self.owner
         if time.monotonic()>=self.next_check and not (self.checking or self.process or self.starting): self.check()
@@ -231,13 +251,12 @@ class UpdateControls:
             and (not expected or owner.project.get('id')==expected)):
             self.ready_written=True
             write_json(owner.update_session/'ready.json',{'pid':os.getpid(),'buildId':os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'),'connected':True})
-        if not self.work: return
-        value=read_json(self.work/'status.json'); phase=value.get('phase')
         if self.starting:
             owner.root_overlay.get_child().set_sensitive(False)
             if self.ready_written and not owner.data.get('updateHeld'):
                 self.starting=False; owner.root_overlay.get_child().set_sensitive(True)
-                if phase=='restarting': self.status.set_text('Centaur updated.')
+        if not self.work: return
+        value=read_json(self.work/'status.json'); phase=value.get('phase')
         if value.get('message'):
             message=value['message']
             if phase=='verifying' and value.get('downloadBytes',0)>0:
@@ -252,10 +271,9 @@ class UpdateControls:
             owner.quit()
         elif self.process and self.process.poll() is not None:
             if phase not in ('failed','recovered','complete'): self.status.set_text('The update stopped. Your installed version is preserved.')
-            if phase=='complete': self.completed=True; self.manifest=None; self.footer_feedback=False
+            if phase=='complete': self.record_completion()
             self.process=None; self.set_sensitive(True); self.work=None
         elif not self.process and phase in ('complete','recovered','failed','recovery-required'):
-            self.completed=phase=='complete'
-            if self.completed: self.manifest=None; self.footer_feedback=False
+            if phase=='complete': self.record_completion()
             self.work=None; self.set_sensitive(True); self.reset_footer_action()
 

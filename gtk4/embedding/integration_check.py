@@ -16,6 +16,7 @@ from import_check import check_imports
 from polish_check import check_provider_hovers,check_working_pixels
 from activity_check import check_activity
 from pass2_check import check_settings_feedback,check_cards_and_profile,check_waiting_flows
+from workspace_polish_check import check_workspace_polish,check_unshared_hover
 
 
 class Bridge:
@@ -361,12 +362,7 @@ if cfg.get('fixtureProgressGate'):
         until(lambda:any(m.get('text')=='Ready for the next request.' for m in gs()['project']['messages']),'A new prompt after Stop did not complete')
         until(lambda:not hs()['workingAnimation']['running'],'Completed request did not stop its working indicator')
         summary['checks'].append('stop-cancels-current-request-preserves-work-and-allows-immediate-next-prompt')
-        old_child=hs()['childPid']
-        click(hs,hw,'nav-projects')
-        until(lambda:hs().get('page')=='projects' and hs().get('childPid') is None,'Leaving workspace did not stop the preview')
-        click(hs,hw,'open-'+project_id)
-        until(lambda:(hs().get('child') or {}).get('ready') and hs().get('childPid')!=old_child,'Reopening the same project did not start its preview')
-        summary['checks'].append('project-navigation-stops-preview-and-reopens-same-project')
+        summary['checks']+=check_workspace_polish(driver,folder,hs,hw,gs,gw,click,project_id)
         click(hs,hw,'nav-projects'); resize_host(1440,1024)
         driver.screenshot(hw,folder/'ui-project-cards.png')
         card=hs()['targets']['open-'+project_id]
@@ -387,6 +383,9 @@ if cfg.get('fixtureProgressGate'):
             control.send('create',name='Family idea '+str(number),description='An idea to make together.')
             until(lambda:len(hs()['projects'])==number,'Grid audit project did not appear')
         control.close(); control=None
+        unshared=next(p['id'] for p in hs()['projects'] if p['id']!=project_id)
+        check_unshared_hover(driver,folder,hs,hw,unshared)
+        summary['checks'].append('unshared-project-hover-never-displays-collaborators')
         for width,count in [(560,1),(1080,2),(1440,3),(1744,4),(2048,5)]:
             resize_host(width,1024)
             until(lambda:hs()['layout']['tileColumns']==count,'Project grid column breakpoint failed')

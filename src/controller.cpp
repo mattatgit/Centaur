@@ -63,6 +63,24 @@ void Controller::start(bool background) {
     m_session.start(background);
 }
 QString Controller::author() const { return remoteProject() ? m_shared.value(m_projectId)->author() : m_author; }
+QJsonArray Controller::projectCollaborators(const QString &id) const {
+    const auto sharing = m_states.value(id)["sharing"].toObject();
+    const auto *remote = m_shared.value(id, nullptr);
+    if (!remote && !sharing["enabled"].toBool()) return {};
+
+    const auto current = remote ? remote->author() : m_author;
+    QJsonArray result;
+    QSet<QString> added;
+    auto append = [&](const QString &name, bool self = false) {
+        if (name.isEmpty() || added.contains(name.toCaseFolded())) return;
+        added.insert(name.toCaseFolded());
+        result.append(QJsonObject{{"name", name}, {"self", self}});
+    };
+    append(current, true);
+    if (remote) append(sharing["owner"].toString());
+    for (const auto &value : sharing["members"].toArray()) append(value.toString());
+    return result;
+}
 bool Controller::canContribute() const { return remoteProject() ? m_shared.value(m_projectId)->writable() : m_session.connected(); }
 bool Controller::agentAvailable() const { return remoteProject() ? m_shared.value(m_projectId)->agentAvailable() : m_agentAvailable; }
 bool Controller::agentBusy() const { return remoteProject() ? m_shared.value(m_projectId)->busy() :
