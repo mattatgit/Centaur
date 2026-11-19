@@ -1,0 +1,94 @@
+{
+  "workflow": {
+    "runId": 44462337557,
+    "url": "https://github.com/mattatgit/Centaur/actions/runs/44462337557",
+    "jobId": 135351869485,
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Build retained service and run core, network and Iroh regressions",
+        "conclusion": "success"
+      },
+      {
+        "name": "Cache service only after its regressions pass",
+        "conclusion": "success"
+      },
+      {
+        "name": "Native embedding, scaling, capture and two-profile GTK4 integration",
+        "conclusion": "success"
+      },
+      {
+        "name": "Publish GTK4 development preview after successful checks",
+        "conclusion": "success"
+      },
+      {
+        "name": "Save signed-cache metadata",
+        "conclusion": "success"
+      },
+      {
+        "name": "Exercise Settings update against the published signed package",
+        "conclusion": "success"
+      },
+      {
+        "name": "Advertise the verified in-app update",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "name": "gtk4-updater-aarch64-linux",
+      "id": 14501725196,
+      "digest": "sha256:4bc2a9ba873102eb5ce5157940370eab9995c8e4aca09753bff07878c265fd0a"
+    },
+    {
+      "name": "gtk4-integration-aarch64-linux",
+      "id": 14501121903,
+      "digest": "sha256:c090139e5ec6476f1fb10e442959585a1d2f767e8adccdcccb405f7402ccb7b2"
+    },
+    {
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "id": 14500942287,
+      "digest": "sha256:5d783d268bad31567a146d3c1421a34475ba99670ed1e40c16837b2641f2b539"
+    }
+  ],
+  "publicFeed": {
+    "verifiedAt": "2026-11-19T05:14:36.570470+00:00",
+    "unauthenticated": true,
+    "advertisedManifestMatchesVerifiedArtifact": true,
+    "releaseUrl": "https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview",
+    "version": "Centaur GTK4 0.4.0-preview+d9ea71e",
+    "sourceRevision": "d9ea71eeb42c72ecfa0dfbdd71e2b30f8a6bf5f8",
+    "storePath": "/nix/store/9g9viyli6hpbhrp24anzfpq7rprkq90m-centaur-gtk4-preview-0.4.0-preview",
+    "closurePathCount": 613,
+    "publicSigningKeys": [
+      "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+    ]
+  },
+  "vmSignedPackage": {
+    "version": "Centaur GTK4 0.4.0-preview+d9ea71e",
+    "sourceRevision": "d9ea71eeb42c72ecfa0dfbdd71e2b30f8a6bf5f8",
+    "storePath": "/nix/store/9g9viyli6hpbhrp24anzfpq7rprkq90m-centaur-gtk4-preview-0.4.0-preview",
+    "runtimeFrontendMatchesTestedSource": true,
+    "originalAssetsAndAnimationMatch": true,
+    "originalApplicationIconMatches": true,
+    "ownerProfileActivated": false,
+    "ownerProfileBefore": "/nix/store/d8zgbqfnq5a3fsii0yxwbhxqy49c5hch-centaur-gtk4-preview-0.4.0-preview"
+  },
+  "vmPreservation": {
+    "ownerGtk4Profile": "/nix/store/d8zgbqfnq5a3fsii0yxwbhxqy49c5hch-centaur-gtk4-preview-0.4.0-preview",
+    "ownerGtk4ProfileUnchanged": true,
+    "ownerQtProfile": "/nix/store/rid9cdhgphzwz7whyjs8c8800913zlhq-centaur-0.3.1",
+    "ownerProfileActivated": false,
+    "remainingPrivateProcesses": 0,
+    "privateTestDataAndProfilesRemoved": true,
+    "ownerAcceptanceComplete": false
+  },
+  "vmRegressions": {
+    "pythonTests": 97,
+    "coreNetworkAndIrohSuitesPassed": 3,
+    "nativeChecks": 45,
+    "architecture": "aarch64-linux",
+    "guestOs": "NixOS 26.05 under UTM"
+  }
+}
