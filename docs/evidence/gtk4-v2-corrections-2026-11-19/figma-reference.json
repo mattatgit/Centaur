@@ -1,0 +1,12 @@
+{
+  "prototype": "https://www.figma.com/proto/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=68-2121",
+  "playedIn": "Figma Desktop Presentation",
+  "referenceResolution": [1440, 1024],
+  "projects": {"id": "68:2121", "canvasLeft": 216, "canvasRight": 1432, "chatLeft": -224},
+  "openVia": "72:1103",
+  "edit": {"id": "68:1897", "canvasLeft": 448, "canvasRight": 1432, "chatLeft": 8},
+  "returnVia": ["72:1276", "72:1598"],
+  "interact": "68:2506",
+  "mainSwitch": {"component": "68:2297", "track": [136, 24], "trackFill": "#f8f8f8", "selectionFill": "#ebebeb", "radius": 8, "interactSelection": [0, 72], "buildSelection": [72, 64]},
+  "implementationTimingMs": {"workspace": 330, "modeSwitch": 220}
+}

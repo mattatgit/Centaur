@@ -1,0 +1,111 @@
+{
+  "edit-to-projects.mp4": {
+    "size": [
+      1200,
+      860
+    ],
+    "durationSeconds": 2.046,
+    "frames": 119,
+    "leftPositionsInPlaybackOrder": [
+      449,
+      447,
+      434,
+      412,
+      382,
+      347,
+      311,
+      275,
+      248,
+      228,
+      218,
+      217
+    ],
+    "rightPositionsInPlaybackOrder": [
+      1190
+    ]
+  },
+  "mode-switch.mp4": {
+    "size": [
+      272,
+      116
+    ],
+    "durationSeconds": 2.123,
+    "frames": 125,
+    "leftPositionsInPlaybackOrder": [
+      2,
+      3,
+      7,
+      12,
+      19,
+      26,
+      34,
+      43,
+      51,
+      58,
+      64,
+      70,
+      73,
+      74,
+      72,
+      68,
+      63,
+      56,
+      48,
+      40,
+      32,
+      24,
+      17,
+      11,
+      6
+    ],
+    "rightPositionsInPlaybackOrder": [
+      69,
+      70,
+      73,
+      78,
+      84,
+      91,
+      97,
+      105,
+      112,
+      119,
+      124,
+      129,
+      131,
+      133,
+      128,
+      123,
+      117,
+      110,
+      103,
+      96,
+      88,
+      82,
+      77
+    ]
+  },
+  "projects-to-edit.mp4": {
+    "size": [
+      1200,
+      860
+    ],
+    "durationSeconds": 1.979,
+    "frames": 116,
+    "leftPositionsInPlaybackOrder": [
+      217,
+      220,
+      234,
+      259,
+      291,
+      324,
+      358,
+      390,
+      417,
+      438,
+      449
+    ],
+    "rightPositionsInPlaybackOrder": [
+      1190
+    ]
+  }
+}
