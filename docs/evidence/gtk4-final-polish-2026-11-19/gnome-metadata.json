@@ -1,0 +1,10 @@
+{
+  "desktopId": "org.centaur.Gtk4.desktop",
+  "name": "Centaur GTK4",
+  "iconNames": [
+    "org.centaur.Gtk4",
+    "org.centaur.Gtk4-symbolic"
+  ],
+  "startupWMClass": "org.centaur.Gtk4",
+  "originalSha256": "ce5bc85e127d41dbe6b43d96ee35b0b6e64b00fb049e8c17aff39d2155d93344"
+}

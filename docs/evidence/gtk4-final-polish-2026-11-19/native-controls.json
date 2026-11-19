@@ -1,0 +1,218 @@
+{
+  "compositor": "disposable Sway; GNOME visual acceptance pending",
+  "checks": [
+    "original-v2-32px-artwork-integrated-80px-header-native-close-action",
+    "original-svg-visible-clock-driven-frames-one-second-loop-reduced-motion-and-map-idle-transitions",
+    "invite-native-ellipsize-normal-narrow-full-clipboard-acknowledgement-and-modal-hover",
+    "native-rounded-bottom-corners-and-clipped-content",
+    "native-pointer-hover-pressed-and-no-underlying-circular-fill",
+    "eight-outer-target-points-activate-native-close",
+    "disabled-does-not-close-native-focus-policy-and-synthetic-focus-visible",
+    "native-titlebar-drag-compositor-resize-tile-fullscreen-and-restore",
+    "inactive-and-unscoped-native-window-unchanged",
+    "workspace-and-mode-frame-clock-reversal-and-reduced-motion",
+    "native-close-destroys-window"
+  ],
+  "baseline": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "styled": {
+    "header": [
+      0.0,
+      0.0,
+      704.0,
+      80.0
+    ],
+    "content": [
+      0.0,
+      80.0,
+      704.0,
+      320.0
+    ],
+    "button": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "image": [
+      648.0,
+      24.0,
+      32.0,
+      32.0
+    ],
+    "artwork": [
+      656.0,
+      32.0,
+      16.0,
+      16.0
+    ],
+    "icon": "78a93.svg",
+    "action": "window.close",
+    "canFocus": false
+  },
+  "pointerOffset": [
+    0.0,
+    0.0
+  ],
+  "crossfade": {
+    "commonInkPixels": 151,
+    "maximumChannelDrift": 1,
+    "originalSvgUnchanged": true
+  },
+  "clockPlayback": [
+    {
+      "seconds": 0.143,
+      "opacities": [
+        0.80376,
+        0.19624
+      ]
+    },
+    {
+      "seconds": 0.293,
+      "opacities": [
+        0.512194,
+        0.487806
+      ]
+    },
+    {
+      "seconds": 0.441,
+      "opacities": [
+        0.21266600000000002,
+        0.787334
+      ]
+    },
+    {
+      "seconds": 0.591,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.742,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 0.884,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.025,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.173,
+      "opacities": [
+        0.750424,
+        0.249576
+      ]
+    },
+    {
+      "seconds": 1.314,
+      "opacities": [
+        0.45745199999999997,
+        0.542548
+      ]
+    },
+    {
+      "seconds": 1.455,
+      "opacities": [
+        0.16944599999999999,
+        0.830554
+      ]
+    },
+    {
+      "seconds": 1.598,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.743,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 1.894,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 2.04,
+      "opacities": [
+        0,
+        1
+      ]
+    },
+    {
+      "seconds": 2.184,
+      "opacities": [
+        0.728494,
+        0.271506
+      ]
+    }
+  ],
+  "tiledState": 21952,
+  "workspaceMotionSamples": [
+    0.011815625,
+    0.0639,
+    0.114678125,
+    0.1666875,
+    0.2188875,
+    0.27453125,
+    0.222453125,
+    0.168971875,
+    0.11286562500000002,
+    0.06063437499999999,
+    0.007596875000000003,
+    0.0,
+    1
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "verifiedAt": "2026-11-19T04:28:46.829147+00:00",
+  "unauthenticated": true,
+  "advertisedManifestMatchesVerifiedArtifact": true,
+  "releaseUrl": "https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview",
+  "version": "Centaur GTK4 0.4.0-preview+e09a1e9",
+  "sourceRevision": "e09a1e99c35dcaa090fd1a2742d3bca24e09b8bd",
+  "storePath": "/nix/store/d8zgbqfnq5a3fsii0yxwbhxqy49c5hch-centaur-gtk4-preview-0.4.0-preview",
+  "closurePathCount": 613,
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ],
+  "ci": {
+    "productRun": 44457263027,
+    "embeddingRun": 44457263036,
+    "distributionArtifact": 14499225043,
+    "productEvidenceArtifact": 14498778176,
+    "updaterEvidenceArtifact": 14497829445,
+    "productChecks": 42,
+    "updaterChecks": 13
+  },
+  "vm": {
+    "system": "aarch64-linux",
+    "os": "NixOS",
+    "hypervisor": "UTM",
+    "gnome": "50.5",
+    "testedSourceFiles": 624,
+    "productChecks": 42,
+    "embeddingChecks": 19,
+    "pythonTests": 97,
+    "serviceSuites": 3,
+    "signedUpdaterChecks": 13,
+    "runtimeFrontendMatchesTestedSource": true,
+    "originalApplicationIconMatches": true,
+    "ownerGtk4Profile": "/nix/store/5h26aqzf6ips0qs3g8q6i831m9v55li7-centaur-gtk4-preview-0.4.0-preview",
+    "ownerGtk4ProfileUnchanged": true,
+    "ownerQtProfile": "/nix/store/rid9cdhgphzwz7whyjs8c8800913zlhq-centaur-0.3.1",
+    "ownerProfileActivated": false,
+    "remainingPrivateProcesses": 0,
+    "privateTestDataAndProfilesRemoved": true,
+    "ownerAcceptanceComplete": false
+  }
+}

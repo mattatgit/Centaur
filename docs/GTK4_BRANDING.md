@@ -4,11 +4,10 @@ The owner's 10 November 2026 artwork is retained verbatim in
 `assets/branding/Centaur.svg` (120×128, orange `#FF9601` and green `#177967`)
 and `Centaur_mono.svg` (30×32, `#171717`). Do not redraw these paths.
 
-`packaging/centaur-app.svg` wraps the colour mark in a transparent 128×128
-canvas. Uniform 0.875 scaling gives a 105×112 silhouette, centred with an 8px
-top/bottom margin and 11.5px sides. It adds no background tile, shadow or altered
-colours. The SVG is the scalable app icon; Nix renders transparent PNGs at
-16, 24, 32, 48, 64, 128, 256 and 512 pixels using librsvg.
+The GTK4 application icon is the supplied 1024 × 1024 RGBA
+`assets/branding/Centaur_App_Icon.png`. Nix copies the original byte for byte
+and generates alpha-preserving hicolor sizes from 16 to 512 pixels. The previous
+SVG artwork remains in the updater's old-version test fixture.
 
 The GTK UI loads the supplied monochrome SVG as its existing `centaur.svg`
 asset. Both the sidebar and workspace header render it in a centred 24×24px
@@ -26,8 +25,10 @@ The separate GTK profile does not normally contribute to the desktop's global
 data search paths. On normal startup from the dedicated installed profile,
 `desktop.py` registers per-user desktop/icon symlinks under `$XDG_DATA_HOME`
 (default `~/.local/share`). They point through the stable GTK profile, so icons
-and the launcher follow future updates. Development runs outside that profile
-do not register themselves; existing user-created entries are left intact.
+and the launcher follow future updates. When the packaged icon switches to PNG,
+registration retires the old full-colour SVG symlink owned by that profile.
+Development runs outside the profile skip registration, and user-created
+entries retain precedence.
 
 The packaged menu action uses `--desktop-launch`. Its small private settings file
 is `$XDG_CONFIG_HOME/centaur-gtk4/desktop.json` (default `~/.config`), recording the
