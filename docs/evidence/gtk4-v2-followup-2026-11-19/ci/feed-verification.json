@@ -1,0 +1,13 @@
+{
+  "verifiedAt": "2026-11-19T02:53:00.935753+00:00",
+  "unauthenticated": true,
+  "advertisedManifestMatchesVerifiedArtifact": true,
+  "releaseUrl": "https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview",
+  "version": "Centaur GTK4 0.4.0-preview+ff58f74",
+  "sourceRevision": "ff58f74d19e5e4c2c7751a46c1d5abc658506826",
+  "storePath": "/nix/store/lvwy523ds04hnfbhmh1kdy4588n1zxp6-centaur-gtk4-preview-0.4.0-preview",
+  "closurePathCount": 613,
+  "publicSigningKeys": [
+    "mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58="
+  ]
+}

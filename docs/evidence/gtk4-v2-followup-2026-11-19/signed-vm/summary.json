@@ -1,0 +1,21 @@
+{
+  "checks": [
+    "real-signed-cache-compressed-byte-counter-into-empty-store",
+    "throttled-signed-nar-settings-and-footer-advance-before-copy-exit",
+    "desktop-id-and-color-symbolic-icons-user-registration-renderer-preservation",
+    "settings-version-and-published-update",
+    "figma-original-download-icon-right-version-chip-and-native-keyboard",
+    "both-entry-points-restart-warning-and-not-now-without-transaction",
+    "confirmed-footer-live-status-detached-download-signature-verification",
+    "confirmed-settings-real-profile-switch-restart-and-restored-settings-page",
+    "edit-success-ten-seconds-and-settings-first-edit-visit-five-seconds-then-original-idle-art",
+    "real-nix-profile-switch-and-gtk-restart",
+    "project-chat-preferences-identities-preserved",
+    "qt-profile-and-data-preserved",
+    "real-host-maintenance-gate-and-busy-agent-refusal"
+  ],
+  "real_nix_profile": true,
+  "signed_cache": true,
+  "production_approved": false,
+  "passed": true
+}

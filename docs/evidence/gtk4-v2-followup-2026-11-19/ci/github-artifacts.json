@@ -1,0 +1,56 @@
+{
+  "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826",
+  "jobs": [
+    {
+      "id": 135298592848,
+      "runId": 44446129302,
+      "name": "GTK4 product and preserved service regressions ARM64",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 135298593742,
+      "runId": 44446129466,
+      "name": "GTK4 viewport ARM64",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 14493431846,
+      "name": "gtk4-distribution-aarch64-linux",
+      "digest": "sha256:247a3facffd5d9af1efdd424b788caeb10162d9744ac4af223b7e883dcae40d6",
+      "size": 10947,
+      "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826"
+    },
+    {
+      "id": 14493217640,
+      "name": "gtk4-phase1-aarch64-linux",
+      "digest": "sha256:a0f29ef1d760a082d763636b4a3d4a5d5b54c90c0504cab1249eacc91f904422",
+      "size": 699717,
+      "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826"
+    },
+    {
+      "id": 14494126147,
+      "name": "gtk4-product-distribution-aarch64-linux",
+      "digest": "sha256:19e263693966baadd88394cd7cc25487b376dd2cea284697ee61df8ad07318aa",
+      "size": 19501,
+      "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826"
+    },
+    {
+      "id": 14493084682,
+      "name": "gtk4-integration-aarch64-linux",
+      "digest": "sha256:ae5c94cfae8d4ef8796df6c698059e9efe5356e576ebf55259e125ec89e6a74f",
+      "size": 7869440,
+      "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826"
+    },
+    {
+      "id": 14492939716,
+      "name": "gtk4-updater-aarch64-linux",
+      "digest": "sha256:58ad01b535926a3e2863cafbd526f50a8728393652a662e6d5fc3ed6d3f83ca2",
+      "size": 7773280,
+      "source": "ff58f74d19e5e4c2c7751a46c1d5abc658506826"
+    }
+  ]
+}

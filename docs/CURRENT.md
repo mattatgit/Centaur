@@ -1,5 +1,17 @@
 # Current state
 
+## V2 polish follow-up — 19 November 2026
+
+Signed preview **`0.4.0-preview+ff58f74`** comes from
+`ff58f74d19e5e4c2c7751a46c1d5abc658506826`. It adds timed updater receipts,
+Projects/Edit motion that keeps the selected preview running, the sliding
+Interact/Build indicator, and hover avatars drawn from the shared project
+roster. The VM passed 40 native product checks, 19 embedding checks, 94 Python
+tests and three service suites. Both signed updater transactions passed in
+CI and in disposable ARM64 NixOS profiles. The advertised feed matches the
+verified signed package. Installation and acceptance remain in Centaur Install.
+[Technical evidence and screenshots](GTK4_V2_FOLLOWUP.md)
+
 ## V2 completion and polish — 18 November 2026
 
 Published signed preview: **`0.4.0-preview+4144bb8`**, immutable source

@@ -1,0 +1,28 @@
+{
+  "version": "Centaur GTK4 0.4.0-preview+ff58f74",
+  "sourceRevision": "ff58f74d19e5e4c2c7751a46c1d5abc658506826",
+  "storePath": "/nix/store/lvwy523ds04hnfbhmh1kdy4588n1zxp6-centaur-gtk4-preview-0.4.0-preview",
+  "runtimeFrontendMatchesTestedSource": true,
+  "originalAssetsAndAnimationMatch": true,
+  "ownerProfileActivated": false,
+  "ownerProfileBefore": "/nix/store/vr0x56ni8y26lwzvg0ilc8yd9i4fsrx4-centaur-gtk4-preview-0.4.0-preview",
+  "checks": 13,
+  "transactions": [
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+ff58f74",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    },
+    {
+      "phase": "complete",
+      "message": "Centaur updated.",
+      "version": "Centaur GTK4 0.4.0-preview+ff58f74",
+      "downloadBytes": 0,
+      "totalBytes": 0
+    }
+  ],
+  "ownerProfileAfter": "/nix/store/vr0x56ni8y26lwzvg0ilc8yd9i4fsrx4-centaur-gtk4-preview-0.4.0-preview",
+  "privateMetadataFixture": true
+}

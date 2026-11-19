@@ -1,5 +1,12 @@
 # Centaur GTK4 V2 follow-up
 
+The signed preview is **`0.4.0-preview+ff58f74`**, built from
+`ff58f74d19e5e4c2c7751a46c1d5abc658506826`. The public feed matches the
+verified manifest and its 613 signed closure paths.
+[Preview](https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview) ·
+[Product and updater CI](https://github.com/mattatgit/Centaur/actions/runs/44446129302) ·
+[Embedding CI](https://github.com/mattatgit/Centaur/actions/runs/44446129466)
+
 The four refinements build on the accepted `0.4.0-preview+4144bb8`. The
 [prototype](https://www.figma.com/proto/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=68-2121),
 [Main switch](https://www.figma.com/design/9RnuP79pD007wjhTdXZ5WW/Centaur?node-id=68-2297),
@@ -46,3 +53,18 @@ animation match their recorded hashes.
 [Mode selection in motion](evidence/gtk4-v2-followup-2026-11-19/vm/native/polish-mode-slide-right.png) ·
 [Shared tile](evidence/gtk4-v2-followup-2026-11-19/vm/native/polish-shared-host.png) ·
 [Narrow Edit view](evidence/gtk4-v2-followup-2026-11-19/vm/native/polish-narrow-workspace.png)
+
+The exact signed artifact passed 13 updater checks in CI and in disposable
+ARM64 NixOS profiles. Both signed transactions switched profiles and
+restarted Centaur. Edit showed the receipt for ten seconds, Settings held it
+until the first Edit visit and showed it for five seconds, and both returned
+to the original grey icon. A later Edit visit after expiry showed the idle
+icon. The VM run reused a disposable copy of public package metadata and
+verified the signed package and original artwork. The installed owner
+profile remained on the accepted baseline.
+[Release receipt](evidence/gtk4-v2-followup-2026-11-19/release-verification.json) ·
+[Edit after completion](evidence/gtk4-v2-followup-2026-11-19/ci/updated-app.png) ·
+[Edit after expiry](evidence/gtk4-v2-followup-2026-11-19/ci/edit-completion-expired.png) ·
+[First Edit visit after Settings update](evidence/gtk4-v2-followup-2026-11-19/ci/settings-completion-in-edit.png)
+
+Installation and hands-on GNOME acceptance remain in Centaur Install.

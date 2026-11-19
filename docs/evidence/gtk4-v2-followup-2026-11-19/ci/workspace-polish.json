@@ -1,0 +1,36 @@
+{
+  "hostRoster": [
+    {
+      "name": "Matt",
+      "self": true
+    },
+    {
+      "name": "Guest",
+      "self": false
+    }
+  ],
+  "guestRoster": [
+    {
+      "name": "Guest",
+      "self": true
+    },
+    {
+      "name": "Matt",
+      "self": false
+    }
+  ],
+  "modeSwitch": [
+    464.0,
+    96.0,
+    136.0,
+    24.0
+  ],
+  "hostAppProcessPreserved": true,
+  "guestAppProcessPreserved": true,
+  "chatAndViewportPreserved": true,
+  "windowSizePreserved": true,
+  "narrowWorkspace": [
+    560,
+    860
+  ]
+}
