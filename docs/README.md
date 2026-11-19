@@ -27,15 +27,18 @@ Before implementing a feature, read its requirements and decisions, then inspect
 
 The source snapshot used for this review is `f2f72577b90edf23c8266b15a1a07905e017c066` on `codex/native-prototype`, declaring v0.3.0. The handover's verified v0.2.0 build, `09c573d4feddca55ca49d7641748fff78ffaa775`, remains an earlier baseline. Current evidence belongs in [Current state](CURRENT.md); it should advance as development proceeds.
 
+## Installation and updates
+
+Start with the [root README](../README.md#install-on-arm64-nixos) for the current ARM64 NixOS preview.
+
+- [Install and update Centaur on ARM64 NixOS](NIXOS_INSTALL.md)
+- [Set up the Centaur agent on NixOS](OMP_NIXOS_SETUP.md)
+
 ## Operational guides
 
-Keep these procedures in their existing locations:
-
-- [Easy NixOS installation and updates](NIXOS_INSTALL.md)
-- [Precompiled NixOS distribution](BINARY_DISTRIBUTION.md)
+- [Qt prototype binary distribution](BINARY_DISTRIBUTION.md)
 - [Collaboration over LAN and Iroh](LAN_COLLABORATION.md)
-- [OMP setup on NixOS](OMP_NIXOS_SETUP.md)
-- [Target machine testing](TESTING_ON_NIXOS.md)
+- [Historical MacBook Air testing](TESTING_ON_NIXOS.md)
 - [Landline native embedding experiment](LANDLINE_EMBEDDING_TEST.md)
 - [GTK4 migration and Casilda experiment](GTK4_MIGRATION.md)
 - [GTK4 development project format and service boundary](GTK4_PROJECT_FORMAT.md)

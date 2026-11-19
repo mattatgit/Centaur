@@ -4,7 +4,7 @@ Keep editing on the faster Mac. Use the Air as the native embedding and resource
 
 ## Install and update a precompiled package
 
-Follow [Easy installation and updates](NIXOS_INSTALL.md) for the one-time public-cache configuration, installation and download-only updates. See [Binary distribution](BINARY_DISTRIBUTION.md) for publication and signature verification. The cache and CI write credential must be activated first; successful build checks alone do not publish binaries.
+Follow the [Qt prototype installation and update guide](https://github.com/mattatgit/Centaur/blob/3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450/docs/NIXOS_INSTALL.md) for the one-time public-cache configuration, installation and download-only updates. See [Binary distribution](BINARY_DISTRIBUTION.md) for publication and signature verification. The cache and CI write credential must be activated first; successful build checks alone do not publish binaries.
 
 After the cache is configured and the wanted commit is published, a one-off cache-only launch is:
 
@@ -37,11 +37,11 @@ Typography should be Inter in project cards, chat, buttons, fields, menus/dialog
 
 The bottom-right chat footer shows Centaur's software version and build revision on the same line as “Chatting as…”. It should remain visible when narrowing the chat panel; the author/keyboard hint can elide and its full text is available on hover. `centaur --version` should report the same identifier. This is independent of the generated app's internal revision history.
 
-Use the commands under “Two authors, one computer” in the README, with the same `--data-dir` in both terminals. Choose different author names. The background host survives closing the first window.
+Use the [Qt prototype's two-author commands](https://github.com/mattatgit/Centaur/blob/3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450/README.md#two-authors-one-computer), with the same `--data-dir` in both terminals. Choose different author names. The background host survives closing the first window.
 
 With a fresh data directory, start both windows with `--demo`. Both should open the same single starter project. Make an app change, return to Projects in both windows, and reopen it: there should still be one project with the saved change. Restart both windows with the same directory and `--demo` and check that the project is reused. **New project** should still create a separate app intentionally. Older unwanted starter projects remain separate saved folders; do not delete them until you have checked which contains the work you want.
 
-To connect the live agent, follow [Omp NixOS Setup](OMP_NIXOS_SETUP.md). Then try:
+To connect the live agent, follow the [Qt prototype's OMP setup](https://github.com/mattatgit/Centaur/blob/3d24d11e959c1c6ec8c16df5b1c3e4bd7183e450/docs/OMP_NIXOS_SETUP.md). Then try:
 
 - Matt: “Keep the navigation minimal.”
 - Saori: “All six sections must be easy to reach. @centaur, what do you suggest?”
