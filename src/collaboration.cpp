@@ -11,6 +11,7 @@
 #include <QNetworkInterface>
 #include <QProcess>
 #include <QRandomGenerator>
+#include <QSaveFile>
 #include <QSslConfiguration>
 #include <QSslKey>
 #include <QUuid>
@@ -31,8 +32,12 @@ QJsonObject readObject(const QString &path) {
     QFile file(path); return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
 }
 bool privateFile(const QString &path, const QJsonObject &value, QString *error = nullptr) {
-    if (!Workspace::writeFile(path, QJsonDocument(value).toJson(QJsonDocument::Compact), error)) return false;
-    return QFile::setPermissions(path, QFile::ReadOwner | QFile::WriteOwner);
+    QSaveFile file(path);
+    const auto bytes = QJsonDocument(value).toJson(QJsonDocument::Compact);
+    if (file.open(QIODevice::WriteOnly) && file.setPermissions(QFile::ReadOwner | QFile::WriteOwner)
+        && file.write(bytes) == bytes.size() && file.commit()) return true;
+    if (error) *error = file.errorString();
+    return false;
 }
 void write(QIODevice *socket, const QJsonObject &data) {
     const auto bytes = QJsonDocument(data).toJson(QJsonDocument::Compact) + '\n';
@@ -53,6 +58,7 @@ void TlsServer::incomingConnection(qintptr descriptor) {
 
 CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QObject(parent), m_workspace(root), m_iroh(root) {
     m_shares = readObject(root + "/network/shares.json");
+    m_revocations = m_shares.take("_revocations").toObject();
     m_server.accepted = [this](QSslSocket *socket) { accept(socket); };
     m_internetServer.accepted = m_server.accepted;
     connect(&m_iroh, &IrohBridge::prepared, this, [this] {
@@ -69,12 +75,7 @@ CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QOb
         emit membershipChanged();
     });
     connect(&m_iroh, &IrohBridge::unavailable, this, &CollaborationHost::membershipChanged);
-    bool lan = false, internet = false;
-    for (const auto &value : m_shares) {
-        const auto share = value.toObject();
-        lan |= share["lan"].toBool(!share.contains("iroh")); internet |= share["iroh"].toBool();
-    }
-    QString error; if (lan) listen(&error); if (internet) listenInternet(&error);
+    restoreListeners();
     m_watchdog.setInterval(5000);
     connect(&m_watchdog, &QTimer::timeout, this, [this] {
         const auto sockets = m_peers.keys();
@@ -88,7 +89,25 @@ CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QOb
 CollaborationHost::~CollaborationHost() {
     for (auto *socket : m_peers.keys()) { disconnect(socket, nullptr, this, nullptr); socket->abort(); }
 }
-bool CollaborationHost::save(QString *error) { return privateFile(m_workspace.root() + "/network/shares.json", m_shares, error); }
+bool CollaborationHost::save(QString *error) {
+    auto data = m_shares;
+    if (!m_revocations.isEmpty()) data["_revocations"] = m_revocations;
+    return privateFile(m_workspace.root() + "/network/shares.json", data, error);
+}
+void CollaborationHost::restoreListeners() {
+    bool lan = false, internet = false;
+    for (const auto *records : {&m_shares, &m_revocations}) {
+        for (const auto &value : *records) {
+            const auto record = value.toObject();
+            lan |= record["lan"].toBool(!record.contains("iroh"));
+            internet |= record["iroh"].toBool();
+        }
+    }
+    QString error;
+    if (lan) listen(&error); else m_server.close();
+    if (internet) listenInternet(&error);
+    else if (m_invitations.isEmpty()) { m_iroh.unlisten(); m_internetServer.close(); }
+}
 QString CollaborationHost::suggestedAddress() {
     for (const auto &interface : QNetworkInterface::allInterfaces()) {
         if (!(interface.flags() & QNetworkInterface::IsUp) || interface.flags() & QNetworkInterface::IsLoopBack) continue;
@@ -159,7 +178,7 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
         return {};
     }
     if (internet ? !m_iroh.ready() : !listen(error)) return {};
-    auto share = m_shares[id].toObject();
+    auto share = m_shares.value(id).toObject();
     if (!share.isEmpty() && !share.contains("iroh") && !share.contains("lan")) share["lan"] = true;
     share["owner"] = owner;
     share[internet ? "iroh" : "lan"] = true;
@@ -168,8 +187,9 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
     const auto token = secret();
     invites[digest(token.toUtf8())] = double(now() + 20 * 60 * 1000);
     share["invites"] = invites;
+    const auto previous = m_shares;
     m_shares[id] = share;
-    if (!save(error)) return {};
+    if (!save(error)) { m_shares = previous; return {}; }
     QFile certificate(m_workspace.root() + "/network/certificate.pem");
     if (!certificate.open(QIODevice::ReadOnly)) { if (error) *error = "Could not read the host certificate."; return {}; }
     const QSslCertificate cert(certificate.readAll());
@@ -186,32 +206,60 @@ QJsonObject CollaborationHost::sharing(const QString &id) const {
     const auto share = m_shares[id].toObject();
     QJsonArray names;
     for (const auto &value : share["members"].toObject()) names.append(value.toObject()["name"]);
-    return {{"enabled", !share.isEmpty() && (m_server.isListening() || m_internetServer.isListening())},
+    return {{"enabled", !share.isEmpty()},
         {"internetReady", m_iroh.ready()}, {"owner", share["owner"]}, {"members", names}};
 }
-bool CollaborationHost::stopSharing(const QString &id, QString *error) {
+bool CollaborationHost::stopSharing(const QString &id, QString *error, bool projectRemoved) {
+    const auto previousShares = m_shares, previousRevocations = m_revocations;
+    const auto share = m_shares.take(id).toObject();
+    const auto members = share["members"].toObject();
+    const QString reason = projectRemoved ? "projectRemoved" : "sharingEnded";
+    if (!members.isEmpty()) {
+        auto record = m_revocations.value(id).toObject();
+        auto credentials = record["credentials"].toObject();
+        for (const auto &hash : members.keys()) credentials[hash] = reason;
+        // A revoked credential can recover only the end notification, across
+        // host restarts and subsequent shares of the same project.
+        record["credentials"] = credentials;
+        record["lan"] = record["lan"].toBool() || share["lan"].toBool(!share.contains("iroh"));
+        record["iroh"] = record["iroh"].toBool() || share["iroh"].toBool();
+        m_revocations[id] = record;
+    }
+    if (!save(error)) { m_shares = previousShares; m_revocations = previousRevocations; return false; }
     for (const auto serial : m_invitations.keys()) if (m_invitations[serial].id == id) {
         const auto pending = m_invitations.take(serial); pending.reply({}, "Sharing was stopped before the invitation was created.");
     }
-    const auto previous = m_shares;
-    m_shares.remove(id);
-    if (!save(error)) { m_shares = previous; return false; }
-    for (auto *socket : m_peers.keys()) if (m_peers.value(socket).project == id) {
-        write(socket, {{"type", "removed"}, {"message", "The owner stopped sharing this project."}});
-        socket->disconnectFromHost();
-    }
-    bool internet = false, lan = false;
-    for (const auto &value : m_shares) {
-        const auto share = value.toObject(); internet |= share["iroh"].toBool();
-        lan |= share["lan"].toBool(!share.contains("iroh"));
-    }
-    if (!lan) m_server.close();
-    if (!internet) { m_iroh.unlisten(); m_internetServer.close(); }
+    for (auto *socket : m_peers.keys()) if (m_peers.value(socket).project == id) removePeer(socket, reason);
+    restoreListeners();
     return true;
+}
+bool CollaborationHost::leave(const QString &id, const QString &hash) {
+    auto share = m_shares.value(id).toObject();
+    auto members = share["members"].toObject();
+    if (!members.contains(hash)) return false;
+    const auto previous = m_shares;
+    members.remove(hash);
+    share["members"] = members;
+    m_shares[id] = share;
+    if (!save(nullptr)) { m_shares = previous; return false; }
+    for (auto *socket : m_peers.keys()) {
+        const auto peer = m_peers.value(socket);
+        if (peer.project == id && peer.credential == hash) removePeer(socket, "left");
+    }
+    emit membershipChanged();
+    return true;
+}
+void CollaborationHost::removePeer(QSslSocket *socket, const QString &reason) {
+    auto &peer = m_peers[socket];
+    peer.project.clear(); peer.member.clear(); peer.credential.clear();
+    const QString message = reason == "sharingEnded" ? "The owner stopped sharing this project."
+        : reason == "left" ? "This device left the project." : "The owner removed this project.";
+    write(socket, {{"type", "removed"}, {"reason", reason}, {"message", message}});
+    socket->disconnectFromHost();
 }
 void CollaborationHost::accept(QSslSocket *socket) {
     if (m_peers.size() >= 24) { socket->abort(); socket->deleteLater(); return; }
-    m_peers.insert(socket, {{}, {}, {}, {}, now()});
+    m_peers.insert(socket, {{}, {}, {}, {}, now(), {}});
     const auto folder = m_workspace.root() + "/network/";
     socket->setLocalCertificate(folder + "certificate.pem");
     socket->setPrivateKey(folder + "key.pem");
@@ -244,17 +292,25 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
     if (peer.member.isEmpty()) {
         if (data["type"] != "hello" || data["version"] != 1) { reject("This Centaur connection is incompatible."); return; }
         const auto id = data["project"].toString();
-        auto share = m_shares[id].toObject();
-        if (share.isEmpty() || m_workspace.load(id).isEmpty()) { reject("This project is no longer shared."); return; }
-        if (m_workspace.load(id)["appFormat"] == "gtk4-v1" && !data["appFormats"].toArray().contains("gtk4-v1")) {
-            reject("This project requires the GTK4 version of Centaur."); return;
-        }
         const auto token = data["memberToken"].toString();
         if (token.size() != 43) { reject("The participant credential is invalid."); return; }
         const auto hash = digest(token.toUtf8());
+        const auto revocation = m_revocations.value(id).toObject()["credentials"].toObject().value(hash).toString();
+        if (!revocation.isEmpty()) { removePeer(socket, revocation); return; }
+        auto share = m_shares.value(id).toObject();
+        const auto state = m_workspace.load(id);
+        if (share.isEmpty() || state.isEmpty() || state["archived"].toBool()) { reject("This project is no longer shared."); return; }
+        if (state["appFormat"] == "gtk4-v1" && !data["appFormats"].toArray().contains("gtk4-v1")) {
+            reject("This project requires the GTK4 version of Centaur."); return;
+        }
         auto members = share["members"].toObject();
         auto member = members[hash].toObject();
-        if (member.isEmpty()) {
+        if (data["leave"].toBool()) {
+            if (!member.isEmpty() && !leave(id, hash)) { socket->disconnectFromHost(); return; }
+            removePeer(socket, "left"); return;
+        }
+        const bool joined = member.isEmpty();
+        if (joined) {
             auto invites = share["invites"].toObject();
             const auto invitationHash = digest(data["invite"].toString().toUtf8());
             if (invites[invitationHash].toDouble() < now()) { reject("This invitation has expired or has already been used. Ask for a new one."); return; }
@@ -262,7 +318,6 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             if (name.isEmpty()) { reject("Enter your name to join."); return; }
             QSet<QString> names{share["owner"].toString().toCaseFolded()};
             for (const auto &value : members) names.insert(value.toObject()["name"].toString().toCaseFolded());
-            const auto state = m_workspace.load(id);
             for (const auto &value : state["messages"].toArray()) if (value.toObject()["kind"] == "human") names.insert(value.toObject()["author"].toString().toCaseFolded());
             for (const auto &value : state["contributors"].toArray()) names.insert(value.toString().toCaseFolded());
             for (const auto &value : state["annotations"].toArray()) names.insert(value.toObject()["author"].toString().toCaseFolded());
@@ -273,13 +328,15 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}};
             members[hash] = member; share["members"] = members;
             invites.remove(invitationHash); share["invites"] = invites;
+            const auto previous = m_shares;
             m_shares[id] = share;
             QString error;
-            if (!save(&error)) { reject("Could not save your membership. Ask the owner to check storage."); return; }
+            if (!save(&error)) { m_shares = previous; reject("Could not save your membership. Ask the owner to check storage."); return; }
         }
-        peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString(); m_peers[socket] = peer;
+        peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString();
+        peer.credential = hash; m_peers[socket] = peer;
         write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}});
-        emit membershipChanged();
+        if (joined) emit membershipChanged();
         sendSnapshot(socket);
         return;
     }
@@ -337,7 +394,7 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     const auto peer = m_peers.value(socket);
     auto state = m_workspace.load(peer.project);
     if (state.isEmpty() || state["archived"].toBool()) {
-        write(socket, {{"type", "removed"}, {"message", "The owner removed this project."}}); socket->disconnectFromHost(); return;
+        removePeer(socket, "projectRemoved"); return;
     }
     const auto source = m_workspace.source(peer.project);
     // Authenticated members receive display names for this project only.
@@ -369,6 +426,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     QDir().mkpath(path());
     QFile::setPermissions(m_root + "/shared", QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
     QFile::setPermissions(path(), QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    if (ended()) { m_terminal = true; m_removed = true; return; }
     m_editLock = std::make_unique<QLockFile>(path() + "/client.lock");
     if (m_editLock->tryLock(0)) m_outbox = m_connection["outbox"].toArray();
     m_snapshot = readObject(path() + "/snapshot.json");
@@ -397,7 +455,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
         if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
@@ -461,6 +519,9 @@ bool SharedProject::save(QString *error) {
     m_connection["outbox"] = m_outbox;
     return privateFile(path() + "/connection.json", m_connection, error);
 }
+QJsonObject SharedProject::endNotice() const {
+    return readObject(path() + "/connection.json")["ended"].toObject();
+}
 void SharedProject::release() {
     m_terminal = true; m_connected = false; m_retry.stop(); m_heartbeat.stop();
     if (m_iroh) m_iroh->disconnectTunnel();
@@ -470,6 +531,11 @@ void SharedProject::start() { if (!m_terminal) connectHost(); }
 void SharedProject::status(const QString &text) { m_status = text; emit changed(); }
 void SharedProject::connectHost() {
     if (m_terminal || m_tunnelling || m_socket.state() != QAbstractSocket::UnconnectedState) return;
+    const auto saved = readObject(path() + "/connection.json");
+    if (saved["memberToken"] != m_connection["memberToken"]) {
+        finish(saved.contains("ended") ? "sharingEnded" : "left");
+        return;
+    }
     m_buffer.clear(); m_connected = false; status("Connecting to project host…");
     if (m_iroh) { m_tunnelling = true; m_iroh->tunnel(m_connection["endpoint"].toObject()); }
     else m_socket.connectToHostEncrypted(m_connection["host"].toString(), quint16(m_connection["port"].toInt()));
@@ -493,8 +559,12 @@ void SharedProject::receive(const QJsonObject &data) {
     if (type == "welcome") {
         m_connection["name"] = data["name"]; m_connection["memberId"] = data["memberId"]; m_connection.remove("invite");
         if (!save()) { m_terminal = true; emit error("Could not save your project membership."); m_socket.abort(); }
+        // Older hosts ignore the leave flag. They may still send a snapshot,
+        // but this device has already opted out of the project.
+        if (leaving()) { finish("left"); return; }
         emit changed();
     } else if (type == "project") {
+        if (m_terminal || leaving()) return;
         const auto state = data["state"].toObject(); const auto source = data["source"].toString();
         const auto imported=state["import"].toObject();
         const bool awaitingImport=!imported.isEmpty() && !imported["previewReady"].toBool();
@@ -508,11 +578,63 @@ void SharedProject::receive(const QJsonObject &data) {
         if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) { m_outbox.removeFirst(); m_inflight = false; if (save()) flush(); }
     } else if (type == "error") emit error(data["message"].toString());
     else if (type == "rejected" || type == "removed") {
+        if (m_terminal) return;
+        const auto reason = data["reason"].toString();
+        if (leaving() || reason == "left") { finish("left"); return; }
+        if (type == "removed" && (reason == "sharingEnded" || (reason.isEmpty() && data["message"] == "The owner stopped sharing this project."))) {
+            finish("sharingEnded"); return;
+        }
         m_terminal = true; m_connected = false; m_removed = type == "removed";
         status(data["message"].toString()); emit error(m_status);
-        // Keep cached source for recovery, but revoke the saved credential.
-        QFile::remove(path() + "/connection.json"); m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
+        const auto file = path() + "/connection.json";
+        if (readObject(file)["memberToken"] == m_connection["memberToken"]) QFile::remove(file);
+        m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
     }
+}
+bool SharedProject::leave() {
+    if (!m_editLock || !m_editLock->isLocked()) { emit error("Leave the project from its editing window."); return false; }
+    if (m_terminal || m_connection["memberId"].toString().isEmpty()) return false;
+    m_connection["leaving"] = true;
+    if (!save()) { m_connection.remove("leaving"); emit error("Could not save your decision to leave. Please try again."); return false; }
+    // Reconnect with the leave flag so the host revokes membership before
+    // sending any more project data, including after an offline departure.
+    m_socket.abort();
+    if (!m_retry.isActive()) m_retry.start(0);
+    emit changed();
+    return true;
+}
+void SharedProject::finish(const QString &reason) {
+    m_connected = false; m_inflight = false; m_removed = true;
+    m_heartbeat.stop();
+    const auto file = path() + "/connection.json";
+    const auto saved = readObject(file);
+    if (reason == "sharingEnded" && !saved.isEmpty() && saved["memberToken"] == m_connection["memberToken"]) {
+        if (!m_editLock->isLocked() && !m_editLock->tryLock(0)) {
+            m_socket.abort();
+            if (!m_retry.isActive()) m_retry.start(m_delay);
+            return;
+        }
+        const auto snapshot = readObject(path() + "/snapshot.json");
+        const auto token = saved["memberToken"].toString();
+        const QString copyId = snapshot["source"].toString().trimmed().isEmpty() ? QString()
+            : QUuid::createUuidV5(QUuid(id()), token).toString(QUuid::WithoutBraces);
+        const QJsonObject ended{{"project", id()}, {"ended", QJsonObject{
+            {"name", snapshot["state"].toObject()["name"]}, {"copyId", copyId}}}};
+        if (!privateFile(file, ended)) {
+            emit error("Could not save the end-of-sharing notice. Centaur will retry.");
+            m_socket.abort(); return;
+        }
+        m_connection = ended;
+    } else if (saved.contains("ended")) {
+        m_connection = saved;
+    } else if (saved["memberToken"] == m_connection["memberToken"] && !QFile::remove(file)) {
+        emit error("Could not save your decision to leave. Centaur will retry.");
+        m_socket.abort(); return;
+    }
+    m_outbox = {};
+    m_terminal = true; m_retry.stop();
+    m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
+    status(reason == "left" ? "This device left the project." : "The owner stopped sharing this project.");
 }
 bool SharedProject::send(QJsonObject command) {
     if (!writable()) { emit error("Use the connected editing window to send. Your draft stays here."); return false; }

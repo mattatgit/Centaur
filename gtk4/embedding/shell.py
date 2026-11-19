@@ -59,6 +59,9 @@ class Centaur(Gtk.Application):
         self.pending_message = None
         self.drafts = {}
         self.active_form = None
+        self.reviewed_shares = set()
+        self.ended_share_dialog = None
+        self.resolving_share = False
         self.open_id = None
         self.pending_source_change=None
         self.targets = {}
@@ -113,9 +116,10 @@ class Centaur(Gtk.Application):
         self.profile_avatar.set_child(picture(ASSETS/'v2/dc3c7.png',40))
         profile.append(self.profile_avatar)
         self.profile_text = box(True, 8); self.profile_name = label('', 'nav-label'); self.profile_name.set_ellipsize(Pango.EllipsizeMode.END)
-        self.profile_text.append(self.profile_name); self.profile_text.append(label('This device', 'small muted')); profile.append(self.profile_text)
+        self.profile_role = label('', 'small muted'); self.profile_role.set_visible(False)
+        self.profile_text.append(self.profile_name); self.profile_text.append(self.profile_role); profile.append(self.profile_text)
         self.identity.set_child(profile); self.sidebar.append(self.identity); root.append(self.sidebar)
-        self.targets.update({'sidebar-profile':self.identity,'sidebar-avatar':self.profile_avatar})
+        self.targets.update({'sidebar-profile':self.identity,'sidebar-avatar':self.profile_avatar,'sidebar-role':self.profile_role})
         content = box(True,0); content.set_hexpand(True)
         self.top = Gtk.CenterBox(); self.top.add_css_class('topbar'); self.top.set_size_request(-1,HEADER)
         self.top_start = box(spacing=8); self.top_start.set_margin_start(24); self.top_start.set_valign(Gtk.Align.CENTER)
@@ -202,6 +206,9 @@ class Centaur(Gtk.Application):
     def build_projects(self):
         page = box(True,0,'panel')
         self.projects_inner = box(True,24); self.projects_inner.set_vexpand(True); page.append(self.projects_inner)
+        self.sharing_notices=box(True,8); self.sharing_notices.set_margin_top(12)
+        self.sharing_notices.set_margin_start(40); self.sharing_notices.set_margin_end(40)
+        self.sharing_notices.set_visible(False); self.projects_inner.append(self.sharing_notices)
         scroll = Gtk.ScrolledWindow(vexpand=True,hexpand=True,hscrollbar_policy=Gtk.PolicyType.NEVER)
         # Padding belongs inside the viewport so first/last card shadows have
         # room to paint. Card positions and grid width retain their V2 insets.
@@ -567,6 +574,12 @@ class Centaur(Gtk.Application):
         if data.get('type') in ('settingsSaved','error'): self.settings.receive(data)
         if data.get('type')=='settingsSaved': return
         if data.get('type')=='error':
+            if self.resolving_share and self.ended_share_dialog:
+                self.resolving_share=False
+                self.ended_share_actions.set_sensitive(True)
+                self.ended_share_feedback.set_text(data.get('message','Could not save your choice.'))
+                self.ended_share_feedback.set_visible(True)
+                return
             if data.get('code')=='local_service_disconnected':
                 self.project.pop('agentActivity',None); self.data['busy']=False
                 self.message_key=None; self.refresh_messages(); self.working_mark.set_working(False); self.update_send()
@@ -599,6 +612,8 @@ class Centaur(Gtk.Application):
         if hasattr(self,'join_submit'): self.update_join()
         self.cancel_join.set_visible(data.get('joining',False))
         self.profile_name.set_text(data.get('author','Your settings'))
+        role=data.get('collaborationRole','')
+        self.profile_role.set_text(role); self.profile_role.set_visible(bool(role))
         self.settings.receive(data)
         self.sync_grid()
         key=json.dumps(data.get('projects',[]),sort_keys=True)
@@ -654,6 +669,10 @@ class Centaur(Gtk.Application):
         if hasattr(self,'join_dialog') and self.join_dialog.get_visible():
             self.join_feedback.set_text(data.get('joinStatus','')); self.join_feedback.set_visible(bool(data.get('joinStatus')))
             if data.get('remote') and data.get('connected'): self.dismiss_dialog(self.join_dialog)
+        if data.get('endedShares',[])!=getattr(self,'ended_shares',None):
+            self.refresh_ended_shares(data.get('endedShares',[]))
+        elif self.ended_shares and not self.active_form and any(n['id'] not in self.reviewed_shares for n in self.ended_shares):
+            GLib.idle_add(self.show_next_sharing_notice)
         self.updates.restore()
 
     @staticmethod
@@ -744,6 +763,10 @@ class Centaur(Gtk.Application):
                 change=button('Change source',lambda p=project,a=action:a(lambda:self.change_import_source(p)),tone='plain',height=24)
                 change.get_child().set_halign(Gtk.Align.START); actions.append(change)
                 self.targets['menu-change-source-'+project['id']]=change
+            if project.get('hostingShare'):
+                stop=button('Stop sharing',lambda p=project,a=action:a(lambda:self.stop_sharing(p)),tone='plain',height=24)
+                stop.get_child().set_halign(Gtk.Align.START); actions.append(stop)
+                self.targets['menu-stop-sharing-'+project['id']]=stop
             delete=button('Leave project' if project.get('remote') else 'Delete',lambda p=project,a=action:a(lambda:self.delete(p)),tone='plain',height=24)
             delete.get_child().set_halign(Gtk.Align.START); actions.append(delete)
             self.targets['menu-rename-'+project['id']]=rename; self.targets['menu-delete-'+project['id']]=delete
@@ -985,6 +1008,8 @@ class Centaur(Gtk.Application):
     def dismiss_dialog(self,dialog):
         dialog.destroy()
         if self.active_form is dialog: self.active_form=None
+        if getattr(self,'ended_shares',None) and not self.closing:
+            GLib.idle_add(self.show_next_sharing_notice)
 
     def form(self,title,fields,submit,action='Save',width=400):
         dialog,content=self.dialog(title,width); entries={}
@@ -1031,21 +1056,82 @@ class Centaur(Gtk.Application):
 
     def delete(self,project):
         leave=project.get('remote',False)
-        dialog,card=self.dialog('Leave project?' if leave else 'Delete project?',288)
+        def done():
+            return self.service.send('leave' if leave else 'delete',projectId=project['id'])
+        self.confirm_project_action('Leave project?' if leave else 'Delete project?',
+            'Leave this project?' if leave else 'Please confirm delete',
+            ('Leave '+project['name']+' on this device?') if leave else 'The app and conversation will move\nto the recovery folder.',
+            'Leave' if leave else 'Yes, delete',done,'delete')
+
+    def stop_sharing(self,project):
+        self.confirm_project_action('Stop sharing?','Proceed to remove guests?',
+            'Sharing will end and guests will\nlose access to this project.',
+            'Yes, proceed',lambda:self.service.send('stopSharing',projectId=project['id']),'stop-sharing')
+
+    def confirm_project_action(self,caption,heading,description,action,submit,target):
+        dialog,card=self.dialog(caption,288)
         self.clear(card); card.add_css_class('delete-dialog'); card.set_spacing(0); card.set_overflow(Gtk.Overflow.HIDDEN)
         hero=Gtk.Overlay(css_classes=['delete-hero']); hero.set_size_request(-1,128); hero.set_child(box())
         clay=picture(ASSETS/'v2/dc3c7.png',72); clay.set_halign(Gtk.Align.CENTER); clay.set_valign(Gtk.Align.CENTER)
         hero.add_overlay(clay); card.append(hero)
-        title=label('Leave this project?' if leave else 'Please confirm delete','dialog-title',True)
+        title=label(heading,'dialog-title',True)
         title.set_xalign(.5); title.set_size_request(-1,24); title.set_margin_top(25); card.append(title)
-        text=label(('Leave '+project['name']+' on this device?') if leave else 'The app and conversation will move\nto the recovery folder.','delete-description',True)
-        text.set_size_request(-1,36); text.set_xalign(.5); text.set_justify(Gtk.Justification.CENTER); card.append(text)
+        text=label(description,'delete-description',True)
+        text.set_size_request(-1,60 if target=='stop-sharing' else 36)
+        text.set_xalign(.5); text.set_justify(Gtk.Justification.CENTER); card.append(text)
         row=box(spacing=16); row.set_margin_top(19); row.set_margin_bottom(24); row.set_margin_start(24); row.set_margin_end(24); card.append(row)
         cancel=button('Cancel',lambda:self.dismiss_dialog(dialog),tone='soft',width=112); row.append(cancel)
         def done():
-            if self.service.send('leave' if leave else 'delete',projectId=project['id']): self.dismiss_dialog(dialog)
-        confirm=button('Leave' if leave else 'Yes, delete',done,css='delete-confirm',tone='dark',width=112); row.append(confirm)
-        self.targets['delete-confirm']=confirm; dialog.present(); cancel.grab_focus()
+            if submit(): self.dismiss_dialog(dialog)
+        confirm=button(action,done,css='delete-confirm',tone='dark',width=112); row.append(confirm)
+        self.targets[target+'-cancel']=cancel; self.targets[target+'-confirm']=confirm; dialog.present(cancel)
+
+    def refresh_ended_shares(self,notices):
+        self.ended_shares=notices
+        self.reviewed_shares.intersection_update(notice['id'] for notice in notices)
+        self.clear(self.sharing_notices)
+        for key in list(self.targets):
+            if key.startswith('sharing-ended-'): del self.targets[key]
+        for notice in notices:
+            item=button('Sharing ended · '+(notice.get('name') or 'Shared project'),
+                        lambda n=notice:self.show_sharing_notice(n),tone='soft')
+            item.centaur_label.set_ellipsize(Pango.EllipsizeMode.END)
+            self.sharing_notices.append(item); self.targets['sharing-ended-'+notice['id']]=item
+        self.sharing_notices.set_visible(bool(notices))
+        if self.ended_share_dialog and all(n['id']!=self.ended_share_dialog.project_id for n in notices):
+            self.dismiss_dialog(self.ended_share_dialog)
+        if notices: GLib.idle_add(self.show_next_sharing_notice)
+
+    def show_next_sharing_notice(self):
+        if not self.active_form and not self.closing and self.data.get('snapshotReady'):
+            notice=next((item for item in self.ended_shares if item['id'] not in self.reviewed_shares),None)
+            if notice: self.show_sharing_notice(notice)
+        return GLib.SOURCE_REMOVE
+
+    def show_sharing_notice(self,notice):
+        dialog,content=self.dialog('Sharing ended',360)
+        dialog.project_id=notice['id']
+        self.ended_share_dialog=dialog; self.reviewed_shares.add(notice['id'])
+        def closed():
+            self.ended_share_dialog=None; self.resolving_share=False
+        dialog.on_close=closed
+        name=notice.get('name') or 'this project'
+        explanation=('You can keep the last saved app and conversation as an independent project on this device.'
+                     if notice.get('canKeep') else 'There is no saved app on this device to keep.')
+        content.append(label(f'The host stopped sharing {name}. '+explanation,None,True))
+        self.ended_share_feedback=label('','error small',True); self.ended_share_feedback.set_visible(False)
+        content.append(self.ended_share_feedback)
+        row=box(spacing=8); row.set_halign(Gtk.Align.END); content.append(row); self.ended_share_actions=row
+        def resolve(retain):
+            if self.service.send('resolveEndedShare',projectId=notice['id'],retain=retain):
+                self.resolving_share=True; row.set_sensitive(False)
+        dismiss=button('Don’t keep' if notice.get('canKeep') else 'Done',lambda:resolve(False),tone='soft')
+        row.append(dismiss); self.targets['sharing-choice-decline']=dismiss
+        if notice.get('canKeep'):
+            keep=button('Keep a copy',lambda:resolve(True),tone='dark')
+            row.append(keep); self.targets['sharing-choice-keep']=keep
+        dialog.escape_handler=lambda:self.resolving_share
+        dialog.present(dismiss)
 
     def notice(self,title,text,confirm=None,action='OK'):
         dialog,content=self.dialog(title)
@@ -1099,10 +1185,11 @@ class Centaur(Gtk.Application):
         hint.set_size_request(-1,48); content.append(hint)
         self.invite_result=box(True,8); content.append(self.invite_result)
         cancel_button(self,dialog,footer)
-        footer.append(button('Done',lambda:self.dismiss_dialog(dialog),tone='dark',width=72))
+        self.invite_done=button('Done',lambda:self.dismiss_dialog(dialog),tone='dark',width=72)
+        footer.append(self.invite_done)
         self.targets.update({'invite-code-field':self.invite_code,'invite-code':self.invite_code.caption,
                              'invite-copy':self.invite_code.copy_button})
-        dialog.present()
+        dialog.present(self.invite_done)
         # Each opening creates a fresh single-use invitation using the existing
         # coordinator; copying never generates a second invitation.
         self.service.send('invite',address='iroh')
@@ -1123,7 +1210,9 @@ class Centaur(Gtk.Application):
 
     def invitation_dialog(self,code):
         if not hasattr(self,'invite_dialog') or not self.invite_dialog.get_visible(): return
+        focus_copy=not self.invite_code.code and self.window.get_focus()==self.invite_done
         self.invite_code.set_code(code)
+        if focus_copy and code: self.invite_code.copy_button.grab_focus()
 
     def send_grid(self,**fields):
         if getattr(self,'syncing_grid',False) or not hasattr(self,'service'): return
@@ -1319,6 +1408,7 @@ class Centaur(Gtk.Application):
         for widget in (self.cards,self.empty_limit):
             for edge in ('top','bottom','start','end'): getattr(widget,'set_margin_'+edge)(inset)
         self.join_progress.set_margin_start(inset); self.join_progress.set_margin_end(inset)
+        self.sharing_notices.set_margin_start(inset); self.sharing_notices.set_margin_end(inset)
         self.cancel_join.set_margin_start(inset); self.cancel_join.set_margin_bottom(inset)
         setting_margin=24 if self.stack.get_width()<648 else 72
         margins(self.settings_inner,setting_margin); self.settings_inner.set_margin_top(48)
@@ -1351,6 +1441,7 @@ class Centaur(Gtk.Application):
                   'motion':{'workspace':self.workspace_motion.value,'workspaceRunning':self.workspace_motion.callback is not None,
                             'mode':self.mode_switch.motion.value,'modeRunning':self.mode_switch.motion.callback is not None},
                   'grid':self.data.get('grid',{}),'author':self.data.get('author',''),'busy':self.data.get('busy',False),
+                  'role':self.profile_role.get_text(),'endedShares':self.data.get('endedShares',[]),
                   'focus':self.window.get_focus().__gtype__.name if self.window.get_focus() else None,
                   'focusId':id(self.window.get_focus()) if self.window.get_focus() else None,
                   'form':self.active_form.get_title() if self.active_form and self.active_form.get_visible() else None,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),

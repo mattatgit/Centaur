@@ -21,9 +21,11 @@ def check_invite(driver, folder, window, root, header, settle, move, capture, bo
         settle()
         field=owner.invite_code
         assert not field.copy_button.get_sensitive()
+        assert window.get_focus()==owner.invite_done
         assert requests==[(('invite',),{'address':'iroh'})]
         Centaur.invitation_dialog(owner,code)
         settle()
+        assert window.get_focus()==field.copy_button
         done=dialog.content.get_last_child().get_last_child()
         cancel=done.get_prev_sibling()
         x,y,w,h=bounds(done)

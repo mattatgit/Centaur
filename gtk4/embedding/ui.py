@@ -378,11 +378,13 @@ class Modal:
             items[(index+(-1 if backwards else 1))%len(items)].grab_focus()
         return True
 
-    def present(self):
+    def present(self, initial_focus=None):
         self.owner.root_overlay.get_child().set_can_target(False)
         self.owner.top.set_sensitive(False)
         self.owner.top.add_css_class('modal-open')
-        self.root.set_visible(True); self.content.child_focus(Gtk.DirectionType.TAB_FORWARD)
+        self.root.set_visible(True)
+        if initial_focus is None or not initial_focus.grab_focus():
+            self.content.child_focus(Gtk.DirectionType.TAB_FORWARD)
 
     def destroy(self):
         if self.closed: return

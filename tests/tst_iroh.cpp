@@ -55,7 +55,9 @@ private slots:
         QTemporaryDir replayRoot; QString error; auto replayConnection = SharedProject::parseInvitation(used, &error); replayConnection["name"] = "Replay";
         SharedProject replay(replayRoot.path(), replayConnection); QVERIFY(replay.save()); replay.start(); QTRY_VERIFY_WITH_TIMEOUT(replay.failed(), 40000); QVERIFY(replay.state().isEmpty());
         host.stopSharing(); QTRY_VERIFY(a.projectId().isEmpty()); QTRY_VERIFY(b.projectId().isEmpty()); QTRY_VERIFY(lan.projectId().isEmpty()); QTRY_VERIFY(extraWindow.removed());
-        QTRY_VERIFY(!QFileInfo::exists(first.path() + "/shared/" + id + "/connection.json"));
+        const auto notice = first.path() + "/shared/" + id + "/connection.json";
+        QTRY_VERIFY(objectFile(notice).contains("ended"));
+        QVERIFY(!objectFile(notice).contains("memberToken"));
     }
     void pinnedIdentityRestartAndCachedMembership() {
         QTemporaryDir home, guestRoot, wrongRoot;
@@ -74,6 +76,36 @@ private slots:
         QCOMPARE(objectFile(guest.path() + "/connection.json")["memberToken"], credential);
         QVERIFY(guest.send({{"type", "message"}, {"text", "After restart"}})); QTRY_COMPARE(host->project().value("messages").toList().size(), 1);
         host->stopSharing(); QTRY_VERIFY(guest.removed());
+    }
+    void offlineGuestReceivesRevocationAfterHostRestartsAndSharesAgain() {
+        QTemporaryDir home, guestRoot;
+        auto host = std::make_unique<Controller>(home.path()); host->start(); host->setAuthor("Matt"); host->createProject("Shared", "");
+        const auto id = host->projectId();
+        host->invitePeople("iroh"); QTRY_VERIFY_WITH_TIMEOUT(!host->invitationCode().isEmpty(), 25000);
+        auto connection = SharedProject::parseInvitation(host->invitationCode(), nullptr);
+        connection["name"] = "Saori";
+        const auto file = guestRoot.path() + "/shared/" + id + "/connection.json";
+        {
+            SharedProject guest(guestRoot.path(), connection); QVERIFY(guest.save()); guest.start();
+            QTRY_VERIFY_WITH_TIMEOUT(guest.connected(), 40000);
+        }
+        const auto existing = objectFile(file);
+        QVERIFY(existing.contains("memberToken"));
+        host->stopSharing(); QVERIFY(!host->hostsShare(id)); host.reset();
+        host = std::make_unique<Controller>(home.path()); host->start(); host->openProject(id);
+        {
+            SharedProject guest(guestRoot.path(), existing); guest.start();
+            QTRY_VERIFY_WITH_TIMEOUT(guest.removed(), 45000);
+            QVERIFY(!guest.writable()); QVERIFY(guest.endNotice().contains("copyId"));
+        }
+        host->invitePeople("iroh"); QTRY_VERIFY_WITH_TIMEOUT(!host->invitationCode().isEmpty(), 25000);
+        QCOMPARE(host->projectCollaborators(id).size(), 0);
+        // The same credential still cannot join the newly shared project.
+        SharedProject stale(guestRoot.path(), existing);
+        QVERIFY(stale.save()); stale.start();
+        QTRY_VERIFY_WITH_TIMEOUT(stale.removed(), 45000);
+        QVERIFY(!stale.writable());
+        QVERIFY(!objectFile(file).contains("memberToken"));
     }
     void backgroundHostKeepsSharingAfterItsWindowCloses() {
         QTemporaryDir home, guestRoot;

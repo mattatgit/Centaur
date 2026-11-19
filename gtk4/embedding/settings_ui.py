@@ -115,10 +115,6 @@ class SettingsView:
         folder=section('Centaur folder location'); line=box(spacing=16,css='settings-folder-row'); path=label(str(owner.root),'small muted',True); path.set_hexpand(True); line.append(path)
         line.append(button('Open folder',lambda:Gio.AppInfo.launch_default_for_uri(owner.root.as_uri(),None),tone='plain',width=80)); folder.append(line)
         owner.updates=UpdateControls(owner,section('App'))
-        self.sharing=box(True,16); self.sharing.append(label('Sharing','section-title'))
-        stop=button('Stop sharing this project',lambda:owner.notice('Stop sharing?',
-            'Disconnect guests from this project?',lambda:owner.service.send('stopSharing'),'Stop sharing'),tone='plain')
-        stop.set_halign(Gtk.Align.START); self.sharing.append(stop); owner.settings_inner.append(self.sharing); self.sharing.set_visible(False)
         owner.stack.add_named(page,'settings')
 
     def status(self):
@@ -223,7 +219,6 @@ class SettingsView:
         # time. Preserve that identity while the guest is connected.
         owner.name.set_sensitive(not data.get('remote',False))
         accessible(owner.name,'Username','Leave this shared project before changing your name.' if data.get('remote') else '')
-        self.sharing.set_visible(bool(owner.project.get('sharing',{}).get('enabled')) and not data.get('remote'))
         if 'name' not in self.debounces and not owner.name.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.name.set_text(data.get('author',''))
         value=owner.project.get('agentName',data.get('defaultAgentName','centaur')) if not data.get('remote') else data.get('defaultAgentName','centaur')
         if 'agent' not in self.debounces and not owner.agent_name_button.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.agent_name_button.set_text(value)

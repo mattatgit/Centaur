@@ -47,6 +47,10 @@ public:
     QString projectId() const { return m_projectId; }
     QString author() const;
     QJsonArray projectCollaborators(const QString &id) const;
+    QString collaborationRole() const;
+    bool hostsShare(const QString &id) const;
+    QJsonArray endedShares() const;
+    void resolveEndedShare(const QString &id, bool retain);
     void setAuthor(const QString &author);
     bool setAgentDefaults(const QJsonObject &settings);
     QString defaultAgentName() const { return m_preferences.value("agent/name", "centaur").toString(); }
@@ -82,6 +86,7 @@ public:
     bool joining() const { return !m_joiningId.isEmpty(); }
     Q_INVOKABLE void invitePeople(const QString &address);
     Q_INVOKABLE void stopSharing();
+    void stopSharingProject(const QString &id);
     Q_INVOKABLE void joinProject(const QString &code, const QString &name);
     Q_INVOKABLE void cancelJoin();
     Q_INVOKABLE void leaveProject(const QString &id);
@@ -128,6 +133,7 @@ private:
     bool route(const QString &id, QJsonObject data);
     void refresh();
     void addShared(SharedProject *project);
+    void discardShared(const QString &id);
     QString projectPath() const;
     QJsonObject m_localSnapshot;
     QHash<QString, SharedProject *> m_shared;

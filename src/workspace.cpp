@@ -1,5 +1,6 @@
 #include "workspace.h"
 #include <QDir>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -9,6 +10,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QTemporaryDir>
 #include <algorithm>
 
 static bool git(const QString &path, const QStringList &args, QString *error, QByteArray *output = nullptr) {
@@ -22,6 +24,11 @@ static bool git(const QString &path, const QStringList &args, QString *error, QB
     }
     if (output) *output = process.readAllStandardOutput();
     return true;
+}
+
+static QJsonObject readObject(const QString &path) {
+    QFile file(path);
+    return file.open(QIODevice::ReadOnly) ? QJsonDocument::fromJson(file.readAll()).object() : QJsonObject();
 }
 
 Workspace::Workspace(QString root) : m_root(QDir::cleanPath(root)) {
@@ -127,6 +134,77 @@ QString Workspace::createProject(const QString &name, const QString &description
 
 QString Workspace::sourceName(const QJsonObject &state) {
     return state["appFormat"] == "gtk4-v1" ? "App.gtk.json" : "App.qml";
+}
+
+bool Workspace::resolveEndedShare(const QString &id, bool retain, QString *copyId, QString *error) {
+    if (projectPath(id).isEmpty()) { *error = "That shared project is unavailable."; return false; }
+    const auto cache = m_root + "/shared/" + id;
+    const auto connection = cache + "/connection.json";
+    const auto record = readObject(connection);
+    const auto ended = record["ended"].toObject();
+    if (record["project"] != id || ended.isEmpty() || record.contains("memberToken")) {
+        *error = "This sharing notice has already been handled.";
+        return false;
+    }
+    if (retain) {
+        const auto destinationId = ended["copyId"].toString();
+        const auto destination = projectPath(destinationId);
+        const auto snapshot = readObject(cache + "/snapshot.json");
+        const auto original = snapshot["state"].toObject();
+        const auto source = snapshot["source"].toString().toUtf8();
+        const auto format = original["appFormat"].toString("qml-v1");
+        if (destination.isEmpty() || destinationId == id || original["id"] != id || source.trimmed().isEmpty()
+            || (format != "gtk4-v1" && format != "qml-v1")
+            || QString::fromLatin1(QCryptographicHash::hash(source, QCryptographicHash::Sha256).toHex()) != snapshot["sourceHash"].toString()) {
+            *error = "There is no usable saved app to keep from this share.";
+            return false;
+        }
+        // Stage the app and its new local history together. A retry after a
+        // coordinator restart can recognize the same committed copy.
+        QFile provenance(destination + "/.centaur/retained-from");
+        if (!provenance.open(QIODevice::ReadOnly) || provenance.readAll() != id.toUtf8()) {
+            QTemporaryDir staging(m_root + "/projects/.retain-XXXXXX");
+            const auto path = staging.path();
+            if (!staging.isValid() || !QDir().mkdir(path + "/.centaur")) {
+                *error = "Could not prepare a folder for the independent copy.";
+                return false;
+            }
+            QJsonObject state{{"id", destinationId}, {"name", original["name"]}, {"description", original["description"]},
+                {"updated", now()}, {"revision", original["revision"]}, {"epoch", 0}, {"appFormat", format},
+                {"messages", original["messages"]}, {"annotations", original["annotations"]},
+                {"contributors", original["contributors"]}, {"proposal", QJsonObject()}};
+            const QSettings preferences(m_root + "/preferences.ini", QSettings::IniFormat);
+            state["agentName"] = preferences.value("agent/name", "centaur").toString();
+            // Retain the decisions as history, without pointers into the
+            // former host's repository or its unaccepted proposals.
+            QJsonArray decisions;
+            for (const auto &item : original["decisions"].toArray()) {
+                auto decision = item.toObject();
+                decision.remove("checkpoint"); decision.remove("restoredFrom");
+                decisions.append(decision);
+            }
+            state["decisions"] = decisions;
+            QByteArray conversation;
+            for (const auto &item : state["messages"].toArray()) conversation += QJsonDocument(item.toObject()).toJson(QJsonDocument::Compact) + '\n';
+            const auto filename = sourceName(state);
+            if (!writeFile(path + "/" + filename, source, error)
+                || !writeFile(path + "/.gitignore", ".centaur/\n", error)
+                || !writeFile(path + "/.centaur/retained-from", id.toUtf8(), error)
+                || !writeFile(path + "/.centaur/state.json", QJsonDocument(state).toJson(), error)
+                || !writeFile(path + "/.centaur/conversation.jsonl", conversation, error)
+                || !git(path, {"init", "-b", "main"}, error)
+                || !git(path, {"add", filename, ".gitignore"}, error)
+                || !git(path, {"-c", "user.name=Centaur", "-c", "user.email=centaur@localhost",
+                    "commit", "-m", "Keep the last shared app"}, error)) return false;
+            if (!QDir().rename(path, destination)) { *error = "Could not save the independent project."; return false; }
+        }
+        *copyId = destinationId;
+    }
+    if (!QFile::remove(connection)) { *error = "Could not clear the sharing notice. Please try again."; return false; }
+    // Discard only the transient shared snapshot. The host's project and all
+    // other local project data live outside this cache.
+    for (const auto &file : {"snapshot.json", "App.gtk.json", "App.qml", ".centaur/thumbnail.png"}) QFile::remove(cache + "/" + file);
+    return true;
 }
 
 QString Workspace::source(const QString &id) const {

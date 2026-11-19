@@ -33,10 +33,12 @@ int main(int argc, char **argv) {
             auto project = QJsonObject::fromVariantMap(entry.toMap());
             const auto collaborators = controller.projectCollaborators(project["id"].toString());
             if (!collaborators.isEmpty()) project["collaborators"] = collaborators;
+            if (controller.hostsShare(project["id"].toString())) project["hostingShare"] = true;
             projects.append(project);
         }
         output({{"type", "snapshot"}, {"projects", projects},
             {"project", state}, {"author", controller.author()}, {"remote", controller.remoteProject()},
+            {"collaborationRole", controller.collaborationRole()}, {"endedShares", controller.endedShares()},
             {"connected", controller.canContribute()}, {"status", controller.connectionStatus()},
             {"busy", controller.agentBusy()}, {"agentAvailable", controller.agentAvailable()},
             {"updateBlocked", controller.updateBlocked()}, {"updateHeld", controller.updateHeld()},
@@ -78,7 +80,8 @@ int main(int argc, char **argv) {
             else if (type == "delete") controller.deleteProject(id);
             else if (type == "archive") controller.archiveProject(id);
             else if (type == "invite") controller.invitePeople(command["address"].toString("iroh"));
-            else if (type == "stopSharing") controller.stopSharing();
+            else if (type == "stopSharing") controller.stopSharingProject(id);
+            else if (type == "resolveEndedShare") controller.resolveEndedShare(id, command["retain"].toBool());
             else if (type == "join") controller.joinProject(command["code"].toString(), command["name"].toString());
             else if (type == "cancelJoin") controller.cancelJoin();
             else if (type == "leave") controller.leaveProject(id);

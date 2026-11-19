@@ -335,6 +335,16 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     if (m_updateStopping || !m_updateToken.isEmpty()) { fail("Centaur is restarting for an update. Try again shortly."); return; }
     if (importCommand(command,sender)) return;
     if (type == "shutdown") { QTimer::singleShot(100, QCoreApplication::instance(), &QCoreApplication::quit); return; }
+    if (type == "resolveEndedShare") {
+        if (sender && !m_peers.contains(qobject_cast<QLocalSocket *>(sender))) { fail("This choice requires a local connection."); return; }
+        QString copyId, error;
+        if (!m_workspace.resolveEndedShare(command["projectId"].toString(), command["retain"].toBool(), &copyId, &error)) {
+            fail(error); return;
+        }
+        publish(copyId);
+        if (!copyId.isEmpty()) reply(sender, {{"type", "created"}, {"projectId", copyId}});
+        return;
+    }
     if (type == "create" || type == "openStarter") {
         // Only the host has the authoritative list at startup. Resolve this in
         // one command so joining windows cannot each create a starter project.
@@ -512,13 +522,13 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         if (m_validatingProject == id) { fail("Wait for the app check to finish before deleting."); return; }
         QString error;
         if (!m_workspace.deleteProject(id, &error)) { fail(error); return; }
-        if (m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
+        if (m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr, true);
     } else if (type == "archive") {
         if (m_imports.contains(id)) { fail("Wait for the source import to finish before archiving."); return; }
         if (m_agentProject == id && m_agent.busy()) { fail("Wait for the agent to finish before archiving."); return; }
         if (m_validatingProject == id) { fail("Wait for the app check to finish before archiving."); return; }
         state["archived"] = true;
-        if (persist(id, state) && m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr);
+        if (persist(id, state) && m_network->sharing(id)["enabled"].toBool()) m_network->stopSharing(id, nullptr, true);
     } else if (type == "cancel") {
         if (m_imports.contains(id)) {
             auto *process=m_imports.value(id); process->terminate();

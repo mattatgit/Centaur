@@ -17,6 +17,7 @@ from polish_check import check_provider_hovers,check_working_pixels
 from activity_check import check_activity
 from pass2_check import check_settings_feedback,check_cards_and_profile,check_waiting_flows
 from workspace_polish_check import check_workspace_polish,check_unshared_hover
+from sharing_check import check_sharing
 
 
 class Bridge:
@@ -90,9 +91,11 @@ if cfg.get('fixtureProgressGate'):
     agent.chmod(0o700)
     # The disposable compositor has no desktop portal. Exercise GTK's native
     # chooser fallback here; the owner's GNOME portal remains acceptance work.
-    env=dict(os.environ,CENTAUR_AGENT=str(agent),CENTAUR_AUTHOR='Matt',GDK_DEBUG='no-portals')
+    env=dict(os.environ,CENTAUR_AGENT=str(agent),CENTAUR_AUTHOR='Matt',CENTAUR_PORT='0',GDK_DEBUG='no-portals')
     def launch(name):
-        root=folder/(name+'-data'); report=folder/(name+'-report'); roots.append(root)
+        root=folder/(name+'-data'); report=folder/(name+'-report')
+        if root not in roots: roots.append(root)
+        (report/'shell.json').unlink(missing_ok=True)
         process=subprocess.Popen([str(executable),'--data-dir',str(root),'--report-dir',str(report)],env=env)
         processes.append(process)
         state=lambda:read(report/'shell.json')
@@ -417,6 +420,7 @@ if cfg.get('fixtureProgressGate'):
         summary['checks'].append('responsive-project-grid-original-menu-rename-and-cancelled-delete')
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
+        summary['checks']+=check_sharing(driver,folder,launch,click,message,Bridge,env,hs,hw,gs,gw,project_id)
         summary['checks']+=check_imports(driver,folder,hs,hw,click,message,roots[0],original,reply_file,request_record)
         summary['checks']+=check_waiting_flows(driver,folder,hs,hw,click,message,roots[0],original,reply_file)
         summary['passed']=True

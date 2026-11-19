@@ -28,7 +28,7 @@ public:
     ~CollaborationHost() override;
     QString invite(const QString &id, const QString &owner, const QString &address, QString *error);
     void inviteInternet(const QString &id, const QString &owner, std::function<void(QString, QString)> reply);
-    bool stopSharing(const QString &id, QString *error);
+    bool stopSharing(const QString &id, QString *error, bool projectRemoved = false);
     void publish(const QJsonObject &snapshot);
     QJsonObject sharing(const QString &id) const;
     static QString suggestedAddress();
@@ -43,6 +43,9 @@ private:
     bool certificate(QString *error);
     bool listenInternet(QString *error);
     bool save(QString *error);
+    void restoreListeners();
+    bool leave(const QString &id, const QString &hash);
+    void removePeer(QSslSocket *socket, const QString &reason);
     void accept(QSslSocket *socket);
     void read(QSslSocket *socket);
     void receive(QSslSocket *socket, QJsonObject data);
@@ -56,8 +59,9 @@ private:
     QHash<quint64, Invitation> m_invitations;
     quint64 m_invitationSerial = 0;
     QJsonObject m_shares;
+    QJsonObject m_revocations;
     QJsonObject m_snapshot;
-    struct Peer { QByteArray buffer; QString project; QString member; QString name; qint64 lastSeen = 0; };
+    struct Peer { QByteArray buffer; QString project; QString member; QString name; qint64 lastSeen = 0; QString credential; };
     QHash<QSslSocket *, Peer> m_peers;
     QTimer m_watchdog;
     bool m_updating = false;
@@ -71,17 +75,21 @@ public:
     static QJsonObject parseInvitation(const QString &code, QString *error);
     void start();
     void release();
+    bool leave();
     bool send(QJsonObject command);
     QString id() const { return m_connection["project"].toString(); }
     QString path() const { return m_root + "/shared/" + id(); }
     QString author() const { return m_connection["name"].toString(); }
-    bool writable() const { return m_connected && m_editLock && m_editLock->isLocked(); }
+    bool writable() const { return m_connected && !leaving() && m_editLock && m_editLock->isLocked(); }
     bool agentAvailable() const { return m_snapshot["agentAvailable"].toBool(); }
     bool busy() const { return m_snapshot["busy"].toBool(); }
     int pendingCount() const { return m_outbox.size(); }
     bool connected() const { return m_connected; }
     bool failed() const { return m_terminal; }
     bool removed() const { return m_removed; }
+    bool leaving() const { return m_connection["leaving"].toBool(); }
+    bool ended() const { return m_connection.contains("ended"); }
+    QJsonObject endNotice() const;
     QString status() const { return m_status; }
     QJsonObject state() const { return m_snapshot["state"].toObject(); }
     bool save(QString *error = nullptr);
@@ -93,6 +101,7 @@ private:
     void read();
     void receive(const QJsonObject &data);
     void flush();
+    void finish(const QString &reason);
     void status(const QString &text);
     std::unique_ptr<QLockFile> m_editLock;
     QString m_status;

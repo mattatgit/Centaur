@@ -146,7 +146,8 @@ private slots:
         QVERIFY(!(QFileInfo(credential).permissions() & QFile::ReadOther));
         host.stopSharing();
         QTRY_VERIFY(guest.projectId().isEmpty());
-        QTRY_VERIFY(!QFileInfo::exists(credential));
+        QTRY_VERIFY(objectFile(credential).contains("ended"));
+        QVERIFY(!objectFile(credential).contains("memberToken"));
         QVERIFY(QFileInfo::exists(hostRoot.path() + "/projects/" + id + "/App.qml"));
     }
     void credentialsCannotImpersonateVoteManageOtherProjectsOrReplayCommands() {

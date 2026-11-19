@@ -63,12 +63,33 @@ void Controller::start(bool background) {
     m_session.start(background);
 }
 QString Controller::author() const { return remoteProject() ? m_shared.value(m_projectId)->author() : m_author; }
+QString Controller::collaborationRole() const {
+    if (!m_projectId.isEmpty()) return remoteProject() ? "Guest" : "Host";
+    for (const auto &project : m_projects) if (!project.toMap()["remote"].toBool()) return "Host";
+    return m_projects.isEmpty() ? QString() : QString("Guest");
+}
+bool Controller::hostsShare(const QString &id) const {
+    return !m_shared.contains(id) && m_states.value(id)["sharing"].toObject()["enabled"].toBool();
+}
+QJsonArray Controller::endedShares() const {
+    QJsonArray notices;
+    for (const auto *project : m_shared) {
+        if (!project->ended()) continue;
+        const auto notice = project->endNotice();
+        if (!notice.isEmpty()) notices.append(QJsonObject{{"id", project->id()}, {"name", notice["name"]},
+            {"canKeep", !notice["copyId"].toString().isEmpty()}});
+    }
+    return notices;
+}
+void Controller::resolveEndedShare(const QString &id, bool retain) {
+    m_session.send({{"type", "resolveEndedShare"}, {"projectId", id}, {"retain", retain}});
+}
 QJsonArray Controller::projectCollaborators(const QString &id) const {
     const auto sharing = m_states.value(id)["sharing"].toObject();
     const auto *remote = m_shared.value(id, nullptr);
     if (!remote && !sharing["enabled"].toBool()) return {};
 
-    const auto current = remote ? remote->author() : m_author;
+    const auto current = remote ? remote->author() : sharing["owner"].toString(m_author);
     QJsonArray result;
     QSet<QString> added;
     auto append = [&](const QString &name, bool self = false) {
@@ -104,7 +125,13 @@ void Controller::invitePeople(const QString &address) {
     if (m_inviting) return;
     m_inviting = true; m_invitationCode.clear(); emit changed(); command({{"type", "invite"}, {"address", address}});
 }
-void Controller::stopSharing() { m_invitationCode.clear(); command({{"type", "stopSharing"}}); }
+void Controller::stopSharing() { stopSharingProject(m_projectId); }
+void Controller::stopSharingProject(const QString &id) {
+    const bool preparing = id == m_projectId && m_inviting && !remoteProject();
+    if (id.isEmpty() || (!hostsShare(id) && !preparing)) return;
+    if (id == m_projectId) m_invitationCode.clear();
+    route(id, {{"type", "stopSharing"}});
+}
 void Controller::copyInvitation() { QGuiApplication::clipboard()->setText(m_invitationCode); }
 void Controller::joinProject(const QString &code, const QString &name) {
     if (name.trimmed().isEmpty()) { emit error("Enter your name to join."); return; }
@@ -112,7 +139,13 @@ void Controller::joinProject(const QString &code, const QString &name) {
     auto connection = SharedProject::parseInvitation(code, &error);
     if (connection.isEmpty()) { emit this->error(error); return; }
     const auto id = connection["project"].toString();
-    if (m_shared.contains(id) && m_shared.value(id)->failed()) leaveProject(id);
+    if (const auto *existing = m_shared.value(id, nullptr); existing && existing->failed()) {
+        if (!existing->endNotice().isEmpty()) { emit this->error("Respond to the previous sharing notice before rejoining this project."); return; }
+        discardShared(id);
+    }
+    if (const auto *existing = m_shared.value(id, nullptr); existing && existing->leaving()) {
+        emit this->error("Wait for the host to confirm your departure before rejoining."); return;
+    }
     if (m_shared.contains(id)) { openProject(id); emit joined(); return; }
     if (m_states.contains(id)) { emit this->error("This project is already on this computer."); return; }
     connection["name"] = name.trimmed().left(50);
@@ -126,8 +159,14 @@ void Controller::addShared(SharedProject *project) {
     connect(project, &SharedProject::changed, this, &Controller::refresh);
     refresh();
 }
-void Controller::cancelJoin() { if (!m_joiningId.isEmpty()) leaveProject(m_joiningId); }
+void Controller::cancelJoin() { if (!m_joiningId.isEmpty()) discardShared(m_joiningId); }
 void Controller::leaveProject(const QString &id) {
+    if (auto *project = m_shared.value(id, nullptr); project && !project->removed()) {
+        if (project->failed()) discardShared(id);
+        else project->leave();
+    }
+}
+void Controller::discardShared(const QString &id) {
     auto *project = m_shared.take(id);
     if (!project) return;
     if (m_joiningId == id) m_joiningId.clear();
@@ -215,7 +254,7 @@ void Controller::refresh() {
     }
     for (auto *shared : m_shared) {
         auto state = shared->state();
-        if (state.isEmpty() || shared->removed()) continue;
+        if (state.isEmpty() || shared->removed() || shared->leaving()) continue;
         state["remote"] = true; state["connectionStatus"] = shared->status();
         m_states.insert(shared->id(), state);
         m_projects.append(QVariantMap{{"id", shared->id()}, {"name", state["name"].toString()}, {"description", state["description"].toString()}, {"appFormat", state["appFormat"].toString()}, {"updated", state["updated"].toString()}, {"remote", true}, {"connected", shared->connected()}});
