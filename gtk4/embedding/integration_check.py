@@ -279,6 +279,16 @@ if cfg.get('fixtureProgressGate'):
             assert image.getpixel((round(draw[0]+4),round(draw[1]+16)))==(19,142,213),'Selected tool must use blue'
         (folder/'figma-toolbar-metrics.json').write_text(json.dumps(toolbar_metrics,indent=2))
         click(hs,hw,'tool-comment'); until(lambda:hs()['commentPointer']['phase']=='following','Comment did not activate')
+        driver.screenshot(hw,folder/'ui-comment-selected.png')
+        ix,iy,iw,ih=map(round,toolbar_metrics['icons']['tool-comment'])
+        with Image.open(folder/'ui-toolbar-hover.png') as normal, Image.open(folder/'ui-comment-selected.png') as active:
+            crop=(ix,iy,ix+iw,iy+ih)
+            inactive=normal.convert('RGB').crop(crop).getdata()
+            selected=active.convert('RGB').crop(crop).getdata()
+            assert sum(max(pixel)<100 for pixel in inactive)>5,'Unselected Comment icon lost its original dark ink'
+            assert sum(min(pixel)>230 for pixel in selected)>5,'Selected Comment icon did not turn white'
+            assert (19,142,213) in selected,'Selected Comment background lost its blue'
+        summary['checks'].append('comment-original-ink-when-idle-white-on-blue-when-selected')
         driver.key('Escape'); until(lambda:hs()['commentPointer']['phase']=='idle','Escape did not cancel the pointer')
         click(hs,hw,'tool-comment'); click(hs,hw,'undo')
         until(lambda:hs()['commentPointer']['phase']=='idle','Undo did not cancel the draft pointer')

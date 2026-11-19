@@ -190,6 +190,9 @@ def check_window_controls(driver, folder):
             settle()
             driver.screenshot(handle, folder/(name+'.png'), focus=False)
 
+        from final_polish_check import check_invite
+        report['checks'].append(check_invite(driver,folder,window,clip,header,settle,move,capture,bounds,offset))
+
         move(hx+32, hy+hh+32)
         capture('normal')
         with Image.open(folder/'normal.png') as source:

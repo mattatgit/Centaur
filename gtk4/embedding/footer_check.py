@@ -58,7 +58,8 @@ def check_footer(driver,folder):
         wait(window.get_mapped,'Updater fixture did not map');handle=driver.find_window('org.centaur.Gtk4',os.getpid());settle()
         stable=[bounds(controls.footer_button),bounds(controls.footer_version)]
         assert bounds(controls.icon)[2:]==[16,16] and not controls.footer_button.get_sensitive()
-        assert controls.icon.state=='disabled' and controls.footer_version.get_text()=='v'+owner.version()
+        assert controls.icon.state=='disabled' and controls.footer_version.get_text()=='V0.4 4451f19'
+        assert controls.version.get_text()=='Centaur V0.4 4451f19'
         photo('disabled');click(controls.footer_button);assert owner.active_form is None and not controls.work
         evidence['checks'].append('original-disabled-16px-download-art-and-static-right-version-chip')
         # A late background discovery result must not move the user's focus.

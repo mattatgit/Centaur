@@ -30,6 +30,7 @@ from update_ui import UpdateControls
 from desktop import APP_ID, launch_settings, register as register_desktop
 from import_ui import show_import
 from agent_activity import caption as activity_caption, details_text as activity_details
+from build_display import project_build_mentions
 from workspace_motion import ModeSwitch, Motion, MotionLayer, fill_rounded, smoothstep
 from ui import (ASSETS, SIDEBAR, COMPACT_SIDEBAR, HEADER, CHAT_WIDTH, CHAT_MIN,
                 CHAT_MAX, Svg, original, picture, close_art, send_art, ProjectGrid, Composer, Stepper, Switch, WidthLimit, Modal, ZoomMenu,
@@ -522,6 +523,8 @@ class Centaur(Gtk.Application):
         elif tool=='draw': self.cancel_comment()
         for key,item in self.tool_buttons.items():
             selected(item,key==tool)
+        comment_icon=self.tool_buttons['comment'].centaur_image
+        (comment_icon.add_css_class if tool=='comment' else comment_icon.remove_css_class)('tinted')
         self.tool_buttons['draw'].centaur_image.set_from_file(str(ASSETS/('v2/3f1c5.svg' if tool=='draw' else 'toolbar-draw.svg')))
 
 
@@ -893,6 +896,7 @@ class Centaur(Gtk.Application):
         stamp=label(time,'chat-time muted'); stamp.set_valign(Gtk.Align.BASELINE); head.append(stamp); column.append(head)
         text=message.get('text','')
         if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
+        if agent: text=project_build_mentions(text,self.project.get('name',''))
         body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
         attributes=Pango.AttrList()
         for mention in re.finditer(r'(?<!\w)@[\w-]+',text):
@@ -1085,14 +1089,10 @@ class Centaur(Gtk.Application):
         invitation.add_controller(key); dialog.present(); invitation.grab_focus()
 
     def invite(self):
-        from v2_ui import form_card,field,cancel_button
+        from v2_ui import InviteCode,form_card,field,cancel_button
         dialog,content,footer=form_card(self,'Invite someone to collaborate'); self.invite_dialog=dialog
-        entry=Gtk.Entry(editable=False,width_chars=1,css_classes=['import-field','invite-code'])
-        entry.set_size_request(-1,40); overlay=Gtk.Overlay(); overlay.set_child(entry)
-        self.invite_code_entry=entry
-        copy=button('Copy',lambda:self.window.get_display().get_clipboard().set(entry.get_text()),tone='plain',width=49,height=24)
-        copy.set_halign(Gtk.Align.END); copy.set_valign(Gtk.Align.CENTER); copy.set_margin_end(8); overlay.add_overlay(copy)
-        self.invite_copy=copy; field(content,'Invite code',overlay)
+        self.invite_code=InviteCode()
+        field(content,'Invite code',self.invite_code)
         content.set_spacing(0)
         content.set_margin_bottom(0)
         hint=label('Send this code to one person. It can be used once and expires in 20 minutes.','small muted',True)
@@ -1100,11 +1100,11 @@ class Centaur(Gtk.Application):
         self.invite_result=box(True,8); content.append(self.invite_result)
         cancel_button(self,dialog,footer)
         footer.append(button('Done',lambda:self.dismiss_dialog(dialog),tone='dark',width=72))
-        self.targets.update({'invite-code':entry,'invite-copy':copy})
+        self.targets.update({'invite-code-field':self.invite_code,'invite-code':self.invite_code.caption,
+                             'invite-copy':self.invite_code.copy_button})
         dialog.present()
         # Each opening creates a fresh single-use invitation using the existing
         # coordinator; copying never generates a second invitation.
-        entry.set_placeholder_text('Preparing invitation…'); copy.set_sensitive(False)
         self.service.send('invite',address='iroh')
 
     def update_join(self):
@@ -1123,7 +1123,7 @@ class Centaur(Gtk.Application):
 
     def invitation_dialog(self,code):
         if not hasattr(self,'invite_dialog') or not self.invite_dialog.get_visible(): return
-        self.invite_code_entry.set_text(code); self.invite_copy.set_sensitive(bool(code))
+        self.invite_code.set_code(code)
 
     def send_grid(self,**fields):
         if getattr(self,'syncing_grid',False) or not hasattr(self,'service'): return

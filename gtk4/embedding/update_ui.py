@@ -10,6 +10,7 @@ from ui import ASSETS,box,button,button_text,label,accessible,picture
 from v2_ui import UpdateIcon
 from updater import (check_update,process_identity,profile_path,read_json,state_path,write_json)
 from download_progress import progress_message
+from build_display import compact_version
 
 
 class UpdateControls:
@@ -28,7 +29,7 @@ class UpdateControls:
         self.starting=bool(os.environ.get('CENTAUR_UPDATE_STARTING'))
         self.resume=read_json(owner.update_session/'resume.json') if owner.update_session else {}
         self.restore_page_pending=bool(owner.update_session)
-        self.version=label('Centaur v'+owner.version(),'small muted'); section.append(self.version)
+        self.version=label('Centaur '+compact_version(owner.version()),'small muted'); section.append(self.version)
         row=box(spacing=16)
         self.button=button('Update app',self.clicked); self.button.set_halign(Gtk.Align.START)
         row.append(self.button); self.status=label('','small muted',True); self.status.set_hexpand(True); row.append(self.status)
@@ -45,7 +46,7 @@ class UpdateControls:
         owner=self.owner
         self.footer_button=Gtk.Button(css_classes=['update-icon'],width_request=16,height_request=24,valign=Gtk.Align.CENTER)
         self.footer_button.set_cursor_from_name('pointer')
-        accessible(self.footer_button,'Update app · v'+owner.version())
+        accessible(self.footer_button,'Update app · '+compact_version(owner.version()))
         self.icon=UpdateIcon(); self.footer_button.set_child(self.icon)
         left=box(spacing=8); left.set_hexpand(True); left.append(self.footer_button)
         captions=box(True,0); captions.set_hexpand(True); captions.set_valign(Gtk.Align.CENTER)
@@ -64,7 +65,7 @@ class UpdateControls:
         self.footer_status=label('','version muted',True); self.footer_status.set_hexpand(True)
         self.footer_status.set_lines(2); self.footer_status.set_ellipsize(Pango.EllipsizeMode.END)
         self.footer_status.set_width_chars(1); captions.append(self.footer_status); left.append(captions)
-        self.footer_version=label('v'+owner.version(),'version-chip'); self.footer_version.set_valign(Gtk.Align.CENTER)
+        self.footer_version=label(compact_version(owner.version()),'version-chip'); self.footer_version.set_valign(Gtk.Align.CENTER)
         owner.update_footer.append(left); owner.update_footer.append(self.footer_version)
         owner.targets.update({'update-footer':owner.update_footer,'update-version':self.footer_button,
                               'update-icon':self.footer_button,'update-art':self.icon,
@@ -111,7 +112,7 @@ class UpdateControls:
         self.footer_status.set_text(message); self.footer_status.set_visible(bool(message))
         accessible(self.footer_status,'Update status',message or '')
         accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'No update available'}[name],
-                   'Installed version '+self.owner.version())
+                   'Installed version '+compact_version(self.owner.version()))
         self.footer_button.set_sensitive(name=='available' and not self.checking)
         accessible(self.button,'Update app' if self.manifest else 'Check for updates')
         button_text(self.button,'Update app' if self.manifest else 'Check for updates')
@@ -140,7 +141,7 @@ class UpdateControls:
         install=self.install_after_check; self.install_after_check=False
         self.footer_notice_until=0
         self.footer_feedback=bool(error)
-        self.status.set_text(error or ('Update available · '+manifest['version'].removeprefix('Centaur GTK4 ') if manifest else 'You’re up to date.'))
+        self.status.set_text(error or ('Update available · '+compact_version(manifest['version'].removeprefix('Centaur GTK4 ')) if manifest else 'You’re up to date.'))
         accessible(self.button,'Update available' if manifest else 'Check for updates')
         self.set_sensitive(True)
         # Disabling GtkButton clears keyboard focus. Restore the initiating

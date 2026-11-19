@@ -1,8 +1,8 @@
 """Native components using the original exports from Centaur UI V2.0."""
 import cairo
 import math
-from gi.repository import Gtk, GLib, Rsvg
-from ui import ASSETS, box, label, picture, original, button
+from gi.repository import Gtk, GLib, Pango, Rsvg
+from ui import ASSETS, box, label, picture, original, button, button_text
 
 
 class WorkingMark(Gtk.DrawingArea):
@@ -175,6 +175,55 @@ def form_card(owner, title):
 def field(content,caption,widget):
     group=box(True,6); group.append(label(caption,'import-caption')); group.append(widget); content.append(group)
     return group
+
+
+class InviteCode(Gtk.Box):
+    def __init__(self):
+        super().__init__(spacing=8, css_classes=['invite-code-field'])
+        self.code=''
+        self.reset_source=0
+        self.caption=label('Preparing invitation…','invite-code muted')
+        self.caption.set_hexpand(True)
+        self.caption.set_ellipsize(Pango.EllipsizeMode.END)
+        self.caption.set_width_chars(1)
+        self.caption.set_single_line_mode(True)
+        self.caption.set_selectable(True)
+        self.append(self.caption)
+        self.copy_button=button('Copy',self.copy,css='invite-copy',tone='plain',width=58,height=24)
+        self.copy_button.set_valign(Gtk.Align.CENTER)
+        self.copy_button.set_sensitive(False)
+        self.append(self.copy_button)
+        self.connect('unmap',lambda *args:self.reset_copy())
+
+    def set_code(self, code):
+        if self.code==code:
+            return
+        self.reset_copy()
+        self.code=code
+        self.caption.set_text(code or 'Preparing invitation…')
+        (self.caption.remove_css_class if code else self.caption.add_css_class)('muted')
+        self.copy_button.set_sensitive(bool(code))
+
+    def copy(self):
+        if not self.code:
+            return
+        self.get_clipboard().set(self.code)
+        self.reset_copy()
+        self.copy_button.add_css_class('copied')
+        button_text(self.copy_button,'Copied')
+        self.reset_source=GLib.timeout_add(1800,self.copy_expired)
+
+    def reset_copy(self):
+        if self.reset_source:
+            GLib.source_remove(self.reset_source)
+            self.reset_source=0
+        self.copy_button.remove_css_class('copied')
+        button_text(self.copy_button,'Copy')
+
+    def copy_expired(self):
+        self.reset_source=0
+        self.reset_copy()
+        return GLib.SOURCE_REMOVE
 
 
 def prompt_field(placeholder):

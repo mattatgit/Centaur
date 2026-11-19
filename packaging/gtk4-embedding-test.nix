@@ -55,13 +55,32 @@ in pkgs.stdenvNoCC.mkDerivation {
     ${pkgs.lib.optionalString (services != null) ''
       mkdir -p "$out/share/applications" "$out/share/icons/hicolor/scalable/apps"
       cp ${pkgs.hicolor-icon-theme}/share/icons/hicolor/index.theme "$out/share/icons/hicolor/"
-      cp ${../packaging/centaur-app.svg} "$out/share/icons/hicolor/scalable/apps/org.centaur.Gtk4.svg"
       cp ${../assets/branding/Centaur_mono.svg} "$out/share/icons/hicolor/scalable/apps/org.centaur.Gtk4-symbolic.svg"
-      for size in 16 24 32 48 64 128 256 512; do
-        mkdir -p "$out/share/icons/hicolor/''${size}x''${size}/apps"
-        rsvg-convert --width "$size" --height "$size" ${../packaging/centaur-app.svg} \
-          --output "$out/share/icons/hicolor/''${size}x''${size}/apps/org.centaur.Gtk4.png"
-      done
+      ${if updaterFixture then ''
+        cp ${../packaging/centaur-app.svg} "$out/share/icons/hicolor/scalable/apps/org.centaur.Gtk4.svg"
+        for size in 16 24 32 48 64 128 256 512; do
+          mkdir -p "$out/share/icons/hicolor/''${size}x''${size}/apps"
+          rsvg-convert --width "$size" --height "$size" ${../packaging/centaur-app.svg} \
+            --output "$out/share/icons/hicolor/''${size}x''${size}/apps/org.centaur.Gtk4.png"
+        done
+      '' else ''
+        ${python}/bin/python3 - ${../assets/branding/Centaur_App_Icon.png} "$out/share/icons/hicolor" <<'PY'
+from pathlib import Path
+from shutil import copyfile
+from sys import argv
+from PIL import Image
+
+source, root = map(Path, argv[1:])
+with Image.open(source) as original:
+    for size in (16, 24, 32, 48, 64, 96, 128, 256, 512, 1024):
+        destination = root / f'{size}x{size}' / 'apps' / 'org.centaur.Gtk4.png'
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if original.size == (size, size):
+            copyfile(source, destination)
+        else:
+            original.resize((size, size), Image.Resampling.LANCZOS).save(destination)
+PY
+      ''}
       substitute ${./gtk4-centaur.desktop} "$out/share/applications/org.centaur.Gtk4.desktop" --subst-var out
       desktop-file-validate "$out/share/applications/org.centaur.Gtk4.desktop"
       for entry in centaur-gtk4 centaur-gtk4-preview centaur-gtk4-integration-check centaur-gtk4-update centaur-gtk4-updater-check centaur-gtk4-import; do

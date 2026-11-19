@@ -57,13 +57,19 @@ def check_imports(driver,folder,state,window,click,message,root,bundle,reply_fil
     click(state,window,'import-source')
     rect=driver.rect(window); x,y,w,h=target(state,'import-submit')
     assert [w,h]==[94,32],('Figma import action dimensions',w,h)
+    driver.screenshot(window,folder/'ui-import-button-idle.png',focus=False)
     driver.ipc(f"seat seat0 cursor set {round(rect['x']+x+w-2)} {round(rect['y']+y+h/2)}"); driver.seat_command('motion 0 0')
     time.sleep(.2)
     driver.screenshot(window,folder/'ui-import-button-hover.png',focus=False)
-    with Image.open(folder/'ui-import-button-hover.png') as image:
-        pixels=image.convert('RGB'); x,y,w,h=map(round,target(state,'import-submit'))
-        assert pixels.getpixel((x+w-1,y+h//2))==(48,48,48),'Import button hover/right edge is clipped'
-        assert pixels.getpixel((x+w-1,y+1))==(255,255,255),'Import button right corner lost its radius on hover'
+    with Image.open(folder/'ui-import-button-idle.png') as idle, Image.open(folder/'ui-import-button-hover.png') as hover:
+        x,y,w,h=map(round,(x,y,w,h))
+        def painted_width(image,line):
+            row=(x-4,line,x+w+4,line+1)
+            dark=[index for index,pixel in enumerate(image.convert('RGB').crop(row).getdata()) if pixel==(23,23,23)]
+            return dark[-1]-dark[0]+1
+        center=y+h//2
+        assert painted_width(hover,center)>=painted_width(idle,center)+3,'Import hover did not expand the original dark fill'
+        assert painted_width(hover,y+1)<=painted_width(hover,center)-4,'Import button corners lost their radius on hover'
     click(state,window,'import-submit')
     until(lambda:state().get('page')=='workspace' and state().get('project',{}).get('name')=='Friendly imported app','Import did not enter workspace immediately')
     until(lambda:state()['project'].get('import',{}).get('status')=='readyToRun','Compatible source was not staged')

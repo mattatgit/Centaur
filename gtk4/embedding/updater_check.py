@@ -17,6 +17,7 @@ from test_driver import Driver
 from updater import Runtime, CACHE, KEY, NIX_FLAGS
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
+from build_display import compact_version
 from progress_check import check_progress
 
 
@@ -102,6 +103,11 @@ def main():
         assert state()['branding']=={'appIcon':'org.centaur.Gtk4','fullIcon':True,'symbolicIcon':True},state()['branding']
         desktop=home/'.local/share/applications/org.centaur.Gtk4.desktop'
         assert desktop.is_symlink() and desktop.resolve()==previous/'share/applications/org.centaur.Gtk4.desktop'
+        icons=home/'.local/share/icons/hicolor'
+        old_svg=icons/'scalable/apps/org.centaur.Gtk4.svg'
+        assert old_svg.is_symlink() and old_svg.is_file()
+        launcher_icon=icons/'48x48/apps/org.centaur.Gtk4.png'
+        old_icon=launcher_icon.read_bytes()
         preferences=read(home/'.config/centaur-gtk4/desktop.json')
         assert preferences['dataDir']==str(data) and preferences['environment']['GSK_RENDERER']=='cairo'
         import configparser
@@ -205,6 +211,13 @@ def main():
         until(lambda:state().get('pid')==new_pid and state().get('project',{}).get('id')==project_id,'New GTK window did not restore the project')
         assert profile.resolve()==Path(manifest['storePath'])
         assert desktop.resolve()==profile.resolve()/'share/applications/org.centaur.Gtk4.desktop','Desktop entry pinned the old package'
+        assert not old_svg.is_symlink(),'Old scalable icon survived the profile update'
+        assert launcher_icon.resolve()==profile.resolve()/'share/icons/hicolor/48x48/apps/org.centaur.Gtk4.png'
+        assert launcher_icon.read_bytes()!=old_icon,'Desktop entry retained the old icon art'
+        original_icon=icons/'1024x1024/apps/org.centaur.Gtk4.png'
+        with Image.open(original_icon) as source, Image.open(launcher_icon) as actual:
+            assert source.mode=='RGBA' and source.size==(1024,1024) and source.getchannel('A').getextrema()==(0,255)
+            assert source.resize((48,48),Image.Resampling.LANCZOS).tobytes()==actual.tobytes()
         assert state()['updater']['version']==manifest['version'].removeprefix('Centaur GTK4 ')
         assert state()['page']=='workspace','Footer update did not restore the workspace'
         until(lambda:state()['updater']['iconState']=='complete','Completed updater did not show the real checkmark')
@@ -215,7 +228,7 @@ def main():
         assert avatar.read_bytes()==avatar_bytes,'Updater changed the saved avatar'
         new_window=driver.find_window('org.centaur.Gtk4',new_pid)
         driver.track_native(new_window,state); driver.screenshot(new_window,folder/'updated-app.png')
-        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        assert state()['updater']['versionChip']==compact_version(state()['updater']['version'])
         edit_deadline=state()['updater']['completionUntil']
         assert 8<edit_deadline-time.monotonic()<=10, 'Edit completion did not start a ten-second receipt'
         until(lambda:time.monotonic()>=edit_deadline-.35,'Edit receipt clock did not progress')
@@ -266,10 +279,10 @@ def main():
         click('nav-projects');click('nav-settings')
         click('update-app')
         until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
-        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        assert state()['updater']['versionChip']==compact_version(state()['updater']['version'])
         driver.screenshot(new_window,folder/'footer-up-to-date.png')
         until(lambda:state()['updater']['footerStatus']=='','Real no-update notice did not clear')
-        assert state()['updater']['versionChip']=='v'+state()['updater']['version']
+        assert state()['updater']['versionChip']==compact_version(state()['updater']['version'])
         summary['checks']+=['settings-version-and-published-update','figma-original-download-icon-right-version-chip-and-native-keyboard',
                             'both-entry-points-restart-warning-and-not-now-without-transaction',
                             'confirmed-footer-live-status-detached-download-signature-verification',

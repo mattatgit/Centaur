@@ -36,6 +36,12 @@ def register(package,data):
         if not destination.exists() and not destination.is_symlink(): destination.symlink_to(source)
     icons=profile/'share/icons/hicolor'
     link(icons/'index.theme',share/'icons/hicolor/index.theme')
+    legacy=Path('scalable/apps')/(APP_ID+'.svg')
+    alias=share/'icons/hicolor'/legacy
+    # Retire the old full-colour SVG link when this profile adopts the PNG.
+    # A user-supplied icon at that location can still override the theme.
+    if alias.is_symlink() and alias.readlink()==icons/legacy and not (icons/legacy).exists():
+        alias.unlink()
     for source in icons.rglob(APP_ID+'*'):
         if source.is_file(): link(source,share/'icons/hicolor'/source.relative_to(icons))
     link(profile/'share/applications'/(APP_ID+'.desktop'),share/'applications'/(APP_ID+'.desktop'))

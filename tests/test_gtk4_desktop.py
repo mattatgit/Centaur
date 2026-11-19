@@ -58,4 +58,23 @@ class DesktopTests(unittest.TestCase):
         desktop.settings_path().write_text('[]'); self.assertIsNone(desktop.launch_settings())
 
 
+    def test_retire_managed_svg_after_switch_to_png_and_preserve_custom_icon(self):
+        icon='icons/hicolor/scalable/apps/org.centaur.Gtk4.svg'
+        png='icons/hicolor/48x48/apps/org.centaur.Gtk4.png'
+        data=self.home/'app-data'
+        desktop.register(self.package,data)
+        legacy=self.home/'data'/icon
+        self.assertTrue(legacy.is_symlink())
+        (self.package/'share'/icon).unlink()
+        new_icon=self.package/'share'/png
+        new_icon.parent.mkdir(parents=True)
+        new_icon.write_text('replacement')
+        desktop.register(self.package,data)
+        self.assertFalse(legacy.is_symlink())
+        self.assertEqual((self.home/'data'/png).resolve(),new_icon)
+        legacy.write_text('user-supplied icon')
+        desktop.register(self.package,data)
+        self.assertEqual(legacy.read_text(),'user-supplied icon')
+
+
 if __name__=='__main__': unittest.main()

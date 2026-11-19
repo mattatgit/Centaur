@@ -80,8 +80,11 @@ class Svg(Gtk.DrawingArea):
 
 
 class OriginalSvg(Svg):
-    """Render a supplied Figma export without changing its paths or colours."""
+    """Render the original Figma asset, optionally tinting its alpha mask."""
     def draw(self, area, cr, width, height):
+        if self.has_css_class('tinted'):
+            super().draw(area, cr, width, height)
+            return
         rect = Rsvg.Rectangle(); rect.x = rect.y = 0
         rect.width = width; rect.height = height if self.art_height is None else self.art_height
         if hasattr(self,'art_rect'): rect.x,rect.y,rect.width,rect.height=self.art_rect
@@ -343,7 +346,7 @@ class Modal:
     def __init__(self, owner, title, width):
         self.owner, self.title, self.width = owner, title, width
         self.previous_focus=owner.window.get_focus(); self.closed=False
-        self.root=Gtk.Overlay(hexpand=True,vexpand=True)
+        self.root=Gtk.Overlay(hexpand=True,vexpand=True,css_classes=['centaur-modal'])
         self.root.set_child(box(css='modal-shade'))
         self.root.set_visible(False); owner.root_overlay.add_overlay(self.root)
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
