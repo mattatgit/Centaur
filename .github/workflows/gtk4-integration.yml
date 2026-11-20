@@ -33,8 +33,16 @@ concurrency:
 
 jobs:
   integration:
-    name: GTK4 product and preserved service regressions ARM64
-    runs-on: ubuntu-24.04-arm
+    name: GTK4 product and service regressions (${{ matrix.system }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+          - system: x86_64-linux
+            runner: ubuntu-24.04
     timeout-minutes: 25
     permissions:
       contents: write
@@ -83,7 +91,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: gtk4-integration-aarch64-linux
+          name: gtk4-integration-${{ matrix.system }}
           path: ${{ runner.temp }}/gtk4-integration-evidence/
           if-no-files-found: ignore
       - name: Publish GTK4 development preview after successful checks
@@ -95,12 +103,12 @@ jobs:
           CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           CENTAUR_PACKAGE_ATTRIBUTE: gtk4-preview
-        run: bash scripts/publish-binary-cache.sh result-gtk4 "$RUNNER_TEMP/gtk4-distribution" aarch64-linux "$GITHUB_SHA"
+        run: bash scripts/publish-binary-cache.sh result-gtk4 "$RUNNER_TEMP/gtk4-distribution" '${{ matrix.system }}' "$GITHUB_SHA"
       - name: Save signed-cache metadata
         if: success() && vars.CENTAUR_CACHIX_CACHE != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: gtk4-product-distribution-aarch64-linux
+          name: gtk4-product-distribution-${{ matrix.system }}
           path: ${{ runner.temp }}/gtk4-distribution/metadata/
           if-no-files-found: error
       - name: Exercise Settings update against the published signed package
@@ -124,7 +132,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: gtk4-updater-aarch64-linux
+          name: gtk4-updater-${{ matrix.system }}
           path: ${{ runner.temp }}/gtk4-update-evidence/
           if-no-files-found: ignore
       - name: Advertise the verified in-app update

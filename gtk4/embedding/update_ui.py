@@ -128,8 +128,6 @@ class UpdateControls:
         self.refresh_footer()
         def worker():
             try:
-                if os.uname().sysname!='Linux' or os.uname().machine not in ('aarch64','arm64'):
-                    raise RuntimeError('Updates are available on ARM64 NixOS.')
                 manifest=check_update(os.environ.get('CENTAUR_GTK4_BUILD_ID','dev'),int(os.environ.get('CENTAUR_GTK4_SOURCE_TIME','0')))
                 GLib.idle_add(self.checked_result,manifest,None)
             except Exception as error: GLib.idle_add(self.checked_result,None,str(error))

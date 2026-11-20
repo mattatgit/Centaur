@@ -1,6 +1,8 @@
 { pkgs, buildId, services ? null, sourceTimestamp ? 0, updaterFixture ? false }:
 let
-  importSandbox = import ./import-sandbox.nix { inherit pkgs; };
+  importSandbox = if pkgs.stdenv.hostPlatform.system == "aarch64-linux"
+    then import ./import-sandbox.nix { inherit pkgs; }
+    else null;
   python = pkgs.python3.withPackages (p: [ p.pygobject3 p.pycairo p.pillow ]);
   fonts = pkgs.runCommandNoCC "centaur-inter-fonts" { } ''
     mkdir -p "$out/share/fonts"
@@ -98,7 +100,7 @@ PY
       sys.path.insert(0, "$out/share/centaur-gtk4-test")
       ${pkgs.lib.optionalString updaterFixture ''
       import os, updater
-      updater.FEED = os.environ["CENTAUR_UPDATER_FIXTURE_FEED"]
+      updater.FIXTURE_FEED = os.environ["CENTAUR_UPDATER_FIXTURE_FEED"]
       ''}
       from $module import main
       raise SystemExit(main())
@@ -118,7 +120,11 @@ PY
       gappsWrapperArgs+=(--set CENTAUR_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_HOST ${services}/bin/centaur-host)
       gappsWrapperArgs+=(--set CENTAUR_GTK_RUNNER "$out/bin/centaur-gtk4-preview")
-      gappsWrapperArgs+=(--set CENTAUR_IMPORT_SANDBOX ${importSandbox}/bin/centaur-import-sandbox)
+      ${if importSandbox == null then ''
+        gappsWrapperArgs+=(--unset CENTAUR_IMPORT_SANDBOX)
+      '' else ''
+        gappsWrapperArgs+=(--set CENTAUR_IMPORT_SANDBOX ${importSandbox}/bin/centaur-import-sandbox)
+      ''}
       gappsWrapperArgs+=(--set CENTAUR_GTK_IMPORT_TOOL "$out/bin/centaur-gtk4-import")
       gappsWrapperArgs+=(--prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.git ]})
       gappsWrapperArgs+=(--set CENTAUR_GTK_PACKAGE "$out")
@@ -142,7 +148,7 @@ PY
   };
   meta = {
     description = "Isolated experimental GTK4 host and separate native GTK4 app via Casilda";
-    platforms = [ "aarch64-linux" ];
+    platforms = [ "aarch64-linux" "x86_64-linux" ];
     mainProgram = if services == null then "centaur-gtk4-test" else "centaur-gtk4";
   };
 }

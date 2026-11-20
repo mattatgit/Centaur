@@ -52,7 +52,11 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
         until(lambda:state()['commentPointer']['phase']=='following','Comment did not start following the pointer')
         x,y=map(round,location(state,*point)); rect=driver.rect(window)
         driver.ipc(f"seat seat0 cursor set {rect['x']+x} {rect['y']+y}"); driver.seat_command('motion 0 0')
-        until(lambda:state()['commentPointer']['head']==[x,y],'Arrowhead did not follow motion without a button held')
+        def follows_pointer():
+            head = state()['commentPointer']['head']
+            # Native coordinate transforms can introduce subpixel rounding.
+            return head is not None and abs(head[0]-x)<.01 and abs(head[1]-y)<.01
+        until(follows_pointer,'Arrowhead did not follow motion without a button held')
         driver.screenshot(window,folder/(name+'-following.png'))
         driver.click(window,x,y)
         until(lambda:state()['commentPointer']['phase']=='placed' and state()['focus']=='GtkTextView','Placement did not focus comment text input')

@@ -1,6 +1,7 @@
 """Updater transaction failures use disposable profiles/process doubles only."""
 import copy
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -73,15 +74,51 @@ class UpdaterTests(unittest.TestCase):
 
     def test_discovery_only_newer_successfully_published_gtk_binary(self):
         value=manifest()
-        self.assertEqual(updater.check_update('aaaaaaa',100,lambda:value),value)
-        self.assertIsNone(updater.check_update('bbbbbbb',100,lambda:value))
-        self.assertIsNone(updater.check_update('aaaaaaa',200,lambda:value))
+        with patch.object(updater,'update_system',return_value='aarch64-linux'):
+            self.assertEqual(updater.check_update('aaaaaaa',100,lambda:value),value)
+            self.assertIsNone(updater.check_update('bbbbbbb',100,lambda:value))
+            self.assertIsNone(updater.check_update('aaaaaaa',200,lambda:value))
         for key,bad in [('system','x86_64-linux'),('branch','codex/native-prototype'),('packageAttribute','default'),
                         ('cacheUrl','https://other.example'),('publicSigningKeys',['attacker:key']),
                         ('verifiedSignedClosureDownload',False),('updateProtocol',2),('storePath','/tmp/evil'),
                         ('sourceRevision','b;echo nope'),('version','Centaur GTK4 wrong')]:
             candidate=copy.deepcopy(value); candidate[key]=bad
-            with self.subTest(key=key),self.assertRaises(updater.UpdateError): updater.validate_manifest(candidate)
+            with self.subTest(key=key),self.assertRaises(updater.UpdateError):
+                updater.validate_manifest(candidate,'aarch64-linux')
+
+    def test_each_linux_architecture_checks_its_own_feed_and_rejects_the_other_package(self):
+        for machine,tag,other in (
+            ('aarch64','gtk4-preview','x86_64-linux'),
+            ('x86_64','gtk4-preview-x86_64-linux','aarch64-linux'),
+        ):
+            with self.subTest(machine=machine), patch.object(updater.platform,'system',return_value='Linux'), \
+                 patch.object(updater.platform,'machine',return_value=machine), \
+                 patch.object(updater.urllib.request,'urlopen') as urlopen:
+                value = dict(manifest(),system=machine+'-linux')
+                release = {'tag_name':tag,'draft':False,'prerelease':True,'body':json.dumps(value)}
+                urlopen.return_value = io.BytesIO(json.dumps(release).encode())
+                self.assertEqual(updater.check_update('aaaaaaa',100),value)
+                self.assertEqual(urlopen.call_args.args[0].full_url,updater.RELEASE_API+tag)
+                with self.assertRaises(updater.UpdateError):
+                    updater.check_update('aaaaaaa',100,lambda:dict(value,system=other))
+                release['tag_name'] = updater.RELEASE_TAGS[other]
+                urlopen.return_value = io.BytesIO(json.dumps(release).encode())
+                with self.assertRaises(updater.UpdateError):
+                    updater.check_update('aaaaaaa',100)
+
+    def test_detached_updater_accepts_both_linux_architectures(self):
+        with patch.object(updater.platform,'system',return_value='Linux'), \
+             patch.object(updater.os,'geteuid',return_value=1000), \
+             patch.object(sys,'argv',['centaur-gtk4-update','--transaction',str(self.work)]), \
+             patch.object(updater,'run_transaction') as run:
+            for machine in ('aarch64','x86_64'):
+                with self.subTest(machine=machine), patch.object(updater.platform,'machine',return_value=machine):
+                    self.assertEqual(updater.main(),0)
+                    run.assert_called_once_with(self.work)
+                    run.reset_mock()
+            with patch.object(updater.platform,'machine',return_value='riscv64'), self.assertRaises(SystemExit):
+                updater.main()
+            run.assert_not_called()
 
     def test_success_orders_verification_before_stop_and_atomic_activation_before_health(self):
         transaction,runtime=self.transaction()
@@ -213,6 +250,23 @@ class UpdaterTests(unittest.TestCase):
         self.assertEqual(json.loads(calls[-1][2]['body']),value)
         with self.assertRaises(ValueError): publisher.publish(dict(value,verifiedSignedClosureDownload=False),request)
         with self.assertRaises(ValueError): publisher.publish(dict(value,sourceTimestamp=50),request)
+
+    def test_publication_creates_a_separate_x86_release_without_touching_the_arm_feed(self):
+        value = dict(manifest(),system='x86_64-linux')
+        calls = []
+        def request(method,path,body=None):
+            calls.append((method,path,body))
+            if method == 'GET': raise urllib.error.HTTPError(path,404,'Missing',None,None)
+            return {'html_url':'ok'}
+        publisher.publish(value,request)
+        self.assertEqual([call[:2] for call in calls],[
+            ('GET','/repos/mattatgit/Centaur/releases/tags/gtk4-preview-x86_64-linux'),
+            ('POST','/repos/mattatgit/Centaur/releases'),
+        ])
+        payload = calls[-1][2]
+        self.assertEqual(payload['tag_name'],'gtk4-preview-x86_64-linux')
+        self.assertEqual(payload['target_commitish'],value['sourceRevision'])
+        self.assertEqual(json.loads(payload['body']),value)
 
 
 if __name__=='__main__': unittest.main()

@@ -21,7 +21,9 @@ from download_progress import DownloadProgress, download_plan, path_info, progre
 
 CACHE = 'https://mattatgit-centaur.cachix.org'
 KEY = 'mattatgit-centaur.cachix.org-1:ouvsfGud6lFrvNNxpE1S5yGkNFm9J2WKtnIm38OSQ58='
-FEED = 'https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview'
+RELEASE_API = 'https://api.github.com/repos/mattatgit/Centaur/releases/tags/'
+RELEASE_TAGS = {'aarch64-linux': 'gtk4-preview', 'x86_64-linux': 'gtk4-preview-x86_64-linux'}
+FIXTURE_FEED = None
 ALLOWED_BINS = {'centaur-gtk4','centaur-gtk4-preview','centaur-gtk4-bridge',
                 'centaur-gtk4-test','centaur-gtk4-check','centaur-gtk4-integration-check',
                 'centaur-gtk4-update','centaur-gtk4-updater-check','centaur-gtk4-import','centaur-host','centaur-network'}
@@ -49,13 +51,19 @@ def read_json(path):
     except (OSError,ValueError): return {}
 
 
-def validate_manifest(value):
+def update_system():
+    if platform.system() != 'Linux':
+        return None
+    return {'aarch64': 'aarch64-linux', 'arm64': 'aarch64-linux', 'x86_64': 'x86_64-linux'}.get(platform.machine())
+
+
+def validate_manifest(value, system):
     try:
         revision=value['sourceRevision']; store=value['storePath']
         if not re.fullmatch('[a-f0-9]{40}',revision): raise ValueError()
         if not re.fullmatch(r'/nix/store/[0-9a-df-np-sv-z]{32}-centaur-gtk4-preview-[A-Za-z0-9.+_-]+',store): raise ValueError()
         if (value['schemaVersion']!=1 or value['updateProtocol']!=1 or
-            value['branch']!='codex/gtk4-migration' or value['system']!='aarch64-linux' or
+            value['branch']!='codex/gtk4-migration' or system not in RELEASE_TAGS or value['system']!=system or
             value['packageAttribute']!='gtk4-preview' or value['cacheUrl']!=CACHE or
             KEY not in value['publicSigningKeys'] or value['verifiedSignedClosureDownload'] is not True or
             not isinstance(value['sourceTimestamp'],int) or value['sourceTimestamp']<=0 or
@@ -69,22 +77,26 @@ def validate_manifest(value):
 
 
 def check_update(current_id,source_timestamp,fetch=None):
+    system = update_system()
+    if system is None:
+        raise UpdateError('Updates are available for ARM64 and x86-64 NixOS.')
+    tag = RELEASE_TAGS[system]
     if fetch is None:
         def fetch():
-            request=urllib.request.Request(FEED,headers={'User-Agent':'Centaur-GTK4-Updater','Cache-Control':'no-cache'})
+            request=urllib.request.Request(FIXTURE_FEED or RELEASE_API+tag,headers={'User-Agent':'Centaur-GTK4-Updater','Cache-Control':'no-cache'})
             try:
                 with urllib.request.urlopen(request,timeout=20) as response:
                     payload=response.read(65537)
                 if len(payload)>65536: raise UpdateError('The update response is too large.')
                 release=json.loads(payload)
-                if release.get('tag_name')!='gtk4-preview' or release.get('draft') is not False or release.get('prerelease') is not True:
+                if release.get('tag_name')!=tag or release.get('draft') is not False or release.get('prerelease') is not True:
                     raise UpdateError('The update publication could not be verified.')
                 return json.loads(release['body'])
             except urllib.error.HTTPError as error:
                 if error.code==404: raise UpdateError('No published update is available yet.') from None
                 raise UpdateError('Could not check for updates. Try again later.') from None
             except (OSError,ValueError): raise UpdateError('Could not check for updates. Try again later.') from None
-    manifest=validate_manifest(fetch())
+    manifest=validate_manifest(fetch(), system)
     if manifest['sourceRevision'].startswith(current_id) or manifest['sourceTimestamp']<=source_timestamp: return None
     return manifest
 
@@ -334,7 +346,7 @@ def run_transaction(work):
         try: fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError: raise UpdateError('Another Centaur update is already running.') from None
         transaction=Transaction(work)
-        try: transaction.apply(validate_manifest(read_json(work/'manifest.json')), {})
+        try: transaction.apply(validate_manifest(read_json(work/'manifest.json'), update_system()), {})
         except Exception as error:
             if read_json(work/'status.json').get('phase') not in ('recovered','recovery-required'): transaction.status('failed',str(error))
             raise
@@ -346,8 +358,8 @@ def main():
     mode.add_argument('--transaction',type=Path)
     mode.add_argument('--recover',action='store_true')
     args=parser.parse_args()
-    if platform.system()!='Linux' or platform.machine() not in ('aarch64','arm64') or os.geteuid()==0:
-        raise SystemExit('The GTK4 updater runs as your normal user on ARM64 Linux.')
+    if update_system() is None or os.geteuid()==0:
+        raise SystemExit('The GTK4 updater runs as your normal user on ARM64 and x86-64 Linux.')
     try:
         if args.recover:
             recovery=read_json(state_path()/'recovery.json'); work=Path(recovery['work']).resolve()

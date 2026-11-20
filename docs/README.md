@@ -29,9 +29,9 @@ The source snapshot used for this review is `f2f72577b90edf23c8266b15a1a07905e01
 
 ## Installation and updates
 
-Start with the [root README](../README.md#install-on-arm64-nixos) for the current ARM64 NixOS preview.
+Start with the [root README](../README.md#install-on-nixos) for the NixOS preview.
 
-- [Install and update Centaur on ARM64 NixOS](NIXOS_INSTALL.md)
+- [Install and update Centaur on NixOS](NIXOS_INSTALL.md)
 - [Set up the Centaur agent on NixOS](OMP_NIXOS_SETUP.md)
 
 ## Operational guides

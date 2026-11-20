@@ -41,12 +41,10 @@ download that first installs this counter still uses the previous version's
 status; subsequent downloads use the live counter. This does not change the
 update feed/protocol, profile activation, signature checks or recovery path.
 
-An existing build without this feature needs one normal, precompiled update
-through **Centaur Install** first. Subsequent normal updates use Settings.
-That initial setup should launch through the dedicated GTK profile rather than
-a shortcut pinned to an older store path; the Qt shortcut stays separate.
-Current testing is ARM64 NixOS in UTM, using the existing GTK profile and Cairo
-launch environment. The Air and macOS are outside this implementation.
+Existing builds without architecture-specific updater support need a one-time
+install of the matching signed preview. Launch through the dedicated GTK
+profile so subsequent updates take effect from the desktop shortcut.
+[Install the current preview](NIXOS_INSTALL.md#2-install-the-current-preview)
 
 ## Installation boundary
 
@@ -81,12 +79,19 @@ Publication is gated to `main`; `sourceBranch` records that source branch. The
 historical protocol-1 `branch` value is retained so already-installed clients
 continue to discover updates without a channel-transition installation.
 
-After ordinary unit/service/native checks, signed publication and the real
-in-app update acceptance test succeed, CI atomically updates the JSON body of
-the public GitHub prerelease tagged **`gtk4-preview`**. This is one development
-stream, not a channel selector. Clients read:
+Each architecture runs the unit, service, native product and in-app update
+checks before CI advertises its signed package. The updater selects the release
+tag from the running machine and requires the manifest to name that architecture.
 
-`https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview`
+| Nix system | GitHub prerelease tag |
+| --- | --- |
+| `aarch64-linux` | `gtk4-preview` |
+| `x86_64-linux` | `gtk4-preview-x86_64-linux` |
+
+The two jobs can publish independently. Existing ARM64 installations continue
+to use the original tag and protocol. The packaged import-diagnostic sandbox
+is available on ARM64 NixOS. On x86-64, fixed sandbox diagnostics report
+unavailable and ordinary read-only source inspection remains available.
 
 The body names an immutable store path and source revision. The moving branch
 tip is never evaluated by the updater. An unpublished, failed, stale, wrong

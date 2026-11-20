@@ -128,13 +128,14 @@
             '';
             meta.mainProgram = "centaur-landline-test";
           };
-        } // pkgs.lib.optionalAttrs (system == "aarch64-linux") {
+        } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           gtk4-preview = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";
             sourceTimestamp = self.lastModified or 0;
             inherit services;
           };
+        } // pkgs.lib.optionalAttrs (system == "aarch64-linux") {
           gtk4-embedding-test = import ./packaging/gtk4-embedding-test.nix {
             pkgs = gtk-nixpkgs.legacyPackages.${system};
             buildId = self.shortRev or self.dirtyShortRev or "dev";

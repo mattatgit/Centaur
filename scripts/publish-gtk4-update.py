@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Atomically advertise a CI-verified package in one public prerelease body.
+"""Atomically advertise a CI-verified package in its public prerelease body.
 
 This runs AFTER signed full-closure publication. A failed API call leaves the
 previous body available; users never follow the moving development branch.
@@ -12,22 +12,26 @@ import urllib.error
 import urllib.request
 
 REPO='mattatgit/Centaur'
-TAG='gtk4-preview'
+RELEASE_TAGS = {'aarch64-linux': 'gtk4-preview', 'x86_64-linux': 'gtk4-preview-x86_64-linux'}
 # Protocol 1 clients pin this historical label as their GTK update stream.
 # It remains stable when the repository's development branch changes to main.
 
 
 def publish(manifest,request):
-    if (manifest.get('system')!='aarch64-linux' or manifest.get('packageAttribute')!='gtk4-preview' or
+    tag = RELEASE_TAGS.get(manifest.get('system'))
+    if (tag is None or manifest.get('packageAttribute')!='gtk4-preview' or
         manifest.get('updateProtocol')!=1 or manifest.get('branch')!='codex/gtk4-migration' or
         manifest.get('verifiedSignedClosureDownload') is not True):
-        raise ValueError('Only a verified ARM64 GTK4 product package can be advertised.')
+        raise ValueError('Only a verified ARM64 or x86-64 GTK4 product package can be advertised.')
     path='/repos/'+REPO+'/releases'
-    try: previous=request('GET',path+'/tags/'+TAG)
+    try: previous=request('GET',path+'/tags/'+tag)
     except urllib.error.HTTPError as error:
         if error.code!=404: raise
+        error.close()
         previous=None
-    payload={'name':'Centaur GTK4 development preview','body':json.dumps(manifest,indent=2),
+    title = 'Centaur GTK4 development preview'
+    if manifest['system'] == 'x86_64-linux': title += ' (x86-64)'
+    payload={'name':title,'body':json.dumps(manifest,indent=2),
              'draft':False,'prerelease':True}
     if previous:
         try: old=json.loads(previous.get('body','{}'))
@@ -35,7 +39,7 @@ def publish(manifest,request):
         if old.get('sourceTimestamp',0)>manifest['sourceTimestamp']:
             raise ValueError('Refusing to replace a newer published update with an older run.')
         return request('PATCH',path+'/'+str(previous['id']),payload)
-    return request('POST',path,dict(payload,tag_name=TAG,target_commitish=manifest['sourceRevision']))
+    return request('POST',path,dict(payload,tag_name=tag,target_commitish=manifest['sourceRevision']))
 
 
 def main():

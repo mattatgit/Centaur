@@ -14,7 +14,7 @@ import time
 from check import read,until,target
 from integration_check import Bridge
 from test_driver import Driver
-from updater import Runtime, CACHE, KEY, NIX_FLAGS
+from updater import Runtime, CACHE, KEY, NIX_FLAGS, RELEASE_TAGS, update_system
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
 from build_display import compact_version
@@ -81,7 +81,10 @@ def main():
              XDG_DATA_HOME=str(home/'.local/share'),XDG_CONFIG_HOME=str(home/'.config'))
     # The real updater is production code. Only the old CI fixture's generated
     # launcher reads this variable; the released package has no feed override.
-    feed=folder/'release.json'; feed.write_text(json.dumps({'tag_name':'gtk4-preview','draft':False,'prerelease':True,'body':json.dumps(manifest)}))
+    system = update_system()
+    assert manifest['system'] == system, 'Updater test requires a package for this runner architecture'
+    feed = folder/'release.json'
+    feed.write_text(json.dumps({'tag_name':RELEASE_TAGS[system],'draft':False,'prerelease':True,'body':json.dumps(manifest)}))
     env['CENTAUR_UPDATER_FIXTURE_FEED']=feed.as_uri()
     agent=folder/'agent'; agent.write_text('#!'+sys.executable+'\nprint(\'{"kind":"question","message":"Updater connection test"}\')\n'); agent.chmod(0o700)
     env['CENTAUR_AGENT']=str(agent)

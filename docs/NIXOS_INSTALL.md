@@ -1,8 +1,8 @@
-# Install and update Centaur on ARM64 NixOS
+# Install and update Centaur on NixOS
 
-Start with the [root README](../README.md#install-on-arm64-nixos). This guide adds detail for the GTK4 preview on ARM64 NixOS (`aarch64-linux`).
+This guide covers the GTK4 preview on ARM64 (`aarch64-linux`) and x86-64 (`x86_64-linux`) NixOS. [Centaur README](../README.md#install-on-nixos)
 
-Run the commands as your normal user in a terminal on your graphical desktop. You need Nix with flakes, `curl` and `python3`. The one-time cache setup also needs `sudo`. If you're unsure which architecture you have, run `uname -m`. This guide applies when it prints `aarch64`.
+Run the commands as your normal user in a terminal on your graphical desktop. You need Nix with flakes, `curl` and `python3`. The one-time cache setup also needs `sudo`. The installer selects the matching release from `uname -m`.
 
 ## 1. Enable the signed binary cache
 
@@ -28,25 +28,31 @@ If the helper stops for review, keep its output and stop at that step. If the ma
 
 ## 2. Install the current preview
 
-Run the whole block together. It reads the [public GTK4 preview release manifest](https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview), checks for a verified ARM64 release and installs the exact published revision of `gtk4-preview` into the dedicated `centaur-gtk4` profile.
+Run the whole block together. It selects a verified GTK4 preview for your architecture and installs its exact published revision into the dedicated `centaur-gtk4` profile. [ARM64 release](https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview) · [x86-64 release](https://github.com/mattatgit/Centaur/releases/tag/gtk4-preview-x86_64-linux)
 
 ```sh
 (
+  case "$(uname -m)" in
+    aarch64|arm64) SYSTEM=aarch64-linux; TAG=gtk4-preview ;;
+    x86_64) SYSTEM=x86_64-linux; TAG=gtk4-preview-x86_64-linux ;;
+    *) printf '%s\n' 'Centaur GTK4 supports ARM64 and x86-64 NixOS.' >&2; exit 1 ;;
+  esac
   INSTALLABLE="$(curl -fsSL \
-    https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview \
+    "https://api.github.com/repos/mattatgit/Centaur/releases/tags/$TAG" \
     | python3 -c '
 import json, re, sys
 
+system, tag = sys.argv[1:]
 try:
     release = json.load(sys.stdin)
     manifest = json.loads(release["body"])
     revision = manifest["sourceRevision"]
     installable = f"github:mattatgit/Centaur/{revision}#gtk4-preview"
     valid = (
-        release["tag_name"] == "gtk4-preview"
+        release["tag_name"] == tag
         and release["draft"] is False
         and release["prerelease"] is True
-        and manifest["system"] == "aarch64-linux"
+        and manifest["system"] == system
         and manifest["packageAttribute"] == "gtk4-preview"
         and manifest["verifiedSignedClosureDownload"] is True
         and re.fullmatch(r"[0-9a-f]{40}", revision)
@@ -56,9 +62,9 @@ except (KeyError, TypeError, ValueError):
     valid = False
 
 if not valid:
-    sys.exit("Could not find a verified Centaur GTK4 release for ARM64.")
+    sys.exit(f"Could not find a verified Centaur GTK4 release for {system}.")
 print(installable)
-')" || exit 1
+' "$SYSTEM" "$TAG")" || exit 1
 
   PROFILE="$HOME/.local/state/nix/profiles/centaur-gtk4"
   mkdir -p "$(dirname "$PROFILE")" &&
@@ -83,6 +89,8 @@ The first launch from this profile registers **Centaur GTK4** in your desktop's 
 On the host, open **Settings → LLM and Model** to [connect a provider and choose a model](OMP_NIXOS_SETUP.md#connect-a-provider-and-choose-a-model). Centaur keeps its projects and conversations in `~/.local/share/Centaur/GTK4` by default.
 
 ## Update from Centaur
+
+An older local x86-64 build needs a one-time install of a signed x86-64 preview before it can discover updates. Use [step 2](#2-install-the-current-preview) once the x86-64 release is available.
 
 - In **Settings → App**, click **Check for updates** or **Update app** if a newer release is already available.
 - In a project, use the green **Update available** icon at the bottom of the chat panel. The installed version appears at the right of the footer.

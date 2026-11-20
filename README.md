@@ -4,9 +4,9 @@ Centaur is a native, collaborative workspace for building GTK4 applications. Eac
 
 Create an application, import an existing GitHub repository or local folder, and invite others to build with you. Centaur's AI agent helps investigate projects and make changes through conversation.
 
-**Current status:** Preview software. Precompiled GTK4 releases are available for **ARM64 NixOS**. Standalone app deployment and the design-system library are planned. macOS and Intel Linux GTK4 releases are not yet available.
+**Centaur is preview software.** The signed GTK4 release workflow targets ARM64 and x86-64 NixOS. Standalone app deployment, the design-system library and macOS releases are planned.
 
-## Install on ARM64 NixOS
+## Install on NixOS
 
 Run these commands from a terminal in your graphical desktop, as your normal user. You'll need Nix with flakes, `curl`, `python3`, and `sudo` for the initial cache setup.
 
@@ -30,21 +30,7 @@ If the check rejects your system configuration, don't force it. You can instead 
 
 ### 2. Install Centaur
 
-These commands retrieve the latest successfully published GTK4 release and install it into a dedicated Nix profile.
-
-```sh
-INSTALLABLE="$(curl -fsSL \
-  https://api.github.com/repos/mattatgit/Centaur/releases/tags/gtk4-preview \
-  | python3 -c 'import json,sys; m=json.loads(json.load(sys.stdin)["body"]); assert m["system"]=="aarch64-linux" and m["packageAttribute"]=="gtk4-preview" and m["verifiedSignedClosureDownload"] is True; print(m["installable"])')"
-
-mkdir -p "$HOME/.local/state/nix/profiles"
-
-nix --extra-experimental-features 'nix-command flakes' --refresh \
-  --max-jobs 0 --builders '' --option fallback false --option require-sigs true \
-  build --profile "$HOME/.local/state/nix/profiles/centaur-gtk4" "$INSTALLABLE"
-```
-
-Local compilation is disabled. If the signed package is unavailable, the installation fails rather than building from source.
+Install the latest signed preview for your machine into the dedicated Nix profile. The command selects the ARM64 or x86-64 release and disables local compilation. [Install the current preview](docs/NIXOS_INSTALL.md#2-install-the-current-preview)
 
 ### 3. Set up the AI agent (host computer only)
 
