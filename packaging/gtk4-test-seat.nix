@@ -16,5 +16,5 @@ pkgs.stdenv.mkDerivation {
   installPhase = ''
     install -Dm755 centaur-test-seat "$out/bin/centaur-test-seat"
   '';
-  meta.platforms = [ "aarch64-linux" ];
+  meta.platforms = [ "aarch64-linux" "x86_64-linux" ];
 }
