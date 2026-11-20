@@ -281,16 +281,28 @@ def main():
         driver.screenshot(new_window,folder/'settings-completion-second-edit-visit.png')
         click('nav-projects');click('nav-settings')
         click('update-app')
-        until(lambda:state()['updater']['footerStatus']=='Up to date','Real no-update check did not show transient notice')
+        # The first release for an architecture is advertised only after this
+        # check passes. The real candidate can legitimately find no feed yet.
+        unpublished = 'No published update is available yet.'
+        def public_notice():
+            status = state()['updater']['footerStatus']
+            return status if status in ('Up to date', unpublished) else None
+        notice = until(public_notice,'Checking the public feed did not report up to date or unpublished')
         assert state()['updater']['versionChip']==compact_version(state()['updater']['version'])
-        driver.screenshot(new_window,folder/'footer-up-to-date.png')
-        until(lambda:state()['updater']['footerStatus']=='','Real no-update notice did not clear')
+        assert not state()['updater']['available'] and not state()['updater']['work']
+        if notice=='Up to date':
+            driver.screenshot(new_window,folder/'footer-up-to-date.png')
+            until(lambda:state()['updater']['footerStatus']=='','Real no-update notice did not clear')
+        else:
+            assert state()['updater']['status']==unpublished
+            driver.screenshot(new_window,folder/'footer-feed-unpublished.png')
         assert state()['updater']['versionChip']==compact_version(state()['updater']['version'])
         summary['checks']+=['settings-version-and-published-update','figma-original-download-icon-right-version-chip-and-native-keyboard',
                             'both-entry-points-restart-warning-and-not-now-without-transaction',
                             'confirmed-footer-live-status-detached-download-signature-verification',
                             'confirmed-settings-real-profile-switch-restart-and-restored-settings-page',
                             'edit-success-ten-seconds-and-settings-first-edit-visit-five-seconds-then-original-idle-art',
+                            'public-feed-check-after-restart',
                             'real-nix-profile-switch-and-gtk-restart','project-chat-preferences-identities-preserved',
                             'qt-profile-and-data-preserved']
         maintenance(folder,env); summary['checks'].append('real-host-maintenance-gate-and-busy-agent-refusal')
