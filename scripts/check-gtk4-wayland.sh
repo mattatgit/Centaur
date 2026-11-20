@@ -54,9 +54,13 @@ done
 export CENTAUR_GTK4_TEST_SEAT="$XDG_RUNTIME_DIR/centaur-test-seat.sock"
 "$test_seat" "$CENTAUR_GTK4_TEST_SEAT" >> "$sway_log" 2>&1 &
 pointer_pid=$!
-for _ in {1..100}; do
-    inputs=$(swaymsg -t get_inputs -r)
-    if [[ $inputs == *keyboard* && $inputs == *pointer* ]]; then break; fi
+input_deadline=$((SECONDS + 15))
+inputs=''
+while (( SECONDS < input_deadline )); do
+    # The socket can appear before Sway is answering IPC requests.
+    if inputs=$(swaymsg -t get_inputs -r 2>/dev/null) &&
+        [[ $inputs == *keyboard* && $inputs == *pointer* ]]; then break; fi
+    kill -0 "$sway_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
     kill -0 "$pointer_pid" 2>/dev/null || { cat "$sway_log" >&2; exit 1; }
     sleep 0.1
 done
