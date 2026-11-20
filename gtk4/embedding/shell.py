@@ -204,6 +204,7 @@ class Centaur(Gtk.Application):
         GLib.timeout_add(200,self.poll)
 
     def build_projects(self):
+        from v2_ui import ProjectStatusCard
         page = box(True,0,'panel')
         self.projects_inner = box(True,24); self.projects_inner.set_vexpand(True); page.append(self.projects_inner)
         self.sharing_notices=box(True,8); self.sharing_notices.set_margin_top(12)
@@ -214,12 +215,17 @@ class Centaur(Gtk.Application):
         # room to paint. Card positions and grid width retain their V2 insets.
         self.cards = margins(ProjectGrid(),40); scroll.set_child(self.cards)
         overlay = Gtk.Overlay(vexpand=True); overlay.set_child(scroll)
-        self.empty_projects = box(True,16,'empty-project'); self.empty_projects.set_size_request(-1,264)
-        self.empty_projects.append(label('What shall we make?','empty-heading',True))
-        self.empty_projects.append(label('A family planner, a little game, a shared collection. Every project becomes its own native app.','empty-description muted',True))
-        spacer=box(); spacer.set_vexpand(True); self.empty_projects.append(spacer)
-        first=button('Create your first project',self.new_project,tone='lime'); first.set_halign(Gtk.Align.START); self.empty_projects.append(first)
-        self.empty_limit=margins(WidthLimit(self.empty_projects,424),40); overlay.add_overlay(self.empty_limit); self.projects_inner.append(overlay)
+        self.empty_projects = ProjectStatusCard('No projects created yet','Create, import or join one')
+        self.empty_limit = WidthLimit(self.empty_projects,304,centred=True)
+        self.empty_limit.set_valign(Gtk.Align.CENTER)
+        self.empty_limit.set_can_target(False)
+        self.empty_limit.set_margin_start(8); self.empty_limit.set_margin_end(8)
+        # Centre across the Projects pane and vertically against the window.
+        self.empty_limit.set_margin_bottom(HEADER-self.stack.get_margin_bottom())
+        overlay.add_overlay(self.empty_limit); self.projects_inner.append(overlay)
+        self.targets.update({'projects-empty':self.empty_projects,
+                             'projects-empty-illustration':self.empty_projects.clay,
+                             'projects-empty-shadow':self.empty_projects.shadow})
         self.join_progress=label('','small muted',True); self.projects_inner.append(self.join_progress); self.join_progress.set_visible(False)
         self.join_progress.set_margin_start(40); self.join_progress.set_margin_end(40)
         self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); self.cancel_join.set_halign(Gtk.Align.START)
@@ -1405,8 +1411,7 @@ class Centaur(Gtk.Application):
         for item in self.nav.values(): item.get_child().set_halign(Gtk.Align.CENTER if compact else Gtk.Align.START)
         self.profile_text.set_visible(not compact)
         inset=24 if self.stack.get_width()<720 else 40
-        for widget in (self.cards,self.empty_limit):
-            for edge in ('top','bottom','start','end'): getattr(widget,'set_margin_'+edge)(inset)
+        margins(self.cards,inset)
         self.join_progress.set_margin_start(inset); self.join_progress.set_margin_end(inset)
         self.sharing_notices.set_margin_start(inset); self.sharing_notices.set_margin_end(inset)
         self.cancel_join.set_margin_start(inset); self.cancel_join.set_margin_bottom(inset)

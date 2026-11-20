@@ -74,25 +74,41 @@ class WorkingMark(Gtk.DrawingArea):
         return True
 
 
-class ImportWaiting(Gtk.Box):
-    def __init__(self):
-        super().__init__(orientation=Gtk.Orientation.VERTICAL,spacing=0,
-                         halign=Gtk.Align.CENTER,valign=Gtk.Align.CENTER)
-        self.add_css_class('import-waiting'); self.set_size_request(304,256)
-        stage=Gtk.Overlay(); stage.set_size_request(304,168); stage.set_child(box())
-        shadow=original('f83cd.svg',129); shadow.set_content_height(49)
-        shadow.set_halign(Gtk.Align.CENTER); shadow.set_valign(Gtk.Align.END); shadow.set_margin_end(9); stage.add_overlay(shadow)
-        clay=picture(ASSETS/'v2/dc3c7.png',128)
-        self.clay=clay
-        clay.set_halign(Gtk.Align.CENTER); clay.set_valign(Gtk.Align.START); clay.set_margin_top(35); stage.add_overlay(clay); self.append(stage)
+class ProjectStatusCard(Gtk.Box):
+    def __init__(self, title, status):
+        super().__init__(orientation=Gtk.Orientation.VERTICAL,valign=Gtk.Align.CENTER)
+        self.add_css_class('project-status-card')
+        self.set_size_request(-1,256)
+        stage=Gtk.Overlay()
+        stage.set_size_request(-1,168)
+        stage.set_child(box())
+        self.shadow=original('f83cd.svg',129)
+        self.shadow.set_content_height(49)
+        self.shadow.set_halign(Gtk.Align.CENTER)
+        self.shadow.set_valign(Gtk.Align.END)
+        self.shadow.set_margin_end(9)
+        stage.add_overlay(self.shadow)
+        self.clay=picture(ASSETS/'v2/dc3c7.png',128)
+        self.clay.set_halign(Gtk.Align.CENTER)
+        self.clay.set_valign(Gtk.Align.START)
+        self.clay.set_margin_top(35)
+        stage.add_overlay(self.clay)
+        self.append(stage)
         captions=box(True,0); captions.set_valign(Gtk.Align.CENTER)
         caption_slot=Gtk.CenterBox(orientation=Gtk.Orientation.VERTICAL); caption_slot.set_size_request(-1,88)
         caption_slot.set_center_widget(captions); self.append(caption_slot)
-        self.title=label('Centaur is importing your project','waiting-title',True)
+        self.title=label(title,'project-status-title',True)
         self.title.set_xalign(.5); captions.append(self.title)
-        self.status=label('Please wait a moment','waiting-support muted',True)
+        self.status=label(status,'project-status-support muted',True)
         self.status.set_xalign(.5); captions.append(self.status)
         self.set_can_target(False)
+
+
+class ImportWaiting(ProjectStatusCard):
+    def __init__(self):
+        super().__init__('Centaur is importing your project','Please wait a moment')
+        self.set_halign(Gtk.Align.CENTER)
+        self.set_size_request(304,256)
 
     def update(self, phase, operation='import'):
         self.operation=operation

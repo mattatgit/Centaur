@@ -96,8 +96,6 @@ separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .chat-scrollbar slider { min-width: 8px; padding: 0; margin: 0; border: 0; }
 .chat-scrollbar:disabled slider { background: transparent; }
 .empty-heading { font-size: 24px; font-weight: 600; }
-.empty-description { font-size: 14px; }
-.empty-project { background: #f8f8f8; border-radius: 16px; padding: 32px; }
 .project-card { background: #f8f8f8; border-radius: 16px; padding: 0; }
 .project-card:hover, .project-card.hovered, .project-card:focus-visible { background: #f8f8f8; box-shadow: 0 0 25px alpha(black,.12); }
 .tile-avatar { background: #ff6157; color: white; border-radius: 12px; box-shadow: 0 0 25px alpha(black,.12); }
@@ -186,9 +184,9 @@ scrollbar slider { min-width: 8px; min-height: 32px; border: 0; border-radius: 8
 .saved-caption { font-size: 12px; font-weight: 600; }
 .saved-status.pending { background: transparent; color: #9ea39e; }
 .saved-status.failed { background: #fff0ed; color: #ad3232; }
-.import-waiting { background: #fafafa; border-radius: 16px; }
-.waiting-title { font-size: 14px; font-weight: 600; line-height: 18px; }
-.waiting-support { font-size: 12px; font-weight: 500; line-height: 18px; }
+.project-status-card { background: #fafafa; border-radius: 16px; }
+.project-status-title { font-size: 14px; font-weight: 600; line-height: 18px; }
+.project-status-support { font-size: 12px; font-weight: 500; line-height: 18px; }
 .working-mark { background: white; border-radius: 8px; }
 .import-title { font-family: 'Inter Tight'; font-size: 16px; font-weight: 600; }
 .import-caption { font-family: 'Inter Tight'; font-size: 10px; font-weight: 500; line-height: 12px; }

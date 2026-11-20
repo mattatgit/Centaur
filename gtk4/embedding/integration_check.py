@@ -125,7 +125,21 @@ if cfg.get('fixtureProgressGate'):
             until(lambda:hs().get('windowSize')==[width,height],'UI audit resize did not settle')
             driver.ipc(f'[con_id={hw}] move position 0 px 0 px'); time.sleep(.3)
         resize_host(1440,1024)
-        driver.screenshot(hw,folder/'ui-projects-empty.png')
+        empty_shot=folder/'ui-projects-empty.png'
+        driver.screenshot(hw,empty_shot)
+        assert target(hs,'projects-empty')==[672,384,304,256]
+        assert target(hs,'projects-empty-illustration')==[760,419,128,128]
+        assert target(hs,'projects-empty-shadow')==[755,503,129,49]
+        with Image.open(empty_shot) as source:
+            pixels=source.convert('RGB')
+            assert pixels.getpixel((680,400))==(250,250,250),'Empty Projects panel fill must be FAFAFA'
+            assert pixels.getpixel((672,384))==(255,255,255),'Empty Projects panel must have rounded corners'
+        resize_host(360,680)
+        assert target(hs,'projects-empty')==[80,212,264,256]
+        assert target(hs,'projects-empty-illustration')==[148,247,128,128]
+        driver.screenshot(hw,folder/'ui-projects-empty-compact.png')
+        resize_host(1440,1024)
+        summary['checks'].append('figma-projects-empty-state-layout-artwork-and-compact-width')
         click(hs,hw,'nav-systems'); driver.screenshot(hw,folder/'ui-design-systems.png')
         click(hs,hw,'nav-settings')
         summary['checks'].append(check_settings_feedback(driver,folder,hs,hw,click,roots[0]))
@@ -386,6 +400,7 @@ if cfg.get('fixtureProgressGate'):
         summary['checks']+=check_workspace_polish(driver,folder,hs,hw,gs,gw,click,project_id)
         click(hs,hw,'nav-projects'); resize_host(1440,1024)
         driver.screenshot(hw,folder/'ui-project-cards.png')
+        assert 'projects-empty' not in hs()['targets'],'Empty state obscured the populated Projects grid'
         card=hs()['targets']['open-'+project_id]
         assert card[3]==280 and hs()['layout']['tileColumns']==3,'Project grid did not retain reference card geometry'
         summary['checks']+=check_cards_and_profile(driver,folder,hs,hw,click,project_id)
