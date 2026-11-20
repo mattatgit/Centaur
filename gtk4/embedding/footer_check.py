@@ -141,6 +141,15 @@ def check_footer(driver,folder):
             controls.refresh_footer()
         assert controls.icon.state=='disabled'
         evidence['checks'].append('settings-receipt-awaits-first-edit-and-keeps-original-deadline-across-navigation')
+        with patch('update_ui.check_update',return_value=None):
+            click(controls.button)
+            wait(lambda:controls.footer_status.get_text()=='Up to date','No-update notice did not appear')
+        assert controls.icon.state=='disabled' and controls.work is None and owner.active_form is None
+        photo('up-to-date')
+        with patch('update_ui.time.monotonic',return_value=controls.footer_notice_until):
+            controls.refresh_footer()
+        assert controls.footer_status.get_text()=='' and controls.footer_version.get_text()=='V0.4 4451f19'
+        evidence['checks'].append('no-update-notice-expires-without-changing-version-or-starting-download')
         evidence.update(passed=True,icon=bounds(controls.icon),button=stable[0],versionChip=stable[1],confirmationCount=len(started))
     finally:
         if owner.active_form:dismiss(owner.active_form)
