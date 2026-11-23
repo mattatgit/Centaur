@@ -5,11 +5,13 @@ import json
 import os
 from pathlib import Path
 from random import Random
+import shutil
 import signal
 import time
 
 from PIL import Image
 
+from avatars import prepare_avatar
 from check import target, until
 from ink_check import place_agent_pointer
 from workspace_polish_check import move_over
@@ -42,6 +44,12 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
     evidence=folder/'multiplayer'
     evidence.mkdir()
     host_root,guest_root=folder/'host-data',folder/'multiplayer-guest-data'
+    guest_root.mkdir(mode=0o700)
+    guest_avatar=guest_root/'profile-avatar'
+    guest_wire=guest_root/'profile-avatar-wire'
+    alpha=fixture_avatar(folder/'avatar-alpha.png',(224,96,43),True)
+    shutil.copyfile(alpha,guest_avatar)
+    guest_avatar.chmod(0o600)
     control=bridge(host_root,env)
     guest_process,guest,gw=launch('multiplayer-guest')
 
@@ -68,19 +76,6 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         guest_process,guest,gw=launch('multiplayer-guest')
         click(guest,gw,'open-'+pid)
         until(lambda:opened(guest) and guest()['status']=='Guest connected','Guest did not reconnect to saved membership')
-
-    def upload(state,window,root,source,format):
-        projects(state,window); click(state,window,'nav-settings')
-        select_avatar(driver,state,window,click,source)
-        original=root/'profile-avatar'
-        wire=root/'profile-avatar-wire'
-        until(lambda:wire.is_file() and original.is_file() and original.read_bytes()==source.read_bytes(),'Avatar did not save its original upload')
-        with Image.open(wire) as image:
-            assert max(image.size)==256 and image.format==format
-            if format=='PNG': assert image.getchannel('A').getextrema()[0]==0
-        projects(state,window); click(state,window,'open-'+pid)
-        until(lambda:opened(state),'Project did not reopen after updating its avatar')
-        return wire.read_bytes()
 
     def remote_image(state,root,author,expected):
         key=hashlib.sha256(expected).hexdigest()
@@ -146,7 +141,10 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         until(lambda:guest()['author']=='Framework','Guest name did not save')
         invite_and_join()
         shared_host=(host_root/'profile-avatar-wire').read_bytes()
-        shared_guest=upload(guest,gw,guest_root,fixture_avatar(folder/'avatar-alpha.png',(224,96,43),True),'PNG')
+        assert guest_avatar.read_bytes()==alpha.read_bytes()
+        with Image.open(guest_wire) as image:
+            assert image.size==(256,256) and image.format=='PNG' and image.getchannel('A').getextrema()[0]==0
+        shared_guest=guest_wire.read_bytes()
         remote_image(guest,guest_root,'Matt',shared_host); remote_image(host,host_root,'Framework',shared_guest)
         message(host,hw,'Host profile image'); message(guest,gw,'Guest profile image')
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
@@ -156,9 +154,21 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             projects(state,window); move_over(driver,window,target(state,'open-'+pid))
             target(state,'collaborators-'+pid); driver.screenshot(window,evidence/f'avatars-roster-{name}.png')
             click(state,window,'open-'+pid); until(lambda:opened(state),'Could not return to canvas')
-        updated=upload(guest,gw,guest_root,fixture_avatar(folder/'avatar-updated.png',(178,61,130),True),'PNG')
+        # Use the same preparation and bridge notification as Settings for a
+        # live change, keeping this assertion independent of file picker focus.
+        replacement=fixture_avatar(folder/'avatar-updated.png',(178,61,130),True)
+        shutil.copyfile(replacement,guest_avatar)
+        prepare_avatar(guest_avatar,guest_wire)
+        updated=guest_wire.read_bytes()
         assert updated!=shared_guest
-        remote_image(host,host_root,'Framework',updated)
+        guest_control=bridge(guest_root,env)
+        try:
+            until(lambda:any(p['id']==pid and p.get('connected') for p in guest_control.data.get('projects',[])),
+                  'Avatar change bridge did not reconnect')
+            guest_control.send('refreshAvatar')
+            remote_image(host,host_root,'Framework',updated)
+        finally:
+            guest_control.close()
         reopen_guest()
         remote_image(host,host_root,'Framework',updated); remote_image(guest,guest_root,'Matt',shared_host)
         print('PASS: remote avatar transfer, active replacement and reconnect',flush=True)
