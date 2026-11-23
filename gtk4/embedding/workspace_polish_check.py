@@ -109,7 +109,8 @@ def check_workspace_polish(driver, folder, hs, hw, gs, gw, click, project_id):
         assert bounds==[card[0]+card[2]-56,card[1]+16,40,24],(card,bounds)
         assert target(state,'menu-'+project_id)==menu
         people=next(p['collaborators'] for p in state()['projects'] if p['id']==project_id)
-        assert {p['name'] for p in people}=={'Matt','Guest'} and people[0]=={'name':expected_self,'self':True}
+        assert {p['name'] for p in people}=={'Matt','Guest'}
+        assert people[0]['name']==expected_self and people[0]['self']
         driver.screenshot(window,folder/('polish-shared-'+name+'.png'))
         tap(state,window,'menu-'+project_id,menu)
         until(lambda:'menu-rename-'+project_id in state()['targets'],'Hover avatars blocked the tile menu')
