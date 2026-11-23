@@ -36,6 +36,7 @@ class UpdateControls:
         section.append(row)
         owner.targets['update-app']=self.button
         self.build_footer()
+        self.status.connect('notify::label',lambda *_:self.refresh_footer_status())
         self.set_sensitive(not self.starting)
         if owner.update_session:
             self.work=owner.update_session
@@ -107,15 +108,19 @@ class UpdateControls:
         self.icon.set_state(name)
         self.footer_labels.set_visible_child_name(name)
         self.owner.targets['update-caption']=self.footer_labels.get_visible_child()
-        message=self.status.get_text() if self.checking or busy or self.footer_feedback else ''
-        if not message and time.monotonic()<self.footer_notice_until: message='Up to date'
-        self.footer_status.set_text(message); self.footer_status.set_visible(bool(message))
-        accessible(self.footer_status,'Update status',message or '')
+        self.refresh_footer_status()
         accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'No update available'}[name],
                    'Installed version '+compact_version(self.owner.version()))
         self.footer_button.set_sensitive(name=='available' and not self.checking)
         accessible(self.button,'Update app' if self.manifest else 'Check for updates')
         button_text(self.button,'Update app' if self.manifest else 'Check for updates')
+
+    def refresh_footer_status(self):
+        show=self.checking or self.work or self.process or self.starting or self.footer_feedback
+        message=self.status.get_text() if show else ''
+        if not message and time.monotonic()<self.footer_notice_until: message='Up to date'
+        self.footer_status.set_text(message); self.footer_status.set_visible(bool(message))
+        accessible(self.footer_status,'Update status',message)
 
     def check(self,install=False):
         if self.checking or self.process or self.starting or self.work: return
@@ -256,11 +261,12 @@ class UpdateControls:
                 self.starting=False; owner.root_overlay.get_child().set_sensitive(True)
         if not self.work: return
         value=read_json(self.work/'status.json'); phase=value.get('phase')
-        if value.get('message'):
-            message=value['message']
-            if phase=='verifying' and value.get('downloadBytes',0)>0:
-                message=progress_message(value['downloadBytes'],value.get('totalBytes'))+' · Verifying…'
-            self.status.set_text(message)
+        message=value.get('message')
+        received=value.get('downloadBytes')
+        if isinstance(received,int) and phase in ('downloading','verifying'):
+            message=progress_message(received,value.get('totalBytes'))
+            if phase=='verifying': message+=' · Verifying…'
+        if message: self.status.set_text(message)
         if self.process and phase=='ready' and not self.handed_off:
             if self.blocked(): self.status.set_text('Update downloaded. Waiting for the current work to finish…'); return
             self.handed_off=True

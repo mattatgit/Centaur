@@ -26,6 +26,19 @@ static QString proposalSource(const QJsonObject &proposal) {
 }
 static bool isConflict(const QJsonObject &state) { return state["proposal"].toObject()["conflict"].isObject(); }
 
+static void recordConflictOutcome(QJsonObject &state, const QJsonObject &proposal, const QString &outcome) {
+    if (!proposal["conflict"].isObject()) return;
+    auto messages = state["messages"].toArray();
+    for (qsizetype i = messages.size(); i > 0; --i) {
+        auto message = messages.at(i - 1).toObject();
+        if (message["conflictId"] != proposal["id"]) continue;
+        message["conflictOutcome"] = outcome;
+        messages.replace(i - 1, message);
+        state["messages"] = messages;
+        return;
+    }
+}
+
 static void removeConflictRequests(QJsonObject &state, const QJsonObject &proposal) {
     const auto choices = proposal["choices"].toObject();
     QJsonArray queue;
@@ -71,6 +84,8 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
     connect(&m_validator, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart) return;
         auto state = m_workspace.load(m_validatingProject);
+        recordConflictOutcome(state, state["proposal"].toObject(), "The agreed change could not be checked. The app is unchanged.");
+        state["proposal"] = QJsonObject();
         addMessage(state, state["agentName"].toString(), "Could not start the native app checker. Your app is unchanged.", "system");
         persist(m_validatingProject, state);
         m_validatingProject.clear();
@@ -97,6 +112,7 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                 auto detail = QString::fromUtf8(m_validator.readAllStandardError()).right(1500);
                 detail.replace(m_workspace.projectPath(id), "[project]");
                 addMessage(state, state["agentName"].toString(), "The proposed app did not pass its native check. Your current app is still running.\n" + detail, "system");
+                recordConflictOutcome(state, state["proposal"].toObject(), "The agreed change failed its app check. The app is unchanged.");
                 state["proposal"] = QJsonObject();
             } else {
                 const auto proposal = state["proposal"].toObject();
@@ -104,6 +120,8 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     + QString::number(state["revision"].toInt()) + ".json";
                 if (!Workspace::writeFile(archivePath, QJsonDocument(state["annotations"].toArray()).toJson(), &error)) {
                     addMessage(state, state["agentName"].toString(), "Could not preserve the current sketch: " + error, "system");
+                    recordConflictOutcome(state, proposal, "The agreed change could not be saved. The app is unchanged.");
+                    state["proposal"] = QJsonObject();
                 } else if (m_workspace.applySource(id, proposalSource(proposal), proposal["message"].toString(), &error)) {
                     state["revision"] = state["revision"].toInt() + 1;
                     auto decisions = state["decisions"].toArray();
@@ -116,15 +134,21 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state["annotations"] = QJsonArray();
                     state.remove("humanPointer");
                     state.remove("directions");
+                    const auto original = proposal["choices"].toObject()[proposal["selected"].toString()].toObject();
+                    recordConflictOutcome(state, proposal, original.isEmpty() ? "Agreed on the Agent's suggestion. The app was updated."
+                        : "Agreed on " + original["author"].toString() + "’s request. The app was updated.");
                     state["proposal"] = QJsonObject();
                     state.remove("creationPending");
                     auto imported=state.value("import").toObject();
                     if (!imported.isEmpty()) { imported["previewReady"]=true; imported["status"]="ready"; state["import"]=imported; }
-                    addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
-                        ? "Restored that version of the app." : "Updated the app.", "agent");
+                    if (!proposal["conflict"].isObject() || proposal["inlineConflict"] != true)
+                        addMessage(state, state["agentName"].toString(), proposal["kind"] == "restore"
+                            ? "Restored that version of the app." : "Updated the app.", "agent");
                     emit sourceChanged(id);
                 } else {
                     addMessage(state, state["agentName"].toString(), "Could not save the change: " + error, "system");
+                    recordConflictOutcome(state, proposal, "The agreed change could not be saved. The app is unchanged.");
+                    state["proposal"] = QJsonObject();
                 }
             }
             persist(id, state);
@@ -310,12 +334,13 @@ void Session::publish(const QString &id) {
 }
 
 void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind,
-                         const QJsonObject &comment, const QString &participant) {
+                         const QJsonObject &comment, const QString &participant, const QString &conflictId) {
     auto messages = state["messages"].toArray();
     QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
     if (!comment.isEmpty()) message["comment"] = comment;
     if (!participant.isEmpty()) message["participant"] = participant;
+    if (!conflictId.isEmpty()) message["conflictId"] = conflictId;
     messages.append(message);
     QFile history(m_workspace.projectPath(state["id"].toString()) + "/.centaur/conversation.jsonl");
     if (history.open(QIODevice::WriteOnly | QIODevice::Append))
@@ -477,12 +502,20 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
                 if (!comment.isEmpty()) {
                     comment["messageId"] = state["messages"].toArray().last().toObject()["id"];
                     comment["participant"] = participant;
+                    for (const auto &value : sharing["participants"].toArray()) {
+                        const auto person = value.toObject();
+                        if (person["id"] == participant) { comment["color"] = person["color"]; break; }
+                    }
                     state["humanPointer"] = comment;
                 }
             }
         }
         if (addressed || (!shared && isConflict(state))) {
-            if (isConflict(state)) removeConflictRequests(state, state["proposal"].toObject());
+            if (isConflict(state)) {
+                const auto proposal = state["proposal"].toObject();
+                removeConflictRequests(state, proposal);
+                recordConflictOutcome(state, proposal, "New directions superseded this vote. The app is unchanged.");
+            }
             state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
         if (addressed) {
@@ -581,6 +614,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             removeConflictRequests(state, proposal);
             state["epoch"] = state["epoch"].toInt() + 1;
             state["proposal"] = QJsonObject();
+            recordConflictOutcome(state, proposal, author + " declined the proposed resolution. The app stays as it is.");
             addMessage(state, state["agentName"].toString(), author + " declined the proposed resolution. The app stays as it is.", "system");
             if (persist(id, state)) { publish(id); QTimer::singleShot(0, this, &Session::nextRequest); }
             return;
@@ -590,6 +624,21 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         const auto original = proposal["choices"].toObject().value(option).toObject();
         if (option != "compromise" && original.isEmpty()) { fail("That resolution is unavailable."); return; }
         auto votes = proposal["votes"].toObject();
+        if (votes.contains(participant)) return;
+        for (const auto &value : votes) {
+            if (value == option) continue;
+            removeConflictRequests(state, proposal);
+            auto directions = state["directions"].toObject();
+            for (const auto &voter : voters.keys()) directions.remove(voter);
+            state["directions"] = directions;
+            state["epoch"] = state["epoch"].toInt() + 1;
+            state["proposal"] = QJsonObject();
+            const QString outcome = "Neither side could agree, so no changes have been made to the app.";
+            recordConflictOutcome(state, proposal, outcome);
+            if (proposal["inlineConflict"] != true) addMessage(state, state["agentName"].toString(), outcome, "system");
+            if (persist(id, state)) { publish(id); QTimer::singleShot(0, this, &Session::nextRequest); }
+            return;
+        }
         votes[participant] = option;
         proposal["votes"] = votes;
         QJsonArray accepted;
@@ -637,6 +686,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         }
         if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
         endActivity(id);
+        recordConflictOutcome(state, state["proposal"].toObject(), "The vote was cancelled. The app is unchanged.");
         state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
         auto local=state["importLocal"].toObject(); local.remove("pending"); local.remove("currentTool"); state["importLocal"]=local;
         auto imported=state["import"].toObject();
@@ -666,6 +716,7 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     m_agentProject.clear();
     m_agentAuthor.clear();
     bool automatic = false;
+    QString conflictId;
     state.remove("activeRequest");
     const auto agreement = state["proposal"].toObject();
     const auto resolution = m_activeRequest.value("resolution").toString();
@@ -675,6 +726,7 @@ void Session::finishAgent(const QJsonObject &agentReply) {
         }
         state["proposal"] = QJsonObject();
         if (reply["conflict"].isObject() || (reply["kind"] != "proposal" && reply["kind"] != "restore")) {
+            recordConflictOutcome(state, agreement, "The agreed request did not produce an app change.");
             addMessage(state, state["agentName"].toString(), reply["message"].toString() +
                 " The agreed request did not produce an app change.", "agent");
             persist(id, state); publish(id); return;
@@ -762,14 +814,23 @@ void Session::finishAgent(const QJsonObject &agentReply) {
             automatic = conflict.isNull();
             proposal["accepted"] = automatic ? QJsonArray{requester} : QJsonArray();
             if (!resolution.isEmpty()) {
+                proposal["id"] = agreement["id"];
                 proposal["authors"] = agreement["authors"];
                 proposal["accepted"] = agreement["accepted"];
                 proposal["conflict"] = agreement["conflict"];
                 proposal["resolving"] = true;
+                proposal["selected"] = agreement["selected"];
+                proposal["choices"] = agreement["choices"];
+                proposal["inlineConflict"] = agreement["inlineConflict"];
+                proposal["voters"] = agreement["voters"];
+                proposal["votes"] = agreement["votes"];
+            } else if (conflict.isObject()) {
+                conflictId = proposal["id"].toString();
+                proposal["inlineConflict"] = true;
             }
             state["proposal"] = proposal;
         }
-        addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent");
+        if (resolution.isEmpty()) addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent", {}, {}, conflictId);
     }
     if (automatic) state["activeRequest"] = m_activeRequest;
     if (persist(id, state) && automatic) applyProposal(id, state);
@@ -783,8 +844,10 @@ void Session::agentError(const QString &message, const QString &code) {
     m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
-    if (m_activeRequest.contains("resolution") && state["proposal"].toObject()["id"] == m_activeRequest["resolution"])
+    if (m_activeRequest.contains("resolution") && state["proposal"].toObject()["id"] == m_activeRequest["resolution"]) {
+        recordConflictOutcome(state, state["proposal"].toObject(), "The agreed request stopped before the app could be changed.");
         state["proposal"] = QJsonObject();
+    }
     auto details=m_agent.diagnostics();
     if (!code.isEmpty()) { details["code"]=code; details["layer"]="centaur.coordinator"; }
     details["requestId"]=m_activities.value(id)["requestId"];

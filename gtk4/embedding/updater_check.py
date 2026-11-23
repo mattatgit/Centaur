@@ -105,7 +105,12 @@ def main():
         until(lambda:state().get('targets',{}).get('project-menu'),'Old fixture did not map')
         assert state()['branding']=={'appIcon':'org.centaur.Gtk4','fullIcon':True,'symbolicIcon':True},state()['branding']
         desktop=home/'.local/share/applications/org.centaur.Gtk4.desktop'
-        assert desktop.is_symlink() and desktop.resolve()==previous/'share/applications/org.centaur.Gtk4.desktop'
+        # The previous-version fixture is built from the current source.
+        # Restore the launcher shape used by the affected installed build.
+        assert desktop.is_file()
+        desktop.unlink()
+        desktop.symlink_to(profile/'share/applications/org.centaur.Gtk4.desktop')
+        assert desktop.resolve()==previous/'share/applications/org.centaur.Gtk4.desktop'
         icons=home/'.local/share/icons/hicolor'
         old_svg=icons/'scalable/apps/org.centaur.Gtk4.svg'
         assert old_svg.is_symlink() and old_svg.is_file()
@@ -213,7 +218,11 @@ def main():
         ready=read(work/'ready.json'); new_pid=ready['pid']
         until(lambda:state().get('pid')==new_pid and state().get('project',{}).get('id')==project_id,'New GTK window did not restore the project')
         assert profile.resolve()==Path(manifest['storePath'])
-        assert desktop.resolve()==profile.resolve()/'share/applications/org.centaur.Gtk4.desktop','Desktop entry pinned the old package'
+        assert desktop.is_file() and not desktop.is_symlink(),'Legacy desktop link was not migrated'
+        entry.read(desktop)
+        assert entry['Desktop Entry']['Exec']==f'"{profile}/bin/centaur-gtk4" --desktop-launch'
+        assert entry['Desktop Entry']['Icon']=='org.centaur.Gtk4'
+        summary['checks'].append('signed-profile-update-migrates-legacy-desktop-entry-to-stable-profile-exec')
         assert not old_svg.is_symlink(),'Old scalable icon survived the profile update'
         assert launcher_icon.resolve()==profile.resolve()/'share/icons/hicolor/48x48/apps/org.centaur.Gtk4.png'
         assert launcher_icon.read_bytes()!=old_icon,'Desktop entry retained the old icon art'

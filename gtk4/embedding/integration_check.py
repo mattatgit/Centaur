@@ -369,10 +369,10 @@ if cfg.get('fixtureProgressGate'):
         message(hs,hw,'@centaur Resolve our conflicting title requirements')
         until(lambda:hs()['project'].get('proposal',{}).get('conflict'),'Conflict was not offered for agreement')
         assert hs()['project']['revision']==revision
-        click(hs,hw,'accept')
+        click(hs,hw,'approval-agent')
         until(lambda:'Matt' in hs()['project']['proposal'].get('accepted',[]),'Host agreement was not recorded')
         assert hs()['project']['revision']==revision
-        click(gs,gw,'accept')
+        click(gs,gw,'approval-agent')
         until(lambda:(hs().get('child') or {}).get('title')=='Together Planner' and (gs().get('child') or {}).get('title')=='Together Planner','Agreed GTK change was not applied',timeout=20)
         summary['checks'].append('only-genuine-conflict-waits-for-both-affected-authors')
         reply_file.write_text(json.dumps({'kind':'restore','message':'Return to the starting app','conflict':None,'checkpoint':checkpoint}))

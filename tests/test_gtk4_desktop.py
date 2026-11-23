@@ -2,6 +2,8 @@
 import importlib.util
 import os
 from pathlib import Path
+import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,10 +19,14 @@ class DesktopTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.home=Path(self.temp.name).resolve(); self.profile=self.home/'profile'
         self.package=self.home/'package'; (self.package/'bin').mkdir(parents=True)
-        (self.package/'bin/centaur-gtk4').touch()
+        executable=self.package/'bin/centaur-gtk4'
+        executable.write_text('#!/bin/sh\nprintf previous\n'); executable.chmod(0o755)
         for path in ('applications/org.centaur.Gtk4.desktop','icons/hicolor/index.theme',
                      'icons/hicolor/scalable/apps/org.centaur.Gtk4.svg'):
             target=self.package/'share'/path; target.parent.mkdir(parents=True,exist_ok=True); target.write_text('fixture')
+        self.source=self.profile/'share/applications/org.centaur.Gtk4.desktop'
+        (self.package/'share/applications/org.centaur.Gtk4.desktop').write_text(
+            f'[Desktop Entry]\nName=Centaur GTK4\nExec={executable} --desktop-launch\nIcon=org.centaur.Gtk4\n')
         self.profile.symlink_to(self.package)
         self.env={'XDG_DATA_HOME':str(self.home/'data'),'XDG_CONFIG_HOME':str(self.home/'config'),
                   'GSK_RENDERER':'cairo','CENTAUR_AGENT':'/home/matt/.local/bin/omp','SECRET_TOKEN':'never store this'}
@@ -32,7 +38,11 @@ class DesktopTests(unittest.TestCase):
         data=self.home/'custom project data'
         self.assertTrue(desktop.register(self.package,data))
         entry=self.home/'data/applications/org.centaur.Gtk4.desktop'
-        self.assertEqual(os.readlink(entry),str(self.profile/'share/applications/org.centaur.Gtk4.desktop'))
+        self.assertFalse(entry.is_symlink())
+        command=next(line[5:] for line in entry.read_text().splitlines() if line.startswith('Exec='))
+        argv=shlex.split(command)
+        self.assertEqual(argv,[str(self.profile/'bin/centaur-gtk4'),'--desktop-launch'])
+        self.assertEqual(subprocess.check_output(argv,text=True),'previous')
         config=desktop.settings_path().read_text(); self.assertNotIn('SECRET_TOKEN',config)
         with patch.dict(os.environ,{},clear=True):
             os.environ['XDG_CONFIG_HOME']=self.env['XDG_CONFIG_HOME']
@@ -41,7 +51,21 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(os.environ['CENTAUR_AGENT'],'/home/matt/.local/bin/omp')
         newer=self.home/'new-package'; self.package.rename(newer)
         self.profile.unlink(); self.profile.symlink_to(newer)
-        self.assertEqual(entry.resolve(),newer/'share/applications/org.centaur.Gtk4.desktop')
+        (newer/'bin/centaur-gtk4').write_text('#!/bin/sh\nprintf candidate\n')
+        self.assertEqual(subprocess.check_output(argv,text=True),'candidate')
+
+    def test_migrates_only_managed_symlink_preserving_desktop_id(self):
+        entry=self.home/'data/applications/org.centaur.Gtk4.desktop'
+        entry.parent.mkdir(parents=True)
+        custom=self.home/'custom.desktop'; custom.write_text('user entry')
+        entry.symlink_to(custom)
+        self.assertTrue(desktop.register(self.package,self.home/'project data'))
+        self.assertEqual(entry.readlink(),custom)
+        entry.unlink(); entry.symlink_to(self.source)
+        self.assertTrue(desktop.register(self.package,self.home/'project data'))
+        self.assertFalse(entry.is_symlink())
+        self.assertIn('X-Centaur-Managed=true',entry.read_text())
+        self.assertIn('Icon=org.centaur.Gtk4',entry.read_text())
 
     def test_development_run_does_not_register_or_modify_custom_entries(self):
         self.assertFalse(desktop.register(self.home/'other-package',self.home/'data'))

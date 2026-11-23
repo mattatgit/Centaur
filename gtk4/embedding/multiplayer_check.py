@@ -147,12 +147,19 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         shared_guest=guest_wire.read_bytes()
         remote_image(guest,guest_root,'Matt',shared_host); remote_image(host,host_root,'Framework',shared_guest)
         message(host,hw,'Host profile image'); message(guest,gw,'Guest profile image')
+        def chat_appearance(state,text):
+            current=state()
+            ident=next((m['id'] for m in current['project']['messages'] if m.get('text')==text),None)
+            return current['chatMessageAppearance'].get(ident,{})
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
             until(lambda:len(state()['chatRows'])>=3 and all(row['avatar'].get('image') for row in state()['chatRows'][:3]),
                   'Chat rendered initials instead of profile images')
+            assert chat_appearance(state,'Host profile image')['own']==(name=='host')
+            assert chat_appearance(state,'Guest profile image')['own']==(name=='guest')
             driver.screenshot(window,evidence/f'avatars-chat-{name}.png')
             projects(state,window); move_over(driver,window,target(state,'open-'+pid))
-            target(state,'collaborators-'+pid); driver.screenshot(window,evidence/f'avatars-roster-{name}.png')
+            target(state,'collaborators-'+pid); assert state()['rosterImages']['collaborators-'+pid]==2
+            driver.screenshot(window,evidence/f'avatars-roster-{name}.png')
             click(state,window,'open-'+pid); until(lambda:opened(state),'Could not return to canvas')
         # Use the same preparation and bridge notification as Settings for a
         # live change, keeping this assertion independent of file picker focus.
@@ -181,7 +188,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         for state,window,name in ((host,hw,'host'),(guest,gw,'guest')):
             line=until(lambda:state()['sharedPointer'] if state()['sharedPointer']['tail'] else None,'Message pointer was not rendered')
             x,y,w,_=line['messageBounds']
-            assert all(abs(a-b)<.1 for a,b in zip(line['tail'],(x+w,y)))
+            assert all(abs(a-b)<.1 for a,b in zip(line['tail'],(x+w-12,y+12)))
+            assert line['color']=='#FF6157'
             driver.screenshot(window,evidence/f'pointer-{name}.png')
         previous=guest()['sharedPointer']
         click(guest,gw,'zoom'); driver.key('Home','Return')
@@ -198,7 +206,12 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         message(host,hw,'I have seen the pointer')
         until(lambda:all(not state()['project'].get('humanPointer') and not state()['sharedPointer']['tail']
                          for state in (host,guest)),'The other participant’s reply did not clear the arrow everywhere')
-        print('PASS: shared pointer anchor, zoom, scroll and reply lifetime',flush=True)
+        place_agent_pointer(driver,host,hw,click)
+        message(host,hw,'The host points here')
+        until(lambda:all(state()['sharedPointer']['tail'] and state()['sharedPointer']['color']=='#138EF5'
+                         for state in (host,guest)),'Host pointer did not render blue on both machines')
+        driver.screenshot(gw,evidence/'pointer-host-blue-as-seen-by-guest.png')
+        print('PASS: shared pointer colours, inset anchor, zoom, scroll and reply lifetime',flush=True)
 
         # A queued conflicting request must stay parked during voting, even if
         # it would otherwise return a valid automatic app update.
@@ -207,43 +220,65 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         proposal=conflict_requests('@centaur Use the Host Choice heading','@centaur Use the Framework Choice heading',1)
         choices=proposal['choices']
         assert len(choices)==2 and host()['project']['queueCount']>=1
-        host_choice=next(key for key,choice in choices.items() if choice['author']=='Matt')
-        resolved=json.loads(json.dumps(starter))
-        resolved['files']['app.ui']=resolved['files']['app.ui'].replace('Family board','Host Choice')
-        reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Choice heading','conflict':None,'gtk':resolved}))
-        click(host,hw,'accept')
+        assert all('approval-'+choice in host()['targets'] for choice in ('agent','guest','host'))
+        conflict_id=proposal['id']
+        record=next(m['id'] for m in host()['project']['messages'] if m.get('conflictId')==conflict_id)
+        assert host()['chatMessageAppearance'][record]['inConversation']
+        click(host,hw,'approval-agent')
         until(lambda:host().get('approvalStatus')=='1 of 2 agreed — waiting for Framework','Host vote did not show the waiting participant')
         driver.screenshot(hw,evidence/'conflict-one-vote.png')
+        message(guest,gw,'The conflict card should stay above this newer message')
+        assert host()['chatMessageAppearance'][record]['inConversation']
         reopen_guest()
         assert guest()['project']['revision']==revision
         assert (host_root/'projects'/pid/'App.gtk.json').read_bytes()==start_bytes
-        def choose_host(state,window):
-            index=list(state()['project']['proposal']['choices']).index(host_choice)+1
-            click(state,window,'approval-choice'); driver.key('Home',*(['Down']*index),'Return')
-            click(state,window,'accept')
-        choose_host(guest,gw)
-        until(lambda:host().get('approvalStatus','').startswith('Different choices'),'Mismatched votes were not exposed')
+        click(guest,gw,'approval-host')
+        outcome='Neither side could agree, so no changes have been made to the app.'
+        def stalemate(state):
+            return not state()['project'].get('proposal') and any(
+                m['id']==record and m.get('conflictOutcome')==outcome for m in state()['project']['messages'])
+        until(lambda:all(stalemate(state) for state in (host,guest)),'Split vote did not close the original chat card')
+        for state in (host,guest):
+            assert not any(key.startswith('approval-') for key in state()['targets'])
+            assert state()['project']['revision']==revision and state()['project']['queueCount']==0
+        assert (host_root/'projects'/pid/'App.gtk.json').read_bytes()==start_bytes
+        driver.screenshot(gw,evidence/'conflict-stalemate.png')
+
+        conflict_requests('@centaur Use the Host Choice heading again','@centaur Use the Framework Choice heading again',2)
+        resolved=json.loads(json.dumps(starter))
+        resolved['files']['app.ui']=resolved['files']['app.ui'].replace('Family board','Host Choice')
+        reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Choice heading','conflict':None,'gtk':resolved}))
+        click(host,hw,'approval-host')
+        until(lambda:host().get('approvalStatus')=='1 of 2 agreed — waiting for Framework','Original choice did not enter voting')
         assert host()['project']['revision']==revision
-        choose_host(host,hw)
+        click(guest,gw,'approval-host')
         until(lambda:all((state().get('child') or {}).get('title')=='Host Choice' for state in (host,guest)),
-              'Both agreeing to the original request did not apply it',timeout=25)
+              'A new unanimous vote did not apply the chosen original request',timeout=25)
         assert host()['project']['revision']==guest()['project']['revision']==revision+1
         driver.screenshot(gw,evidence/'conflict-agreed.png')
 
-        conflict_requests('@centaur Try a smaller heading','@centaur Try a larger heading',2)
-        click(guest,gw,'reject-proposal')
-        until(lambda:not host()['project'].get('proposal'),'Decline did not close the conflict')
-        assert host()['project']['revision']==revision+1
+        former=next(p['id'] for p in host()['project']['sharing']['participants'] if p['name']=='Framework')
         projects(guest,gw); click(guest,gw,'menu-'+pid); click(guest,gw,'menu-delete-'+pid); click(guest,gw,'delete-confirm')
         until(lambda:not (guest_root/'shared'/pid/'connection.json').exists(),'Guest did not leave before a new invite')
         invite_and_join()
         remote_image(guest,guest_root,'Matt',shared_host)
         remote_image(host,host_root,guest()['author'],updated)
         assert guest()['drawingColor']=='#FF6157'
-        projects(host,hw)
+        returned=next(p for p in host()['project']['sharing']['participants'] if p['name']==guest()['author'])
+        assert returned['id']!=former and former in returned['previousIds']
+        message(guest,gw,'New message after redeeming the second invitation')
+        for name,state,window in (('host',host,hw),('guest',guest,gw)):
+            for text in ('Host profile image','Guest profile image','New message after redeeming the second invitation'):
+                until(lambda:chat_appearance(state,text).get('image'),'Chat rendered initials after fresh join')
+                assert chat_appearance(state,text)['own']==((text=='Host profile image')==(name=='host'))
+            driver.screenshot(window,evidence/f'rejoined-chat-{name}.png')
+            projects(state,window); move_over(driver,window,target(state,'open-'+pid))
+            target(state,'collaborators-'+pid)
+            assert state()['rosterImages']['collaborators-'+pid]==2,'Fresh join hover roster lost a photograph'
+            driver.screenshot(window,evidence/f'rejoined-roster-{name}.png')
     finally:
         control.close()
     return ['remote-original-sized-and-alpha-avatars-update-and-survive-reconnect-and-rejoin',
             'optimistic-strokes-render-continuously-on-both-profiles-and-keep-participant-colours',
             'human-message-pointer-tracks-scroll-and-zoom-and-clears-on-the-other-participants-reply',
-            'queued-conflict-waits-for-each-identity-and-the-same-option-across-reconnect-decline-and-once-only-application']
+            'inline-conflict-vote-survives-reconnect-closes-on-stalemate-and-applies-a-new-unanimous-choice-once']

@@ -82,7 +82,7 @@ separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .chat-time { font-family: Inter; font-size: 10px; }
 .chat-comment { font-family: Inter; font-size: 14px; font-weight: 400; line-height: 18px; }
 .chat-card { padding: 16px 24px 16px 16px; border-radius: 12px; background: #fafafa; }
-.chat-card.human { background: #eef8fe; }
+.chat-card.own-message { background: #eef8fe; }
 .version { font-family: Inter; font-size: 10px; }
 .update-icon, .update-icon:hover, .update-icon:disabled { padding: 0; min-height: 24px; min-width: 16px; background: transparent; opacity: 1; }
 .update-icon:focus-visible { outline: 1px solid #9ea39e; outline-offset: 2px; }
@@ -120,7 +120,7 @@ popover.create-project-menu > contents { min-width: 96px; }
 .composer .tone-plain { padding: 0 8px; }
 .composer-placeholder { color: #9ea39e; }
 .busy { padding: 16px; background: #fafafa; border-radius: 12px; }
-.proposal { background: #f3f7e8; border-radius: 12px; padding: 16px; }
+.chat-card.chat-conflict { background: #f3f7e8; }
 .error { color: #ad3232; }
 .toast { background: white; padding: 16px; border-radius: 16px; box-shadow: 0 8px 24px alpha(black,.12); }
 .modal-shade { background: alpha(black,.18); }

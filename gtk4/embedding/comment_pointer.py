@@ -33,11 +33,11 @@ class CommentPointer:
         return True
 
 
-def paint_arrow(cr,tail,head):
-    """Thin coral line, circular composer anchor and a filled triangle tip."""
+def paint_arrow(cr,tail,head,color=(1,98/255,90/255)):
+    """Paint the line, circular anchor and filled triangle in the same colour."""
     if tail is None or head is None: return
     tx,ty=tail; hx,hy=head
-    cr.save(); cr.set_source_rgb(1,98/255,90/255); cr.set_line_width(1); cr.set_line_cap(1)
+    cr.save(); cr.set_source_rgb(*color); cr.set_line_width(1); cr.set_line_cap(1)
     cr.move_to(tx,ty); cr.line_to(hx,hy); cr.stroke()
     cr.arc(tx,ty,3,0,2*math.pi); cr.fill()
     distance=math.hypot(hx-tx,hy-ty)

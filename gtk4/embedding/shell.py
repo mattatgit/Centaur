@@ -356,7 +356,6 @@ class Centaur(Gtk.Application):
         self.stop_button=button('Stop',lambda:self.service.send('cancel'),tone='plain'); self.busy.append(self.stop_button); self.busy.set_visible(False)
         self.targets['activity-tile']=self.busy; self.targets['activity-text']=self.busy_text
         self.targets['stop-agent']=self.stop_button
-        self.proposal=box(True,8,'proposal'); chat.append(self.proposal); self.proposal.set_visible(False)
         self.import_actions=box(spacing=8); chat.append(self.import_actions); self.import_actions.set_visible(False)
         self.import_run=button('Run preview',lambda:self.service.send('runImport')); self.import_actions.append(self.import_run)
         self.import_retry=button('Retry import',lambda:show_import(self,retry=True)); self.import_actions.append(self.import_retry)
@@ -371,9 +370,9 @@ class Centaur(Gtk.Application):
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)
-        for item in (heading,self.proposal,self.import_actions,self.composer,self.update_footer):
+        for item in (heading,self.import_actions,self.composer,self.update_footer):
             item.set_margin_start(16); item.set_margin_end(16)
-        for item in (self.proposal,self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
+        for item in (self.import_actions,self.composer,self.update_footer): item.set_margin_top(16)
         self.update_footer.set_margin_top(0); self.update_footer.set_size_request(-1,48)
         self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider,'chat-scroller':self.chat_scroll})
 
@@ -585,14 +584,23 @@ class Centaur(Gtk.Application):
         shown,viewport=self.chat_scroll.compute_bounds(self.root_overlay)
         mapped,canvas=self.ink.compute_bounds(self.root_overlay)
         if not (ok and shown and mapped): return None,None
-        tail=(message.get_x()+message.get_width(),message.get_y())
+        tail=(message.get_x()+message.get_width()-12,message.get_y()+12)
         if not viewport.get_y()<=tail[1]<viewport.get_y()+viewport.get_height(): return None,None
         x,y=annotation_position(pointer['point'],pointer['frame'],self.viewport.describe())
         return tail,(canvas.get_x()+x,canvas.get_y()+y)
 
     def draw_comment_pointers(self,area,cr,width,height):
-        paint_arrow(cr,*self.shared_comment_points())
+        paint_arrow(cr,*self.shared_comment_points(),self.shared_pointer_color())
         paint_arrow(cr,*self.comment_points())
+
+    def shared_pointer_color(self):
+        pointer=self.project.get('humanPointer') or {}
+        participant=pointer.get('participant')
+        people=self.project.get('sharing',{}).get('participants',[])
+        color=pointer.get('color') or next((p.get('color') for p in people if p.get('id')==participant),None)
+        rgba=Gdk.RGBA()
+        if not color or not rgba.parse(color): rgba.parse('#138EF5' if participant=='host' else '#FF6157')
+        return rgba.red,rgba.green,rgba.blue
 
     def undo(self):
         if self.comment.phase!='idle': self.cancel_comment()
@@ -677,11 +685,13 @@ class Centaur(Gtk.Application):
             self.deploy_button.set_sensitive(not remote)
             self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
             participants=self.project.get('sharing',{}).get('participants',[])
-            messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),participants,
+            proposal=self.project.get('proposal') or {}
+            conflict=proposal if proposal.get('conflict') else {}
+            messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),participants,conflict,
+                                 data.get('participantId'),data.get('author'),data.get('connected'),
                                  activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
-            self.refresh_proposal()
             imported=self.project.get('import') or {}; phase=imported.get('status')
             local=not data.get('remote',False)
             self.import_run.set_visible(local and phase=='readyToRun'); self.import_run.set_sensitive(not data.get('updateBlocked'))
@@ -858,20 +868,20 @@ class Centaur(Gtk.Application):
         if person.get('self') and self.settings.avatar_path.is_file(): return self.settings.avatar_path
         return shared_avatar(self.root,person.get('avatar'))
 
-    def message_avatar(self,message):
+    def message_profile(self,message):
         author=message.get('author')
         identity=message.get('participant')
         if not isinstance(identity,str): identity=None
-        local_history=not identity or identity=='host' or identity.startswith('local:')
-        is_self=identity==self.data.get('participantId') or (
-            local_history and not self.data.get('remote') and author==self.data.get('author'))
+        viewer=self.data.get('participantId')
+        host_history=identity=='host' or (identity and identity.startswith('local:'))
         for participant in self.project.get('sharing',{}).get('participants',[]):
-            matches_name=participant.get('name')==author
-            if participant.get('id')==identity or (matches_name and (not identity or
-                    (local_history and participant.get('id')=='host'))):
-                if not identity and matches_name and author==self.data.get('author'): is_self=True
-                return self.person_avatar(dict(participant,self=is_self))
-        return self.person_avatar({'self':is_self})
+            key=participant.get('id')
+            if (key==identity or identity in participant.get('previousIds',[]) or
+                (participant.get('name')==author and (not identity or (host_history and key=='host')))):
+                return dict(participant,self=bool(viewer and key==viewer))
+        own=bool(identity and identity==viewer) or (
+            (not identity or host_history) and not self.data.get('remote') and author==self.data.get('author'))
+        return {'self':own}
 
     def open_imported(self,project,adaptation=False):
         info=project.get('import') or {}
@@ -906,14 +916,30 @@ class Centaur(Gtk.Application):
         try: avatar_stamp=self.settings.avatar_path.stat().st_mtime_ns
         except OSError: avatar_stamp=None
         previous_rows=getattr(self,'message_widgets',{}); rows=[]
-        for index,message in enumerate(self.project.get('messages',[])):
+        messages=list(self.project.get('messages',[]))
+        proposal=self.project.get('proposal') or {}
+        conflict_id=proposal.get('id') if proposal.get('conflict') else None
+        if conflict_id and not any(m.get('conflictId')==conflict_id for m in messages):
+            # An older host may already have an open conflict without a chat marker.
+            index=next((i for i in reversed(range(len(messages))) if messages[i].get('kind')=='agent'
+                        and messages[i].get('text')==proposal.get('message')),None)
+            if index is None:
+                messages.append({'kind':'agent','author':self.project.get('agentName','centaur'),
+                                 'id':conflict_id,'conflictId':conflict_id})
+            else: messages[index]=dict(messages[index],conflictId=conflict_id)
+        for index,message in enumerate(messages):
             key=message.get('id') or 'legacy-'+str(index)
-            face=self.message_avatar(message) if message.get('kind')=='human' else None
-            fingerprint=(self.project.get('id'),self.data.get('author'),avatar_stamp,face,
+            profile=self.message_profile(message) if message.get('kind')=='human' else {}
+            face=self.person_avatar(profile) if profile else None
+            conflict=proposal if conflict_id and message.get('conflictId')==conflict_id else None
+            vote_state=(conflict,self.data.get('participantId'),self.data.get('connected')) if conflict else None
+            fingerprint=(self.project.get('id'),avatar_stamp,face,profile.get('self'),vote_state,
                          hashlib.sha256(json.dumps(message,sort_keys=True).encode()).digest())
             old=previous_rows.get(key)
-            rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None))
-        keep={old[1] for key,message,fingerprint,old in rows if old}
+            rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None,profile,face,conflict))
+        keep={old[1] for _,_,_,old,_,_,_ in rows if old}
+        for key,widget in list(self.targets.items()):
+            if key.startswith('approval-') and not any(widget.is_ancestor(row) for row in keep): del self.targets[key]
         child=self.messages.get_first_child()
         while child:
             following=child.get_next_sibling()
@@ -929,11 +955,11 @@ class Centaur(Gtk.Application):
         if activity and not activity.get('afterMessage'): put_activity(); inserted=True
         previous=self.busy if inserted else None
         self.empty_chat.set_visible(not self.project.get('messages') and not activity)
-        for key,message,fingerprint,old in rows:
+        for key,message,fingerprint,old,profile,face,conflict in rows:
             if old:
                 _,item,widgets,action,mark=old
             else:
-                item,widgets,action,mark=self.message_row(message)
+                item,widgets,action,mark=self.message_row(message,profile,face,conflict)
                 self.messages.append(item)
             # Keep unchanged labels parented: rebuilding a focused message
             # loses its selection and lets GTK scroll to a replacement focus.
@@ -959,23 +985,23 @@ class Centaur(Gtk.Application):
             return False
         self.messages.add_tick_callback(after_layout)
 
-    def message_row(self,message):
+    def message_row(self,message,profile,face,conflict):
         item=box(spacing=8,css='chat-card'); column=box(True,2); column.set_hexpand(True); head=box(spacing=8)
         action=mark=None
         author=message.get('author','')
         agent=message.get('kind')!='human'
-        if not agent: item.add_css_class('human')
+        if profile.get('self'): item.add_css_class('own-message')
+        if message.get('conflictId'): item.add_css_class('chat-conflict')
         if agent:
             author=author.lstrip('@')
             if author.lower()=='centaur': author='Centaur'
         if agent:
             avatar=box(css='avatar agent'); mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
         else:
-            path=self.message_avatar(message)
             avatar=None
-            if path:
+            if face:
                 try:
-                    photo=picture(path,32,cover=True)
+                    photo=picture(face,32,cover=True)
                     avatar=Gtk.Overlay(css_classes=['avatar']); avatar.set_overflow(Gtk.Overflow.HIDDEN); avatar.set_child(photo)
                 except GLib.Error: pass
             if avatar is None:
@@ -986,6 +1012,13 @@ class Centaur(Gtk.Application):
         except (KeyError,ValueError): time=''
         stamp=label(time,'chat-time muted'); stamp.set_valign(Gtk.Align.BASELINE); head.append(stamp); column.append(head)
         text=message.get('text','')
+        if conflict and not conflict.get('resolving'):
+            if len(conflict.get('voters',{}))==2 and 'host' in conflict['voters']:
+                text='Guest and host have requested conflicting directions. Whose choice shall we go with?'
+            else: text='Collaborators have requested conflicting directions. Whose choice shall we go with?'
+        elif message.get('conflictId'):
+            text=message.get('conflictOutcome') or ('Preparing the agreed change…' if conflict else
+                                                   'This vote closed without applying a resolution.')
         if message.get('kind')=='agent' and re.fullmatch(r'Applied the (agreed )?change\. Revision \d+ is ready to try\.',text): text='Updated the app.'
         if agent: text=project_build_mentions(text,self.project.get('name',''))
         body=label(text,'chat-comment muted' if message.get('kind')=='system' else 'chat-comment',True); body.set_selectable(True); body.set_yalign(0)
@@ -997,57 +1030,42 @@ class Centaur(Gtk.Application):
             attributes.insert(weight)
         body.set_attributes(attributes)
         column.append(body); item.append(column)
+        if conflict and not conflict.get('resolving'): self.add_conflict_choices(column,conflict)
         if message.get('agentDiagnostics'):
             details=message['agentDiagnostics']
             action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
             action.set_halign(Gtk.Align.START); column.append(action)
         return item,(avatar,name,stamp,body),action,mark
 
-    def refresh_proposal(self):
-        self.clear(self.proposal)
-        proposal=self.project.get('proposal',{})
-        conflict=proposal.get('conflict')
-        if isinstance(conflict,dict):
-            self.proposal.append(label('Resolve conflicting requests','chat-name',True))
-            self.proposal.append(label(conflict.get('reason','Agreement needed'),'chat-name',True))
-            voters=proposal.get('voters',{}); votes=proposal.get('votes',{})
-            participant=self.data.get('participantId')
-            names=list(voters.values()) or proposal.get('authors',[])
-            waiting=[name for key,name in voters.items() if key not in votes]
-            if proposal.get('resolving'): progress='Preparing the agreed change…'
-            elif len(set(votes.values()))>1: progress='Different choices — agree on the same resolution'
-            else:
-                progress=f'{len(votes)} of {len(names)} agreed'
-                if waiting: progress+=' — waiting for '+', '.join(waiting)
-            progress_label=label(progress,'small muted',True)
-            self.proposal.append(progress_label); self.targets['approval-status']=progress_label
-            options=[('compromise','Compromise',proposal.get('message',''))]
-            options.extend((key,f"Use {item['author']}’s request",item['text']) for key,item in proposal.get('choices',{}).items())
-            remembered=getattr(self,'proposal_choice',None)
-            selected_choice=remembered[1] if remembered and remembered[0]==proposal.get('id') else votes.get(participant,'compromise')
-            index=next((i for i,opt in enumerate(options) if opt[0]==selected_choice),0)
-            chooser=Gtk.DropDown.new_from_strings([title for _,title,_ in options]); chooser.set_selected(index)
-            chooser.set_visible(len(options)>1)
-            self.proposal.append(chooser); self.targets['approval-choice']=chooser
-            detail=label('','small muted',True); self.proposal.append(detail)
-            active=participant in voters and self.data.get('connected') and not proposal.get('resolving')
-            actions=box(spacing=8)
-            def decide(reject=False):
-                choice=options[chooser.get_selected()][0]
-                self.service.send('rejectProposal' if reject else 'accept',proposalId=proposal['id'],choice=choice)
-            decline=button('Decline',lambda:decide(True),tone='soft')
-            agree=button('Agree',decide,tone='dark')
-            decline.set_sensitive(active); chooser.set_sensitive(active)
-            actions.append(decline); actions.append(agree); self.proposal.append(actions)
-            self.targets.update({'accept':agree,'reject-proposal':decline})
-            def update_choice(*_):
-                choice,title,description=options[chooser.get_selected()]
-                self.proposal_choice=(proposal.get('id'),choice)
-                detail.set_text(description if len(description)<=340 else description[:339]+'…')
-                agree.set_sensitive(active and votes.get(participant)!=choice)
-            chooser.connect('notify::selected',update_choice)
-            update_choice()
-        self.proposal.set_visible(bool(conflict))
+    def add_conflict_choices(self,column,proposal):
+        voters=proposal.get('voters',{}); votes=proposal.get('votes',{})
+        viewer=self.data.get('participantId')
+        waiting=[name for key,name in voters.items() if key not in votes]
+        two_roles=len(voters)==2 and 'host' in voters
+        options=[('compromise','Agent','agent',proposal.get('message',''))]
+        originals=sorted(proposal.get('choices',{}).items(),key=lambda pair:pair[1].get('author')==voters.get('host'))
+        for key,request in originals:
+            name=request.get('author','')
+            role='host' if name==voters.get('host') else 'guest'
+            options.append((key,role.title() if two_roles else name,role if two_roles else key,request.get('text','')))
+        if two_roles:
+            for role in ('guest','host'):
+                if not any(option[2]==role for option in options):
+                    options.append((None,role.title(),role,'The original request is unavailable'))
+            options.sort(key=lambda option:('agent','guest','host').index(option[2]))
+        actions=box(spacing=8); actions.set_margin_top(8); column.append(actions)
+        def decide(choice):
+            self.service.send('accept',proposalId=proposal['id'],choice=choice)
+        for choice,title,role,detail in options:
+            control=button(title,lambda value=choice:decide(value),tone='dark' if choice and votes.get(viewer)==choice else 'soft')
+            accessible(control,title,detail)
+            control.set_sensitive(bool(choice and viewer in voters and viewer not in votes and self.data.get('connected')))
+            actions.append(control); self.targets['approval-'+role]=control
+        if votes:
+            progress=f'{len(votes)} of {len(voters)} agreed'
+            if waiting: progress+=' — waiting for '+', '.join(waiting)
+            caption=label(progress,'small muted',True); column.append(caption)
+            self.targets['approval-status']=caption
 
     def send(self):
         buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
@@ -1509,7 +1527,7 @@ class Centaur(Gtk.Application):
             self.busy_text.set_text(activity_caption(activity)+(' · '+str(queued)+' queued' if queued else ''))
         comment_geometry=self.comment_points()
         shared_geometry=self.shared_comment_points()
-        geometry_pair=(comment_geometry,shared_geometry)
+        geometry_pair=(comment_geometry,shared_geometry,self.shared_pointer_color())
         if geometry_pair!=self.comment_geometry:
             self.comment_geometry=geometry_pair; self.comment_overlay.queue_draw()
         self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==self.data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
@@ -1607,7 +1625,8 @@ class Centaur(Gtk.Application):
             origin=self.root_overlay.compute_bounds(self.window)[1]
             reported_comment=[None if point is None else (point[0]+origin.get_x(),point[1]+origin.get_y()) for point in comment_geometry]
             reported_shared=[None if point is None else (point[0]+origin.get_x(),point[1]+origin.get_y()) for point in shared_geometry]
-            data['sharedPointer']={'tail':reported_shared[0],'head':reported_shared[1]}
+            color='#'+''.join(f'{round(channel*255):02X}' for channel in self.shared_pointer_color())
+            data['sharedPointer']={'tail':reported_shared[0],'head':reported_shared[1],'color':color}
             pointer=self.project.get('humanPointer') or {}
             row=getattr(self,'message_widgets',{}).get(pointer.get('messageId'))
             if row:
@@ -1615,7 +1634,7 @@ class Centaur(Gtk.Application):
                 if ok: data['sharedPointer']['messageBounds']=[rect.get_x(),rect.get_y(),rect.get_width(),rect.get_height()]
             data['inkPending']=list(self.pending_strokes)
             data['drawingColor']=self.data.get('drawingColor')
-            if self.proposal.get_visible() and 'approval-status' in self.targets:
+            if 'approval-status' in self.targets:
                 data['approvalStatus']=self.targets['approval-status'].get_text()
             data['commentPointer']={'phase':self.comment.phase,'tail':reported_comment[0],'head':reported_comment[1],
                                     'reference':self.comment.target,'token':self.comment.token}
@@ -1623,6 +1642,13 @@ class Centaur(Gtk.Application):
             data['chatScroll']={'upper':adjustment.get_upper(),'pageSize':adjustment.get_page_size(),
                                 'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive(),
                                 'barOpacity':self.chat_scrollbar.get_opacity()}
+            data['chatMessageAppearance']={
+                key:{'image':isinstance(row[2][0],Gtk.Overlay),'own':row[1].has_css_class('own-message'),
+                     'inConversation':row[1].get_parent()==self.messages}
+                for key,row in getattr(self,'message_widgets',{}).items()}
+            data['rosterImages']={
+                key:sum(hasattr(chip.get_child(),'filename') for chip in widget)
+                for key,widget in self.targets.items() if key.startswith('collaborators-')}
             for widgets in getattr(self,'message_rows',[])[:4]:
                 row={}
                 for key,widget in zip(('avatar','name','time','body'),widgets):

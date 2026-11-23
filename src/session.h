@@ -37,7 +37,7 @@ private:
     void publish(const QString &id = {});
     void reply(QIODevice *socket, const QJsonObject &data);
     void addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind = "human",
-                    const QJsonObject &comment = {}, const QString &participant = {});
+                    const QJsonObject &comment = {}, const QString &participant = {}, const QString &conflictId = {});
     bool persist(const QString &id, QJsonObject state);
     void finishAgent(const QJsonObject &reply);
     void agentError(const QString &message, const QString &code = {});

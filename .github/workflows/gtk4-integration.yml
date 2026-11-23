@@ -17,6 +17,7 @@ on:
       - 'scripts/import-isolation/**'
       - 'packaging/patches/casilda-*.patch'
       - 'scripts/check-gtk4-wayland.sh'
+      - 'scripts/check-gtk4-gnome-launcher.py'
       - 'scripts/publish-binary-cache.sh'
       - 'scripts/publish-gtk4-update.py'
       - 'CMakeLists.txt'
@@ -128,6 +129,13 @@ jobs:
           nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
             -c dbus-run-session --config-file="$dbus_config" -- \
             timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-update-evidence" result-test-seat/bin/centaur-test-seat
+      - name: Relaunch the updated profile in the same GNOME Shell session
+        if: success() && vars.CENTAUR_CACHIX_CACHE != '' && matrix.system == 'x86_64-linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends gnome-shell libgl1-mesa-dri
+          dbus-run-session -- timeout 160s python3 scripts/check-gtk4-gnome-launcher.py \
+            result-updater-previous result-gtk4 "${GITHUB_SHA::7}" "$RUNNER_TEMP/gtk4-update-evidence/gnome-relaunch"
       - name: Save updater screenshots and transaction evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

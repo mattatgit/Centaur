@@ -259,6 +259,7 @@ QJsonObject CollaborationHost::sharing(const QString &id) const {
     for (const auto &value : share["members"].toObject()) {
         auto member = value.toObject();
         names.append(member["name"]);
+        member.remove("profileKey");
         participants.append(member);
     }
     return {{"enabled", !share.isEmpty()},
@@ -300,6 +301,13 @@ bool CollaborationHost::leave(const QString &id, const QString &hash) {
     auto members = share["members"].toObject();
     if (!members.contains(hash)) return false;
     const auto previous = m_shares;
+    const auto member = members.value(hash).toObject();
+    const auto profileKey = member["profileKey"].toString();
+    if (!profileKey.isEmpty()) {
+        auto formerProfiles = share["formerProfiles"].toObject();
+        formerProfiles[profileKey] = member;
+        share["formerProfiles"] = formerProfiles;
+    }
     members.remove(hash);
     share["members"] = members;
     m_shares[id] = share;
@@ -374,12 +382,22 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             removePeer(socket, "left"); return;
         }
         const bool joined = member.isEmpty();
+        // This proof links display history only. Admission and command
+        // sequencing still require a fresh invitation and membership token.
+        const auto profileToken = data["profileToken"].toString();
+        static const QRegularExpression profilePattern("^[A-Za-z0-9_-]{43}$");
+        const auto profileKey = profilePattern.match(profileToken).hasMatch() ? digest(profileToken.toUtf8()) : QString();
+        bool profileAvailable = !profileKey.isEmpty();
+        for (const auto &value : members)
+            if (value.toObject()["profileKey"] == profileKey) profileAvailable = false;
         if (joined) {
             auto invites = share["invites"].toObject();
             const auto invitationHash = digest(data["invite"].toString().toUtf8());
             if (invites[invitationHash].toDouble() < now()) { reject("This invitation has expired or has already been used. Ask for a new one."); return; }
             auto name = data["name"].toString().trimmed().left(50);
             if (name.isEmpty()) { reject("Enter your name to join."); return; }
+            auto formerProfiles = share["formerProfiles"].toObject();
+            const auto former = profileAvailable ? formerProfiles.take(profileKey).toObject() : QJsonObject();
             QSet<QString> names{share["owner"].toString().toCaseFolded()};
             for (const auto &value : members) names.insert(value.toObject()["name"].toString().toCaseFolded());
             for (const auto &value : state["messages"].toArray()) if (value.toObject()["kind"] == "human") names.insert(value.toObject()["author"].toString().toCaseFolded());
@@ -388,14 +406,44 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             for (const auto &value : state["decisions"].toArray()) for (const auto &author : value.toObject()["authors"].toArray()) names.insert(author.toString().toCaseFolded());
             const auto original = name;
             int suffix = 2;
-            while (names.contains(name.toCaseFolded())) name = original.left(40) + " (" + QString::number(suffix++) + ")";
+            // Reuse an authenticated former name when it isn't in current use.
+            bool keepName = name == former["name"].toString()
+                && share["owner"].toString().toCaseFolded() != name.toCaseFolded();
+            for (const auto &value : members)
+                if (value.toObject()["name"].toString().toCaseFolded() == name.toCaseFolded()) keepName = false;
+            if (!keepName)
+                while (names.contains(name.toCaseFolded())) name = original.left(40) + " (" + QString::number(suffix++) + ")";
             member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}, {"color", nextColour(members)}};
+            if (!former.isEmpty()) {
+                auto previousIds = former["previousIds"].toArray();
+                previousIds.append(former["id"]);
+                // The live conversation retains at most 250 messages.
+                while (previousIds.size() > 250) previousIds.removeFirst();
+                member["previousIds"] = previousIds;
+                member["avatar"] = former["avatar"];
+                const auto color = former["color"].toString();
+                bool available = !color.isEmpty() && color != hostColour;
+                for (const auto &value : members)
+                    if (value.toObject()["color"] == color) available = false;
+                if (available) member["color"] = color;
+            }
+            if (profileAvailable) member["profileKey"] = profileKey;
             members[hash] = member; share["members"] = members;
+            share["formerProfiles"] = formerProfiles;
             invites.remove(invitationHash); share["invites"] = invites;
             const auto previous = m_shares;
             m_shares[id] = share;
             QString error;
             if (!save(&error)) { m_shares = previous; reject("Could not save your membership. Ask the owner to check storage."); return; }
+        } else if (profileAvailable && member["profileKey"].toString().isEmpty()
+                   && !share["formerProfiles"].toObject().contains(profileKey)) {
+            // Existing members adopt continuity on their next authenticated connection.
+            const auto previous = m_shares;
+            member["profileKey"] = profileKey;
+            members[hash] = member;
+            share["members"] = members;
+            m_shares[id] = share;
+            if (!save(nullptr)) m_shares = previous;
         }
         peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString();
         peer.credential = hash; peer.avatars = data["avatars"] == 1; m_peers[socket] = peer;
@@ -556,7 +604,15 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
         if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}, {"avatars", 1}});
+        // Keep a project- and host-scoped proof across voluntary departures.
+        // It cannot reconnect a revoked membership or redeem an invitation.
+        const auto file = path() + "/profile-" + pin + ".json";
+        auto profileToken = readObject(file)["token"].toString();
+        if (profileToken.isEmpty() && m_editLock->isLocked()) {
+            const auto candidate = secret();
+            if (privateFile(file, {{"token", candidate}})) profileToken = candidate;
+        }
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}, {"avatars", 1}, {"profileToken", profileToken}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {

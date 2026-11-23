@@ -91,6 +91,13 @@ def check_footer(driver,folder):
             click(owner.targets['update-confirm']);assert len(started)==2 and started[1]==manifest
         evidence['checks'].append('both-entry-points-cancel-and-confirm-keyboard-no-download-before-consent')
         work=folder/'transaction';work.mkdir();controls.work=work
+        for downloaded in (0,2_100_000,8_400_000):
+            write_json(work/'status.json',{'phase':'downloading','message':'Downloaded 0.0 of 16.5 MB',
+                                          'downloadBytes':downloaded,'totalBytes':16_500_000})
+            controls.tick();settle(.06)
+            expected=f'Downloaded {downloaded/1_000_000:.1f} of 16.5 MB'
+            assert controls.status.get_text()==controls.footer_status.get_text()==expected
+        evidence['checks'].append('footer-and-settings-use-advancing-byte-count-even-with-stale-status-text')
         for phase in ('starting','downloading','verifying','ready'):
             write_json(work/'status.json',{'phase':phase,'message':'Downloaded 2.1 of 16.5 MB'})
             controls.tick();settle(.06)

@@ -1,9 +1,12 @@
 """Per-user desktop integration for the separate, installed GTK4 profile."""
 import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from updater import profile_path, read_json, write_json
 
 APP_ID='org.centaur.Gtk4'
+DESKTOP_FILE=APP_ID+'.desktop'
+MANAGED='X-Centaur-Managed=true'
 ENVIRONMENT=('GSK_RENDERER','GDK_BACKEND','LIBGL_ALWAYS_SOFTWARE','CENTAUR_AGENT')
 
 
@@ -21,6 +24,34 @@ def launch_settings():
     return Path(data) if isinstance(data,str) and Path(data).is_absolute() else None
 
 
+def register_launcher(executable,source,destination):
+    current=None
+    if destination.is_symlink():
+        if destination.readlink()!=source: return
+    elif destination.exists():
+        current=destination.read_text()
+        if MANAGED not in current.splitlines(): return
+    # Desktop entry strings escape backslashes once as values and again
+    # inside quoted Exec arguments. A literal percent is an Exec field code.
+    command=str(executable).replace('\\','\\\\\\\\').replace('%','%%')
+    for char in ('"','`','$'):
+        command=command.replace(char,'\\\\'+char)
+    text=source.read_text()
+    entry='\n'.join(f'Exec="{command}" --desktop-launch' if line.startswith('Exec=') else line
+                    for line in text.splitlines())+'\n'+MANAGED+'\n'
+    if current==entry: return
+    destination.parent.mkdir(parents=True,exist_ok=True)
+    # Replace the legacy link in the watched applications directory, so a
+    # running desktop session also discards its cached store-specific command.
+    stream=NamedTemporaryFile(mode='w',dir=destination.parent,delete=False)
+    temporary=Path(stream.name)
+    try:
+        with stream: stream.write(entry)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def register(package,data):
     package=Path(package); profile=profile_path()
     executable=profile/'bin/centaur-gtk4'
@@ -31,7 +62,7 @@ def register(package,data):
     share=Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))
     def link(source,destination):
         destination.parent.mkdir(parents=True,exist_ok=True)
-        # Leave user-created desktop entries/icons alone. Our links follow the
+        # Leave user-created icons alone. Our links follow the
         # dedicated profile across updates instead of pinning an old package.
         if not destination.exists() and not destination.is_symlink(): destination.symlink_to(source)
     icons=profile/'share/icons/hicolor'
@@ -44,5 +75,5 @@ def register(package,data):
         alias.unlink()
     for source in icons.rglob(APP_ID+'*'):
         if source.is_file(): link(source,share/'icons/hicolor'/source.relative_to(icons))
-    link(profile/'share/applications'/(APP_ID+'.desktop'),share/'applications'/(APP_ID+'.desktop'))
+    register_launcher(executable,profile/'share/applications'/DESKTOP_FILE,share/'applications'/DESKTOP_FILE)
     return True
