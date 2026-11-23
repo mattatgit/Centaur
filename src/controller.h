@@ -47,6 +47,11 @@ public:
     QString projectId() const { return m_projectId; }
     QString author() const;
     QJsonArray projectCollaborators(const QString &id) const;
+    QString participantId() const;
+    QString drawingColor() const;
+    void refreshAvatar();
+    bool submitAnnotation(const QJsonObject &annotation, int revision);
+    void voteOnProposal(const QString &proposalId, const QString &choice, bool reject);
     QString collaborationRole() const;
     bool hostsShare(const QString &id) const;
     QJsonArray endedShares() const;
@@ -127,6 +132,7 @@ signals:
     void previewStopping();
     void previewOutput(const QByteArray &output);
     void error(const QString &message);
+    void annotationRejected(const QString &id, const QString &message);
 private:
     void receive(const QJsonObject &data);
     void command(QJsonObject data);

@@ -39,6 +39,7 @@ int main(int argc, char **argv) {
         output({{"type", "snapshot"}, {"projects", projects},
             {"project", state}, {"author", controller.author()}, {"remote", controller.remoteProject()},
             {"collaborationRole", controller.collaborationRole()}, {"endedShares", controller.endedShares()},
+            {"participantId", controller.participantId()}, {"drawingColor", controller.drawingColor()},
             {"connected", controller.canContribute()}, {"status", controller.connectionStatus()},
             {"busy", controller.agentBusy()}, {"agentAvailable", controller.agentAvailable()},
             {"updateBlocked", controller.updateBlocked()}, {"updateHeld", controller.updateHeld()},
@@ -55,6 +56,10 @@ int main(int argc, char **argv) {
     QObject::connect(&controller, &Controller::changed, &app, snapshot);
     QObject::connect(&controller, &Controller::preferencesChanged, &app, snapshot);
     QObject::connect(&controller, &Controller::error, &app, [](const QString &error) { output({{"type", "error"}, {"message", error}}); });
+    const auto rejectAnnotation = [](const QString &id, const QString &message) {
+        output({{"type", "annotationRejected"}, {"annotationId", id}, {"message", message}});
+    };
+    QObject::connect(&controller, &Controller::annotationRejected, &app, rejectAnnotation);
     QByteArray buffer;
     QSocketNotifier input(0, QSocketNotifier::Read);
     QObject::connect(&input, &QSocketNotifier::activated, &app, [&] {
@@ -85,13 +90,21 @@ int main(int argc, char **argv) {
             else if (type == "join") controller.joinProject(command["code"].toString(), command["name"].toString());
             else if (type == "cancelJoin") controller.cancelJoin();
             else if (type == "leave") controller.leaveProject(id);
-            else if (type == "accept") controller.acceptProposal();
+            else if (type == "accept" || type == "rejectProposal") {
+                if (command.contains("proposalId")) controller.voteOnProposal(command["proposalId"].toString(), command["choice"].toString(), type == "rejectProposal");
+                else if (type == "accept") controller.acceptProposal();
+            }
+            else if (type == "refreshAvatar") controller.refreshAvatar();
             else if (type == "cancel") controller.cancelAgent();
             else if (type == "agentName") {
                 if (id.isEmpty()) controller.renameAgent(command["name"].toString());
                 else controller.renameProjectAgent(id, command["name"].toString());
             }
-            else if (type == "annotation") controller.addAnnotation(command["annotation"].toObject().toVariantMap());
+            else if (type == "annotation") {
+                const auto annotation = command["annotation"].toObject();
+                if (!controller.submitAnnotation(annotation, command["baseRevision"].toInt()))
+                    rejectAnnotation(annotation["id"].toString(), "Could not save the drawing. Please try again.");
+            }
             else if (type == "undo") controller.undoAnnotation();
             else if (type == "grid") { controller.setGridEnabled(command["enabled"].toBool()); controller.setGridSize(command["size"].toInt(8)); controller.setGridOpacity(command["opacity"].toInt(50)); if (command.contains("color")) controller.setGridColor(QColor(command["color"].toString())); }
             else if (type == "snapshot") snapshot();

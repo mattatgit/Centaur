@@ -413,6 +413,8 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
         "Only flag a conflict when two or more authors have active, incompatible requirements that cannot "
         "both be satisfied. Do not revive old disagreements already settled in decisions. "
         "Never silently let the latest speaker overrule another author's still-active requirement. "
+        "If approvedResolution is present, the affected participants already agreed to that original request. "
+        "Implement that request as the chosen resolution, without substituting another choice or requesting another vote. "
         "For a genuine conflict, explain the incompatible requirements and propose a compromise for only "
         "the affected authors to agree on. If you need clarification before proposing a compromise, ask "
         "a focused question instead. Do not claim to have built or tested the change. "

@@ -130,6 +130,7 @@ popover.create-project-menu > contents { min-width: 96px; }
 .dialog-card.import-dialog { padding: 16px 24px; }
 .delete-dialog { padding: 0; border-radius: 24px; box-shadow: 0 0 20px alpha(black,.08); }
 .delete-hero { background: #ffefee; }
+.sharing-ended-hero { background: #ffefee; border-radius: 12px; }
 .delete-description { font-size: 14px; line-height: 18px; color: #6b6b6b; }
 .restart-dialog { padding: 0; border-radius: 24px; box-shadow: 0 0 20px alpha(black,.08); }
 .restart-hero { background: #fafafa; }

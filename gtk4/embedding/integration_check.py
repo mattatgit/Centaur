@@ -18,6 +18,7 @@ from activity_check import check_activity
 from pass2_check import check_settings_feedback,check_cards_and_profile,check_waiting_flows
 from workspace_polish_check import check_workspace_polish,check_unshared_hover
 from sharing_check import check_sharing
+from multiplayer_check import check_multiplayer
 
 
 class Bridge:
@@ -436,6 +437,7 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['checks']+=check_sharing(driver,folder,launch,click,message,Bridge,env,hs,hw,gs,gw,project_id)
+        summary['checks']+=check_multiplayer(driver,folder,launch,click,message,Bridge,env,hs,hw,reply_file,original)
         summary['checks']+=check_imports(driver,folder,hs,hw,click,message,roots[0],original,reply_file,request_record)
         summary['checks']+=check_waiting_flows(driver,folder,hs,hw,click,message,roots[0],original,reply_file)
         summary['passed']=True

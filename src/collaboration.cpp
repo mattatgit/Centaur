@@ -21,8 +21,43 @@
 
 namespace {
 constexpr int maxFrame = 8 * 1024 * 1024;
+constexpr int maxAvatar = 300 * 1024;
 qint64 now() { return QDateTime::currentMSecsSinceEpoch(); }
 QString digest(const QByteArray &bytes) { return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex()); }
+QString avatarPath(const QString &root, const QString &hash) {
+    return root + "/avatars/" + hash;
+}
+QByteArray avatarBytes(const QString &path) {
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly) || file.size() > maxAvatar) return {};
+    return file.read(maxAvatar + 1);
+}
+QString cacheAvatar(const QString &root, const QByteArray &bytes, const QString &expected = {}) {
+    if (bytes.isEmpty() || bytes.size() > maxAvatar) return {};
+    const auto hash = digest(bytes);
+    if (!expected.isEmpty() && expected != hash) return {};
+    QBuffer buffer;
+    buffer.setData(bytes);
+    buffer.open(QIODevice::ReadOnly);
+    QImageReader reader(&buffer);
+    const auto format = reader.format();
+    if (format != "png" && format != "jpeg") return {};
+    const auto size = reader.size();
+    if (!size.isValid() || size.isEmpty() || size.width() > 256 || size.height() > 256 || reader.read().isNull()) return {};
+    const auto folder = root + "/avatars";
+    if (!QDir().mkpath(folder)) return {};
+    QFile::setPermissions(folder, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
+    const auto target = avatarPath(root, hash);
+    return (QFileInfo::exists(target) || Workspace::writeFile(target, bytes)) ? hash : QString();
+}
+const QString hostColour = "#138EF5";
+QString nextColour(const QJsonObject &members) {
+    QSet<QString> used;
+    for (const auto &value : members) used.insert(value.toObject()["color"].toString());
+    const QStringList colours{"#FF6157", "#168A71", "#784AD2", "#B36413", "#B13D8F"};
+    for (const auto &colour : colours) if (!used.contains(colour)) return colour;
+    return colours.at(members.size() % colours.size());
+}
 QString secret() {
     QByteArray bytes(32, Qt::Uninitialized);
     for (int i = 0; i < bytes.size(); i += 4) { const auto n = QRandomGenerator::system()->generate(); memcpy(bytes.data() + i, &n, 4); }
@@ -59,6 +94,19 @@ void TlsServer::incomingConnection(qintptr descriptor) {
 CollaborationHost::CollaborationHost(const QString &root, QObject *parent) : QObject(parent), m_workspace(root), m_iroh(root) {
     m_shares = readObject(root + "/network/shares.json");
     m_revocations = m_shares.take("_revocations").toObject();
+    m_avatar = cacheAvatar(root, avatarBytes(root + "/profile-avatar-wire"));
+    for (const auto &id : m_shares.keys()) {
+        auto share = m_shares.value(id).toObject();
+        auto members = share["members"].toObject();
+        for (const auto &key : members.keys()) {
+            auto member = members.value(key).toObject();
+            if (member.contains("color")) continue;
+            member["color"] = nextColour(members);
+            members[key] = member;
+        }
+        share["members"] = members;
+        m_shares[id] = share;
+    }
     m_server.accepted = [this](QSslSocket *socket) { accept(socket); };
     m_internetServer.accepted = m_server.accepted;
     connect(&m_iroh, &IrohBridge::prepared, this, [this] {
@@ -205,9 +253,23 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
 QJsonObject CollaborationHost::sharing(const QString &id) const {
     const auto share = m_shares[id].toObject();
     QJsonArray names;
-    for (const auto &value : share["members"].toObject()) names.append(value.toObject()["name"]);
+    QJsonArray participants;
+    if (!share.isEmpty()) participants.append(QJsonObject{{"id", "host"}, {"name", share["owner"]},
+        {"color", hostColour}, {"avatar", m_avatar}});
+    for (const auto &value : share["members"].toObject()) {
+        auto member = value.toObject();
+        names.append(member["name"]);
+        participants.append(member);
+    }
     return {{"enabled", !share.isEmpty()},
-        {"internetReady", m_iroh.ready()}, {"owner", share["owner"]}, {"members", names}};
+        {"internetReady", m_iroh.ready()}, {"owner", share["owner"]}, {"members", names}, {"participants", participants},
+        {"annotationIds", 1}};
+}
+void CollaborationHost::refreshAvatar() {
+    const auto hash = cacheAvatar(m_workspace.root(), avatarBytes(m_workspace.root() + "/profile-avatar-wire"));
+    if (hash == m_avatar) return;
+    m_avatar = hash;
+    emit membershipChanged();
 }
 bool CollaborationHost::stopSharing(const QString &id, QString *error, bool projectRemoved) {
     const auto previousShares = m_shares, previousRevocations = m_revocations;
@@ -259,7 +321,9 @@ void CollaborationHost::removePeer(QSslSocket *socket, const QString &reason) {
 }
 void CollaborationHost::accept(QSslSocket *socket) {
     if (m_peers.size() >= 24) { socket->abort(); socket->deleteLater(); return; }
-    m_peers.insert(socket, {{}, {}, {}, {}, now(), {}});
+    Peer peer;
+    peer.lastSeen = now();
+    m_peers.insert(socket, peer);
     const auto folder = m_workspace.root() + "/network/";
     socket->setLocalCertificate(folder + "certificate.pem");
     socket->setPrivateKey(folder + "key.pem");
@@ -325,7 +389,7 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             const auto original = name;
             int suffix = 2;
             while (names.contains(name.toCaseFolded())) name = original.left(40) + " (" + QString::number(suffix++) + ")";
-            member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}};
+            member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}, {"color", nextColour(members)}};
             members[hash] = member; share["members"] = members;
             invites.remove(invitationHash); share["invites"] = invites;
             const auto previous = m_shares;
@@ -334,13 +398,32 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             if (!save(&error)) { m_shares = previous; reject("Could not save your membership. Ask the owner to check storage."); return; }
         }
         peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString();
-        peer.credential = hash; m_peers[socket] = peer;
-        write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}});
+        peer.credential = hash; peer.avatars = data["avatars"] == 1; m_peers[socket] = peer;
+        write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}, {"avatars", 1}});
         if (joined) emit membershipChanged();
         sendSnapshot(socket);
         return;
     }
     if (data["type"] == "ping") { write(socket, {{"type", "pong"}}); return; }
+    if (data["type"] == "profileAvatar" && peer.avatars) {
+        const auto encoded = data["bytes"].toString();
+        if (encoded.size() > maxAvatar * 4 / 3 + 4) return;
+        const auto image = QByteArray::fromBase64(encoded.toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+        const auto hash = cacheAvatar(m_workspace.root(), image);
+        if (hash.isEmpty() && !encoded.isEmpty()) return;
+        auto share = m_shares.value(peer.project).toObject();
+        auto members = share["members"].toObject();
+        auto member = members.value(peer.credential).toObject();
+        if (member.isEmpty() || member["avatar"].toString() == hash) return;
+        const auto previous = m_shares;
+        member["avatar"] = hash;
+        members[peer.credential] = member;
+        share["members"] = members;
+        m_shares[peer.project] = share;
+        if (!save(nullptr)) m_shares = previous;
+        else emit membershipChanged();
+        return;
+    }
     // Do not acknowledge work that the restarting coordinator cannot persist.
     // Disconnecting leaves the guest's authenticated outbox intact for retry.
     if (m_updating) { socket->disconnectFromHost(); return; }
@@ -351,13 +434,15 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
     if (sequence <= 0 || sequence > last + 1) { reject("The connection needs to synchronise again."); return; }
     if (sequence <= last) { sendSnapshot(socket); write(socket, {{"type", "ack"}, {"sequence", double(sequence)}}); return; }
     const auto type = data["type"].toString();
-    const QSet<QString> allowed{"message", "annotation", "undo", "accept", "cancel"};
+    const QSet<QString> allowed{"message", "annotation", "undo", "accept", "rejectProposal", "cancel"};
     if (!allowed.contains(type) || data["projectId"].toString() != peer.project) {
         write(socket, {{"type", "error"}, {"message", "Only the owner can manage this project or its invitations."}});
         acknowledge(socket, sequence); return;
     }
-    if ((type == "annotation" || type == "undo" || type == "accept") && data["baseRevision"] != state["revision"]) {
-        write(socket, {{"type", "error"}, {"message", "The app changed before that action arrived. Please try it on the current app."}});
+    if ((type == "annotation" || type == "undo" || type == "accept" || type == "rejectProposal") && data["baseRevision"] != state["revision"]) {
+        const auto annotationId = data["annotation"].toObject()["id"].toString();
+        write(socket, {{"type", annotationId.isEmpty() ? "error" : "annotationRejected"}, {"annotationId", annotationId},
+            {"message", "The app changed before that action arrived. Please try it on the current app."}});
         acknowledge(socket, sequence); sendSnapshot(socket); return;
     }
     data["projectId"] = peer.project; data["author"] = peer.name; data["_memberId"] = peer.member;
@@ -399,9 +484,25 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
     const auto source = m_workspace.source(peer.project);
     // Authenticated members receive display names for this project only.
     state["sharing"] = sharing(peer.project);
+    if (peer.avatars) {
+        QSet<QString> sent;
+        for (const auto &value : state["sharing"].toObject()["participants"].toArray()) {
+            const auto hash = value.toObject()["avatar"].toString();
+            if (hash.isEmpty() || sent.contains(hash)) continue;
+            if (!peer.sentAvatars.contains(hash)) {
+                const auto bytes = avatarBytes(avatarPath(m_workspace.root(), hash));
+                if (bytes.isEmpty()) continue;
+                write(socket, {{"type", "avatar"}, {"hash", hash}, {"bytes", QString::fromLatin1(bytes.toBase64())}});
+            }
+            sent.insert(hash);
+        }
+        if (!m_peers.contains(socket)) return;
+        m_peers[socket].sentAvatars = sent;
+    }
     state["queueCount"] = state["agentQueue"].toArray().size();
     state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
     state.remove("importLocal");
+    state.remove("directions");
     state.remove("agentActivity");
     for (const auto &value:m_snapshot["states"].toArray()) {
         const auto current=value.toObject();
@@ -455,7 +556,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     connect(&m_socket, &QSslSocket::encrypted, this, [this] {
         const auto pin = QString::fromLatin1(m_socket.peerCertificate().digest(QCryptographicHash::Sha256).toHex());
         if (pin != m_connection["pin"].toString()) { m_terminal = true; status("Host identity changed · ask for a new invitation"); emit error(m_status); m_socket.abort(); if (m_iroh) m_iroh->disconnectTunnel(); return; }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}, {"avatars", 1}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
@@ -536,7 +637,8 @@ void SharedProject::connectHost() {
         finish(saved.contains("ended") ? "sharingEnded" : "left");
         return;
     }
-    m_buffer.clear(); m_connected = false; status("Connecting to project host…");
+    m_buffer.clear(); m_connected = false; m_avatarProtocol = false; m_advertisedAvatar.clear();
+    status("Connecting to project host…");
     if (m_iroh) { m_tunnelling = true; m_iroh->tunnel(m_connection["endpoint"].toObject()); }
     else m_socket.connectToHostEncrypted(m_connection["host"].toString(), quint16(m_connection["port"].toInt()));
     const auto attempt = ++m_connectSerial;
@@ -562,7 +664,14 @@ void SharedProject::receive(const QJsonObject &data) {
         // Older hosts ignore the leave flag. They may still send a snapshot,
         // but this device has already opted out of the project.
         if (leaving()) { finish("left"); return; }
+        m_avatarProtocol = data["avatars"] == 1;
+        refreshAvatar();
         emit changed();
+    } else if (type == "avatar") {
+        const auto encoded = data["bytes"].toString();
+        const auto hash = data["hash"].toString();
+        if (m_avatarProtocol && !m_terminal && !leaving() && hash.size() == 64 && encoded.size() <= maxAvatar * 4 / 3 + 4)
+            cacheAvatar(m_root, QByteArray::fromBase64(encoded.toLatin1(), QByteArray::AbortOnBase64DecodingErrors), hash);
     } else if (type == "project") {
         if (m_terminal || leaving()) return;
         const auto state = data["state"].toObject(); const auto source = data["source"].toString();
@@ -577,6 +686,9 @@ void SharedProject::receive(const QJsonObject &data) {
     } else if (type == "ack") {
         if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) { m_outbox.removeFirst(); m_inflight = false; if (save()) flush(); }
     } else if (type == "error") emit error(data["message"].toString());
+    else if (type == "annotationRejected") {
+        emit annotationRejected(data["annotationId"].toString(), data["message"].toString());
+    }
     else if (type == "rejected" || type == "removed") {
         if (m_terminal) return;
         const auto reason = data["reason"].toString();
@@ -590,6 +702,14 @@ void SharedProject::receive(const QJsonObject &data) {
         if (readObject(file)["memberToken"] == m_connection["memberToken"]) QFile::remove(file);
         m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
     }
+}
+void SharedProject::refreshAvatar() {
+    if (!m_avatarProtocol || m_terminal || leaving() || !m_socket.isEncrypted()) return;
+    const auto bytes = avatarBytes(m_root + "/profile-avatar-wire");
+    const auto hash = digest(bytes);
+    if (hash == m_advertisedAvatar) return;
+    m_advertisedAvatar = hash;
+    write(&m_socket, {{"type", "profileAvatar"}, {"bytes", QString::fromLatin1(bytes.toBase64())}});
 }
 bool SharedProject::leave() {
     if (!m_editLock || !m_editLock->isLocked()) { emit error("Leave the project from its editing window."); return false; }
@@ -644,7 +764,8 @@ bool SharedProject::send(QJsonObject command) {
         if (image.open(QIODevice::ReadOnly) && image.size() <= 2 * 1024 * 1024) command["imageData"] = QString::fromLatin1(image.readAll().toBase64());
     }
     command.remove("image"); command.remove("author");
-    command["projectId"] = id(); command["baseRevision"] = state()["revision"];
+    command["projectId"] = id();
+    if (!command.contains("baseRevision")) command["baseRevision"] = state()["revision"];
     const auto sequence = qint64(m_connection["sequence"].toDouble()) + 1;
     command["sequence"] = double(sequence); m_connection["sequence"] = double(sequence);
     m_outbox.append(command);

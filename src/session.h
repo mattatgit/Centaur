@@ -25,6 +25,7 @@ public:
     bool updateBlocked() const;
     QString root() const { return m_workspace.root(); }
 signals:
+    void annotationRejected(const QString &id, const QString &message);
     void snapshot(const QJsonObject &data);
     void error(const QString &message);
     void sourceChanged(const QString &projectId);
@@ -35,7 +36,8 @@ private:
     void handle(const QJsonObject &command, QIODevice *sender = nullptr);
     void publish(const QString &id = {});
     void reply(QIODevice *socket, const QJsonObject &data);
-    void addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind = "human", const QJsonObject &comment = {});
+    void addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind = "human",
+                    const QJsonObject &comment = {}, const QString &participant = {});
     bool persist(const QString &id, QJsonObject state);
     void finishAgent(const QJsonObject &reply);
     void agentError(const QString &message, const QString &code = {});

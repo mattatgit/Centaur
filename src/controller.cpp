@@ -23,6 +23,7 @@ Controller::Controller(QString root, QObject *parent) : QObject(parent),
     m_previewStatus = embeddingSupported() ? "Opening native app…" : "Native embedding requires Linux";
     connect(&m_session, &Session::snapshot, this, &Controller::receive);
     connect(&m_session, &Session::error, this, [this](const QString &message) { m_inviting = false; emit changed(); emit error(message); });
+    connect(&m_session, &Session::annotationRejected, this, &Controller::annotationRejected);
     connect(&m_session, &Session::connectionChanged, this, [this] { if (!m_session.connected()) m_inviting = false; emit changed(); });
     connect(&m_preview, &QProcess::started, this, [this] {
         m_previewStatus = "Connecting native app…"; emit previewChanged();
@@ -88,6 +89,18 @@ QJsonArray Controller::projectCollaborators(const QString &id) const {
     const auto sharing = m_states.value(id)["sharing"].toObject();
     const auto *remote = m_shared.value(id, nullptr);
     if (!remote && !sharing["enabled"].toBool()) return {};
+    const auto participants = sharing["participants"].toArray();
+    if (participants.size() >= 2) {
+        const auto self = remote ? remote->participantId() : QString("host");
+        QJsonArray roster;
+        for (const auto &value : participants) {
+            auto participant = value.toObject();
+            participant["self"] = participant["id"] == self;
+            if (participant["self"].toBool()) roster.prepend(participant);
+            else roster.append(participant);
+        }
+        return roster;
+    }
 
     const auto current = remote ? remote->author() : sharing["owner"].toString(m_author);
     QJsonArray result;
@@ -103,6 +116,19 @@ QJsonArray Controller::projectCollaborators(const QString &id) const {
     // An invitation may enable a listener before anyone joins. A cached
     // guest project can also lack a roster from an older host.
     return result.size() >= 2 ? result : QJsonArray{};
+}
+QString Controller::participantId() const { return remoteProject() ? m_shared.value(m_projectId)->participantId() : QString("host"); }
+QString Controller::drawingColor() const {
+    const auto self = participantId();
+    for (const auto &value : m_states.value(m_projectId)["sharing"].toObject()["participants"].toArray()) {
+        const auto participant = value.toObject();
+        if (participant["id"] == self) return participant["color"].toString("#138EF5");
+    }
+    return remoteProject() ? QString("#FF6157") : QString("#138EF5");
+}
+void Controller::refreshAvatar() {
+    m_session.send({{"type", "refreshAvatar"}});
+    for (auto *project : m_shared) project->refreshAvatar();
 }
 bool Controller::canContribute() const { return remoteProject() ? m_shared.value(m_projectId)->writable() : m_session.connected(); }
 bool Controller::agentAvailable() const { return remoteProject() ? m_shared.value(m_projectId)->agentAvailable() : m_agentAvailable; }
@@ -156,6 +182,7 @@ void Controller::joinProject(const QString &code, const QString &name) {
 void Controller::addShared(SharedProject *project) {
     m_shared.insert(project->id(), project);
     connect(project, &SharedProject::error, this, &Controller::error);
+    connect(project, &SharedProject::annotationRejected, this, &Controller::annotationRejected);
     connect(project, &SharedProject::changed, this, &Controller::refresh);
     refresh();
 }
@@ -320,9 +347,15 @@ bool Controller::sendMessage(const QString &text, const QString &image, int imag
     return route(m_projectId, {{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}, {"comment", comment}});
 }
 void Controller::addAnnotation(const QVariantMap &annotation) { command({{"type", "annotation"}, {"annotation", QJsonObject::fromVariantMap(annotation)}}); }
+bool Controller::submitAnnotation(const QJsonObject &annotation, int revision) {
+    return route(m_projectId, {{"type", "annotation"}, {"annotation", annotation}, {"baseRevision", revision}});
+}
 void Controller::undoAnnotation() { command({{"type", "undo"}}); }
 void Controller::acceptProposal() {
     command({{"type", "accept"}, {"proposalId", m_states[m_projectId]["proposal"].toObject()["id"]}});
+}
+void Controller::voteOnProposal(const QString &proposalId, const QString &choice, bool reject) {
+    command({{"type", reject ? "rejectProposal" : "accept"}, {"proposalId", proposalId}, {"choice", choice}});
 }
 void Controller::renameAgent(const QString &name) { command({{"type", "agentName"}, {"name", name}}); }
 void Controller::renameProjectAgent(const QString &id, const QString &name) { route(id, {{"type", "agentName"}, {"name", name}}); }

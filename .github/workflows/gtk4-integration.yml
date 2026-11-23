@@ -86,7 +86,7 @@ jobs:
           dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
           nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
             -c dbus-run-session --config-file="$dbus_config" -- \
-            timeout 600s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
+            timeout 720s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
       - name: Save native screenshots, reports and limitations
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -135,11 +135,26 @@ jobs:
           name: gtk4-updater-${{ matrix.system }}
           path: ${{ runner.temp }}/gtk4-update-evidence/
           if-no-files-found: ignore
+  advertise:
+    name: Advertise both verified GTK4 previews
+    needs: integration
+    if: >-
+      github.repository == 'mattatgit/Centaur' &&
+      github.ref == 'refs/heads/main' &&
+      vars.CENTAUR_CACHIX_CACHE != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: gtk4-product-distribution-*
+          path: ${{ runner.temp }}/verified-gtk4
       - name: Advertise the verified in-app update
-        if: >-
-          success() && github.repository == 'mattatgit/Centaur' &&
-          github.ref == 'refs/heads/main' &&
-          vars.CENTAUR_CACHIX_CACHE != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish-gtk4-update.py "$RUNNER_TEMP/gtk4-distribution/metadata/manifest.json"
+        run: >-
+          python3 scripts/publish-gtk4-update.py
+          "$RUNNER_TEMP/verified-gtk4/gtk4-product-distribution-aarch64-linux/manifest.json"
+          "$RUNNER_TEMP/verified-gtk4/gtk4-product-distribution-x86_64-linux/manifest.json"

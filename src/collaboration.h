@@ -10,6 +10,7 @@
 #include <memory>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QSet>
 #include <functional>
 
 class TlsServer : public QTcpServer {
@@ -31,6 +32,7 @@ public:
     bool stopSharing(const QString &id, QString *error, bool projectRemoved = false);
     void publish(const QJsonObject &snapshot);
     QJsonObject sharing(const QString &id) const;
+    void refreshAvatar();
     static QString suggestedAddress();
     quint16 port() const { return m_server.serverPort(); }
     bool preparingInvitation() const { return !m_invitations.isEmpty(); }
@@ -60,8 +62,16 @@ private:
     quint64 m_invitationSerial = 0;
     QJsonObject m_shares;
     QJsonObject m_revocations;
+    QString m_avatar;
     QJsonObject m_snapshot;
-    struct Peer { QByteArray buffer; QString project; QString member; QString name; qint64 lastSeen = 0; QString credential; };
+    struct Peer {
+        QByteArray buffer;
+        QString project, member, name;
+        qint64 lastSeen = 0;
+        QString credential;
+        bool avatars = false;
+        QSet<QString> sentAvatars;
+    };
     QHash<QSslSocket *, Peer> m_peers;
     QTimer m_watchdog;
     bool m_updating = false;
@@ -76,10 +86,12 @@ public:
     void start();
     void release();
     bool leave();
+    void refreshAvatar();
     bool send(QJsonObject command);
     QString id() const { return m_connection["project"].toString(); }
     QString path() const { return m_root + "/shared/" + id(); }
     QString author() const { return m_connection["name"].toString(); }
+    QString participantId() const { return m_connection["memberId"].toString(); }
     bool writable() const { return m_connected && !leaving() && m_editLock && m_editLock->isLocked(); }
     bool agentAvailable() const { return m_snapshot["agentAvailable"].toBool(); }
     bool busy() const { return m_snapshot["busy"].toBool(); }
@@ -96,6 +108,7 @@ public:
 signals:
     void changed();
     void error(const QString &message);
+    void annotationRejected(const QString &id, const QString &message);
 private:
     void connectHost();
     void read();
@@ -112,6 +125,8 @@ private:
     QSslSocket m_socket;
     std::unique_ptr<IrohBridge> m_iroh;
     bool m_tunnelling = false;
+    bool m_avatarProtocol = false;
+    QString m_advertisedAvatar;
     quint64 m_connectSerial = 0;
     QByteArray m_buffer;
     QTimer m_retry;

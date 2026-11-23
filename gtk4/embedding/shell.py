@@ -11,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 import time
+from uuid import uuid4
+from avatars import shared_avatar
 from datetime import datetime
 import gi
 
@@ -52,6 +54,7 @@ class Centaur(Gtk.Application):
         self.mode = 'Interact'
         self.tool = 'draw'
         self.points = []
+        self.pending_strokes = {}
         self.message_key = self.project_key = None
         self.page = 'projects'
         self.last_invite = ''
@@ -375,7 +378,8 @@ class Centaur(Gtk.Application):
         self.targets.update({'chat-messages':self.messages,'chat-scrollbar':self.chat_scrollbar,'chat-divider':divider,'chat-scroller':self.chat_scroll})
 
         self.comment_overlay=Gtk.DrawingArea(hexpand=True,vexpand=True); self.comment_overlay.set_can_target(False)
-        self.comment_overlay.set_draw_func(lambda a,cr,w,h:paint_arrow(cr,*self.comment_points()))
+        self.comment_overlay.set_draw_func(self.draw_comment_pointers)
+        self.chat_scroll.get_vadjustment().connect('value-changed',lambda adjustment:self.comment_overlay.queue_draw())
         self.root_overlay.add_overlay(self.comment_overlay)
         self.chat_layer=MotionLayer(self.chat)
         self.panes.set_start_child(self.chat_layer); self.panes.set_resize_start_child(False); self.panes.set_shrink_start_child(False)
@@ -572,11 +576,35 @@ class Centaur(Gtk.Application):
         head=self.comment.head(self.viewport.describe(),(canvas.get_x(),canvas.get_y()))
         return (composer.get_x()+composer.get_width()-12,composer.get_y()+12),head
 
+    def shared_comment_points(self):
+        pointer=self.project.get('humanPointer') or {}
+        row=self.message_widgets.get(pointer.get('messageId')) if hasattr(self,'message_widgets') else None
+        if not row or not self.viewport or self.page!='workspace' or pointer.get('revision')!=self.project.get('revision'):
+            return None,None
+        ok,message=row[1].compute_bounds(self.root_overlay)
+        shown,viewport=self.chat_scroll.compute_bounds(self.root_overlay)
+        mapped,canvas=self.ink.compute_bounds(self.root_overlay)
+        if not (ok and shown and mapped): return None,None
+        tail=(message.get_x()+message.get_width(),message.get_y())
+        if not viewport.get_y()<=tail[1]<viewport.get_y()+viewport.get_height(): return None,None
+        x,y=annotation_position(pointer['point'],pointer['frame'],self.viewport.describe())
+        return tail,(canvas.get_x()+x,canvas.get_y()+y)
+
+    def draw_comment_pointers(self,area,cr,width,height):
+        paint_arrow(cr,*self.shared_comment_points())
+        paint_arrow(cr,*self.comment_points())
+
     def undo(self):
         if self.comment.phase!='idle': self.cancel_comment()
         else: self.service.send('undo')
 
     def receive(self,data):
+        if data.get('type')=='annotationRejected':
+            self.pending_strokes.pop(data.get('annotationId'),None)
+            self.ink.queue_draw()
+            self.error_label.set_text(data.get('message','Could not save the drawing.'))
+            self.error_label.set_visible(True)
+            return
         if data.get('type') in ('settingsSaved','error'): self.settings.receive(data)
         if data.get('type')=='settingsSaved': return
         if data.get('type')=='error':
@@ -597,6 +625,12 @@ class Centaur(Gtk.Application):
         self.data=data; self.project=data.get('project',{})
         if getattr(self,'requested_grid',None)==data.get('grid'): self.requested_grid=None
         new_id=self.project.get('id')
+        revision=self.project.get('revision')
+        saved={mark.get('id') for mark in self.project.get('annotations',[])}
+        projects={item['id'] for item in data.get('projects',[])}
+        self.pending_strokes={key:mark for key,mark in self.pending_strokes.items()
+                             if mark['project'] in projects
+                             and (mark['project']!=new_id or (mark['revision']==revision and key not in saved))}
         buffer=self.editor.get_buffer()
         if old_id!=new_id:
             self.stop_preview()
@@ -642,7 +676,9 @@ class Centaur(Gtk.Application):
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
             self.deploy_button.set_sensitive(not remote)
             self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
-            messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
+            participants=self.project.get('sharing',{}).get('participants',[])
+            messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),participants,
+                                 activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
             self.refresh_proposal()
@@ -668,6 +704,7 @@ class Centaur(Gtk.Application):
         elif old_id:
             self.navigate('projects')
         self.ink.queue_draw()
+        self.comment_overlay.queue_draw()
         invitation=data.get('invitation','')
         if invitation and invitation!=self.last_invite:
             self.last_invite=invitation
@@ -798,17 +835,17 @@ class Centaur(Gtk.Application):
     def collaborator_avatars(self,people):
         strip=Gtk.Fixed(halign=Gtk.Align.END,valign=Gtk.Align.START,can_target=False,
                         margin_end=16,margin_top=16,visible=False)
-        captions=[(p['name'][0].upper(),p['self']) for p in people[:5]]
+        captions=[(p['name'][0].upper(),self.person_avatar(p)) for p in people[:5]]
         if len(people)>5:
-            captions=captions[:4]+[(f'+{len(people)-4}',False)]
+            captions=captions[:4]+[(f'+{len(people)-4}',None)]
         # Paint back to front so the current user is fully visible at the left.
-        for index,(initial,is_self) in reversed(list(enumerate(captions))):
+        for index,(initial,path) in reversed(list(enumerate(captions))):
             chip=Gtk.Overlay(can_target=False,css_classes=['tile-avatar'])
             chip.set_size_request(24,24)
             chip.set_overflow(Gtk.Overflow.HIDDEN)
             photo=None
-            if is_self and self.settings.avatar_path.is_file():
-                try: photo=picture(self.settings.avatar_path,24,cover=True)
+            if path:
+                try: photo=picture(path,24,cover=True)
                 except GLib.Error: pass
             face=photo or label(initial,'tile-avatar-initial')
             face.set_can_target(False)
@@ -816,6 +853,19 @@ class Centaur(Gtk.Application):
             chip.set_child(face)
             strip.put(chip,16*index,0)
         return strip
+
+    def person_avatar(self,person):
+        if person.get('self') and self.settings.avatar_path.is_file(): return self.settings.avatar_path
+        return shared_avatar(self.root,person.get('avatar'))
+
+    def message_avatar(self,message):
+        author=message.get('author')
+        identity=message.get('participant')
+        is_self=identity==self.data.get('participantId') if identity else author==self.data.get('author')
+        for participant in self.project.get('sharing',{}).get('participants',[]):
+            if (participant.get('id')==identity if identity else participant.get('name')==author):
+                return self.person_avatar(dict(participant,self=is_self))
+        return self.person_avatar({'self':is_self})
 
     def open_imported(self,project,adaptation=False):
         info=project.get('import') or {}
@@ -852,7 +902,8 @@ class Centaur(Gtk.Application):
         previous_rows=getattr(self,'message_widgets',{}); rows=[]
         for index,message in enumerate(self.project.get('messages',[])):
             key=message.get('id') or 'legacy-'+str(index)
-            fingerprint=(self.project.get('id'),self.data.get('author'),avatar_stamp,
+            face=self.message_avatar(message) if message.get('kind')=='human' else None
+            fingerprint=(self.project.get('id'),self.data.get('author'),avatar_stamp,face,
                          hashlib.sha256(json.dumps(message,sort_keys=True).encode()).digest())
             old=previous_rows.get(key)
             rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None))
@@ -914,9 +965,14 @@ class Centaur(Gtk.Application):
         if agent:
             avatar=box(css='avatar agent'); mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
         else:
-            if author==self.data.get('author') and self.settings.avatar_path.exists():
-                avatar=Gtk.Overlay(css_classes=['avatar']); avatar.set_overflow(Gtk.Overflow.HIDDEN); avatar.set_child(picture(self.settings.avatar_path,32,cover=True))
-            else:
+            path=self.message_avatar(message)
+            avatar=None
+            if path:
+                try:
+                    photo=picture(path,32,cover=True)
+                    avatar=Gtk.Overlay(css_classes=['avatar']); avatar.set_overflow(Gtk.Overflow.HIDDEN); avatar.set_child(photo)
+                except GLib.Error: pass
+            if avatar is None:
                 avatar=label(author[:1].upper(),'avatar'); avatar.set_xalign(.5)
         avatar.set_size_request(32,32); avatar.set_valign(Gtk.Align.START); item.append(avatar)
         name=label(author,'chat-name'); name.set_ellipsize(Pango.EllipsizeMode.END); name.set_valign(Gtk.Align.BASELINE); head.append(name)
@@ -948,12 +1004,43 @@ class Centaur(Gtk.Application):
         if isinstance(conflict,dict):
             self.proposal.append(label('Resolve conflicting requests','chat-name',True))
             self.proposal.append(label(conflict.get('reason','Agreement needed'),'chat-name',True))
-            authors=proposal.get('authors',[]); accepted=proposal.get('accepted',[])
-            for author in authors: self.proposal.append(label(('✓  ' if author in accepted else '○  ')+author,'chat-name'))
-            agree=button('Agree to compromise',lambda:self.service.send('accept'),tone='dark')
-            agree.set_sensitive(self.data.get('author') in authors and self.data.get('author') not in accepted and not self.data.get('busy'))
-            self.proposal.append(agree); self.targets['accept']=agree
-            self.proposal.append(label('Only people whose requests conflict need to agree.','small muted',True))
+            voters=proposal.get('voters',{}); votes=proposal.get('votes',{})
+            participant=self.data.get('participantId')
+            names=list(voters.values()) or proposal.get('authors',[])
+            waiting=[name for key,name in voters.items() if key not in votes]
+            if proposal.get('resolving'): progress='Preparing the agreed change…'
+            elif len(set(votes.values()))>1: progress='Different choices — agree on the same resolution'
+            else:
+                progress=f'{len(votes)} of {len(names)} agreed'
+                if waiting: progress+=' — waiting for '+', '.join(waiting)
+            progress_label=label(progress,'small muted',True)
+            self.proposal.append(progress_label); self.targets['approval-status']=progress_label
+            options=[('compromise','Compromise',proposal.get('message',''))]
+            options.extend((key,f"Use {item['author']}’s request",item['text']) for key,item in proposal.get('choices',{}).items())
+            remembered=getattr(self,'proposal_choice',None)
+            selected_choice=remembered[1] if remembered and remembered[0]==proposal.get('id') else votes.get(participant,'compromise')
+            index=next((i for i,opt in enumerate(options) if opt[0]==selected_choice),0)
+            chooser=Gtk.DropDown.new_from_strings([title for _,title,_ in options]); chooser.set_selected(index)
+            chooser.set_visible(len(options)>1)
+            self.proposal.append(chooser); self.targets['approval-choice']=chooser
+            detail=label('','small muted',True); self.proposal.append(detail)
+            active=participant in voters and self.data.get('connected') and not proposal.get('resolving')
+            actions=box(spacing=8)
+            def decide(reject=False):
+                choice=options[chooser.get_selected()][0]
+                self.service.send('rejectProposal' if reject else 'accept',proposalId=proposal['id'],choice=choice)
+            decline=button('Decline',lambda:decide(True),tone='soft')
+            agree=button('Agree',decide,tone='dark')
+            decline.set_sensitive(active); chooser.set_sensitive(active)
+            actions.append(decline); actions.append(agree); self.proposal.append(actions)
+            self.targets.update({'accept':agree,'reject-proposal':decline})
+            def update_choice(*_):
+                choice,title,description=options[chooser.get_selected()]
+                self.proposal_choice=(proposal.get('id'),choice)
+                detail.set_text(description if len(description)<=340 else description[:339]+'…')
+                agree.set_sensitive(active and votes.get(participant)!=choice)
+            chooser.connect('notify::selected',update_choice)
+            update_choice()
         self.proposal.set_visible(bool(conflict))
 
     def send(self):
@@ -1122,6 +1209,9 @@ class Centaur(Gtk.Application):
             self.ended_share_dialog=None; self.resolving_share=False
         dialog.on_close=closed
         name=notice.get('name') or 'this project'
+        hero=Gtk.Overlay(css_classes=['sharing-ended-hero']); hero.set_size_request(-1,128); hero.set_child(box())
+        clay=picture(ASSETS/'v2/dc3c7.png',72); clay.set_halign(Gtk.Align.CENTER); clay.set_valign(Gtk.Align.CENTER)
+        hero.add_overlay(clay); content.prepend(hero)
         explanation=('You can keep the last saved app and conversation as an independent project on this device.'
                      if notice.get('canKeep') else 'There is no saved app on this device to keep.')
         content.append(label(f'The host stopped sharing {name}. '+explanation,None,True))
@@ -1331,6 +1421,9 @@ class Centaur(Gtk.Application):
         if self.tool!='draw' or self.mode!='Build' or not self.data.get('connected') or not self.viewport:
             gesture.set_state(Gtk.EventSequenceState.DENIED); return
         self.stroke_space=AnnotationSpace.capture(self.viewport.describe(),self.ink.get_width(),self.ink.get_height())
+        self.stroke_project=self.project.get('id')
+        self.stroke_revision=self.project.get('revision')
+        self.stroke_color=self.data.get('drawingColor','#138EF5')
         self.ink_origin=(x,y); self.points=[self.stroke_space.point(x,y)]; self.ink.queue_draw()
 
     def ink_point(self,x,y):
@@ -1345,7 +1438,13 @@ class Centaur(Gtk.Application):
     def ink_end(self,gesture,dx,dy):
         if self.points:
             self.ink_point(self.ink_origin[0]+dx,self.ink_origin[1]+dy)
-            self.service.send('annotation',annotation={'tool':self.tool,'points':self.points,'frame':self.stroke_space.frame})
+            if self.stroke_project==self.project.get('id') and self.stroke_revision==self.project.get('revision'):
+                identity=str(uuid4())
+                mark={'id':identity,'tool':self.tool,'points':self.points,'frame':self.stroke_space.frame}
+                if not self.data.get('remote') or self.project.get('sharing',{}).get('annotationIds'):
+                    self.pending_strokes[identity]=dict(mark,project=self.stroke_project,revision=self.stroke_revision,color=self.stroke_color)
+                if not self.service.send('annotation',annotation=mark,baseRevision=self.stroke_revision):
+                    self.pending_strokes.pop(identity,None)
             self.points=[]; self.ink.queue_draw()
 
     def draw_ink(self,area,cr,width,height):
@@ -1361,11 +1460,15 @@ class Centaur(Gtk.Application):
             while y<height: cr.move_to(0,y); cr.line_to(width,y); y+=step
             cr.stroke()
         marks=[a for a in self.project.get('annotations',[]) if a.get('revision')==self.project.get('revision')]
-        if self.points: marks.append({'points':self.points,'tool':self.tool,'frame':self.stroke_space.frame})
-        cr.set_source_rgb(.2,.4,.9); cr.set_line_width(2); cr.set_line_cap(1)
+        marks.extend(mark for mark in self.pending_strokes.values() if mark['project']==self.project.get('id') and mark['revision']==self.project.get('revision'))
+        if self.points: marks.append({'points':self.points,'tool':self.tool,'frame':self.stroke_space.frame,'color':self.stroke_color})
+        cr.set_line_width(2); cr.set_line_cap(1)
         for mark in marks:
             points=mark.get('points',[])
             if not points: continue
+            colour=Gdk.RGBA()
+            if not colour.parse(mark.get('color','#3366E6')): colour.parse('#3366E6')
+            cr.set_source_rgba(colour.red,colour.green,colour.blue,colour.alpha)
             if mark.get('tool')=='comment': points=[points[0],points[-1]]
             try: positions=[annotation_position(p,mark.get('frame'),g) for p in points]
             except (ValueError,KeyError,TypeError): continue
@@ -1399,8 +1502,10 @@ class Centaur(Gtk.Application):
             queued=self.project.get('queueCount',0)
             self.busy_text.set_text(activity_caption(activity)+(' · '+str(queued)+' queued' if queued else ''))
         comment_geometry=self.comment_points()
-        if comment_geometry!=self.comment_geometry:
-            self.comment_geometry=comment_geometry; self.comment_overlay.queue_draw()
+        shared_geometry=self.shared_comment_points()
+        geometry_pair=(comment_geometry,shared_geometry)
+        if geometry_pair!=self.comment_geometry:
+            self.comment_geometry=geometry_pair; self.comment_overlay.queue_draw()
         self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==self.data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
         # Preserve the reference breakpoints and the chat width on window resize.
         compact=self.window.get_width()<760
@@ -1495,6 +1600,17 @@ class Centaur(Gtk.Application):
             # other targets; painting and capture retain overlay coordinates.
             origin=self.root_overlay.compute_bounds(self.window)[1]
             reported_comment=[None if point is None else (point[0]+origin.get_x(),point[1]+origin.get_y()) for point in comment_geometry]
+            reported_shared=[None if point is None else (point[0]+origin.get_x(),point[1]+origin.get_y()) for point in shared_geometry]
+            data['sharedPointer']={'tail':reported_shared[0],'head':reported_shared[1]}
+            pointer=self.project.get('humanPointer') or {}
+            row=getattr(self,'message_widgets',{}).get(pointer.get('messageId'))
+            if row:
+                ok,rect=self.window_bounds(row[1])
+                if ok: data['sharedPointer']['messageBounds']=[rect.get_x(),rect.get_y(),rect.get_width(),rect.get_height()]
+            data['inkPending']=list(self.pending_strokes)
+            data['drawingColor']=self.data.get('drawingColor')
+            if self.proposal.get_visible() and 'approval-status' in self.targets:
+                data['approvalStatus']=self.targets['approval-status'].get_text()
             data['commentPointer']={'phase':self.comment.phase,'tail':reported_comment[0],'head':reported_comment[1],
                                     'reference':self.comment.target,'token':self.comment.token}
             adjustment=self.chat_scroll.get_vadjustment()
@@ -1507,6 +1623,7 @@ class Centaur(Gtk.Application):
                     ok,rect=self.window_bounds(widget)
                     if not ok or rect.get_width()<=0 or rect.get_height()<=0: continue
                     entry={'bounds':[rect.get_x(),rect.get_y(),rect.get_width(),rect.get_height()]}
+                    if key=='avatar': entry['image']=isinstance(widget,Gtk.Overlay)
                     if isinstance(widget,Gtk.Label):
                         iterator=widget.get_layout().get_iter(); baselines=[]
                         while True:

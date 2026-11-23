@@ -67,6 +67,13 @@ class SettingsView:
             entry.connect('activate',lambda e,k=key:self.flush(k))
             owner.targets['settings-'+key]=entry
         self.avatar_path=owner.root/'profile-avatar'
+        self.avatar_wire=owner.root/'profile-avatar-wire'
+        try:
+            if self.avatar_path.exists() and (not self.avatar_wire.exists() or
+                    self.avatar_wire.stat().st_mtime_ns<self.avatar_path.stat().st_mtime_ns):
+                from avatars import prepare_avatar
+                prepare_avatar(self.avatar_path,self.avatar_wire)
+        except (OSError,ValueError): pass
         self.avatar=Gtk.Overlay(css_classes=['avatar-picker']); self.avatar.set_size_request(128,128); self.avatar.set_valign(Gtk.Align.START)
         self.avatar.set_overflow(Gtk.Overflow.HIDDEN)
         avatar_column=box(True,6); avatar_column.append(label('Avatar','import-caption')); row.append(avatar_column)
@@ -214,6 +221,9 @@ class SettingsView:
             if self.pending or self.agent_pending: self.failed=True; self.agent_pending.clear(); self.status()
             return
         if data.get('type')!='snapshot': return
+        if data.get('snapshotReady') and not getattr(self,'announced_avatar',False):
+            self.announced_avatar=True
+            if self.avatar_wire.is_file(): owner.service.send('refreshAvatar')
         self.syncing=True
         # Existing shared conversations bind the member name at invitation
         # time. Preserve that identity while the guest is connected.
@@ -258,11 +268,18 @@ class SettingsView:
             if self.avatar_path.exists() and self.avatar_path.read_bytes()==data: return True
             with tempfile.NamedTemporaryFile(dir=self.owner.root,prefix='.avatar-',delete=False) as output:
                 temporary=Path(output.name); output.write(data); output.flush(); os.fsync(output.fileno())
-            temporary.replace(self.avatar_path)
+            try:
+                from avatars import prepare_avatar
+                prepare_avatar(temporary,self.avatar_wire)
+                temporary.replace(self.avatar_path)
+            finally:
+                temporary.unlink(missing_ok=True)
             fd=os.open(self.owner.root,os.O_RDONLY)
             try: os.fsync(fd)
             finally: os.close(fd)
-            self.refresh_avatar(); self.owner.refresh_messages(); self.failed=False; self.save_acknowledged=True
+            self.refresh_avatar(); self.owner.refresh_messages()
+            self.owner.service.send('refreshAvatar')
+            self.failed=False; self.save_acknowledged=True
         except (OSError,ValueError,GLib.Error): self.failed=True
         finally:
             self.pending.discard('avatar'); self.status()

@@ -13,6 +13,7 @@
 #include <QSettings>
 #include <QScopeGuard>
 #include <QDateTime>
+#include <QRegularExpression>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
 static QString runner(bool gtk = false) {
@@ -22,6 +23,17 @@ static QString runner(bool gtk = false) {
 
 static QString proposalSource(const QJsonObject &proposal) {
     return proposal["gtk"].isObject() ? QString::fromUtf8(QJsonDocument(proposal["gtk"].toObject()).toJson(QJsonDocument::Compact)) : proposal["qml"].toString();
+}
+static bool isConflict(const QJsonObject &state) { return state["proposal"].toObject()["conflict"].isObject(); }
+
+static void removeConflictRequests(QJsonObject &state, const QJsonObject &proposal) {
+    const auto choices = proposal["choices"].toObject();
+    QJsonArray queue;
+    for (const auto &value : state["agentQueue"].toArray()) {
+        const auto request = value.toObject();
+        if (!choices.contains(request["id"].toString()) && request["resolution"] != proposal["id"]) queue.append(value);
+    }
+    state["agentQueue"] = queue;
 }
 
 Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QObject(parent), m_workspace(root), m_agent(nullptr,agentDeadlineMs) {
@@ -102,6 +114,8 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state["decisions"] = decisions;
                     state["contributors"] = QJsonArray();
                     state["annotations"] = QJsonArray();
+                    state.remove("humanPointer");
+                    state.remove("directions");
                     state["proposal"] = QJsonObject();
                     state.remove("creationPending");
                     auto imported=state.value("import").toObject();
@@ -202,7 +216,9 @@ void Session::start(bool background) {
             const auto proposal = state["proposal"].toObject();
             // Do not auto-apply proposals made under the old everyone-agrees
             // policy, or resume an interrupted automatic check without context.
-            if (!proposal.isEmpty() && !proposal["conflict"].isObject()) {
+            if (!proposal.isEmpty() && (!proposal["conflict"].isObject()
+                || proposal["voters"].toObject().size() < 2 || proposal["resolving"].toBool())) {
+                if (proposal["conflict"].isObject()) removeConflictRequests(state, proposal);
                 state["proposal"] = QJsonObject();
                 addMessage(state, state["agentName"].toString(), state["agentQueue"].toArray().isEmpty() ? "An unfinished change wasn't applied. Ask me again to continue." : "An interrupted change is queued to continue.", "system");
                 persist(id, state);
@@ -232,6 +248,7 @@ void Session::acceptConnection() {
 void Session::reply(QIODevice *socket, const QJsonObject &data) {
     if (socket) socket->write(QJsonDocument(data).toJson(QJsonDocument::Compact) + '\n');
     else if (data["type"] == "error") emit error(data["message"].toString());
+    else if (data["type"] == "annotationRejected") emit annotationRejected(data["annotationId"].toString(), data["message"].toString());
     else emit snapshot(data);
 }
 
@@ -245,6 +262,7 @@ void Session::read(QLocalSocket *socket) {
         const auto data = QJsonDocument::fromJson(line).object();
         if (m_host) handle(data, socket);
         else if (data["type"] == "error") emit error(data["message"].toString());
+        else if (data["type"] == "annotationRejected") emit annotationRejected(data["annotationId"].toString(), data["message"].toString());
         else emit snapshot(data);
     }
 }
@@ -263,6 +281,7 @@ void Session::publish(const QString &id) {
         state["queueCount"] = state["agentQueue"].toArray().size();
         state.remove("networkAcks"); state.remove("agentQueue"); state.remove("activeRequest");
         state.remove("importLocal");
+        state.remove("directions");
         state.remove("agentActivity");
         if (m_activities.contains(state["id"].toString())) state["agentActivity"]=m_activities.value(state["id"].toString());
         states.append(state);
@@ -276,11 +295,13 @@ void Session::publish(const QString &id) {
     if (m_network) m_network->publish(data);
 }
 
-void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind, const QJsonObject &comment) {
+void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind,
+                         const QJsonObject &comment, const QString &participant) {
     auto messages = state["messages"].toArray();
     QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
     if (!comment.isEmpty()) message["comment"] = comment;
+    if (!participant.isEmpty()) message["participant"] = participant;
     messages.append(message);
     QFile history(m_workspace.projectPath(state["id"].toString()) + "/.centaur/conversation.jsonl");
     if (history.open(QIODevice::WriteOnly | QIODevice::Append))
@@ -310,7 +331,14 @@ bool Session::updateBlocked() const {
 
 void Session::handle(const QJsonObject &command, QIODevice *sender) {
     const auto type = command["type"].toString();
-    auto fail = [this, sender](const QString &message) { reply(sender, {{"type", "error"}, {"message", message}}); };
+    const auto strokeId = type == "annotation" ? command["annotation"].toObject()["id"].toString().left(36) : QString();
+    auto fail = [this, sender, strokeId](const QString &message) {
+        reply(sender, {{"type", strokeId.isEmpty() ? "error" : "annotationRejected"}, {"message", message}, {"annotationId", strokeId}});
+    };
+    if (type == "refreshAvatar") {
+        if ((!sender || m_peers.contains(qobject_cast<QLocalSocket *>(sender))) && m_network) m_network->refreshAvatar();
+        return;
+    }
     if (type == "shutdownIfIdle" || type == "finishUpdate") {
         // Maintenance is restricted to the per-user LOCAL socket, never TLS peers.
         auto *local = qobject_cast<QLocalSocket *>(sender);
@@ -374,6 +402,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     auto state = m_workspace.load(id);
     if (state.isEmpty()) { fail("That project is unavailable."); return; }
     const auto author = command["author"].toString().trimmed().left(50);
+    const auto participant = qobject_cast<QSslSocket *>(sender) ? command["_memberId"].toString() : QString("host");
     if (author.isEmpty()) { fail("Choose your name before contributing."); return; }
     if (!command["_memberId"].toString().isEmpty()) {
         auto acks = state["networkAcks"].toObject();
@@ -414,7 +443,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             }
             comment = {{"point", cleanPoint}, {"frame", cleanFrame}, {"revision", state["revision"]}};
         }
-        addMessage(state, author, text, "human", comment);
+        addMessage(state, author, text, "human", comment, participant);
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
@@ -424,9 +453,19 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating"
                 || imported["status"] == "failed" || imported["status"] == "interrupted");
         const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
-        // Ordinary conversation can continue while the agent works. Explicit
-        // directions and sketches still invalidate stale work/agreements.
-        if (addressed || state["proposal"].toObject()["conflict"].isObject()) {
+        if (!addressed) {
+            const auto pointer = state["humanPointer"].toObject();
+            if (pointer.isEmpty() || pointer["participant"] != participant) {
+                state.remove("humanPointer");
+                if (!comment.isEmpty()) {
+                    comment["messageId"] = state["messages"].toArray().last().toObject()["id"];
+                    comment["participant"] = participant;
+                    state["humanPointer"] = comment;
+                }
+            }
+        }
+        if (addressed) {
+            if (isConflict(state)) removeConflictRequests(state, state["proposal"].toObject());
             state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
         if (addressed) {
@@ -444,22 +483,30 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             const auto expected = m_workspace.projectPath(id) + "/.centaur/";
             const auto canonical = QFileInfo(filename).canonicalFilePath();
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
-            queue.append(QJsonObject{{"id", uid()}, {"author", author}, {"text", text}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import",importAnswer}});
+            const QJsonObject request{{"id", uid()}, {"author", author}, {"participant", participant}, {"text", text},
+                {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
+            queue.append(request);
             state["agentQueue"] = queue;
+            auto directions = state["directions"].toObject();
+            directions[participant] = QJsonObject{{"id", request["id"]}, {"author", author}, {"text", text}, {"revision", state["revision"]}};
+            state["directions"] = directions;
         }
         if (!persist(id, state)) return;
         nextRequest();
     } else if (type == "annotation") {
+        if (command.contains("baseRevision") && command["baseRevision"] != state["revision"]) {
+            fail("The app changed before that drawing arrived. Draw on the current app."); return;
+        }
         const auto input = command["annotation"].toObject();
         const auto points = input["points"].toArray();
         if (points.isEmpty() || points.size() > 4096) { fail("That drawing is too large."); return; }
-        if (input["tool"] != "draw" && input["tool"] != "comment") return;
+        if (input["tool"] != "draw" && input["tool"] != "comment") { fail("That drawing tool is unavailable."); return; }
         QJsonArray cleanPoints;
         for (const auto &value : points) {
             const auto point = value.toObject();
             if (!point["x"].isDouble() || !point["y"].isDouble()
                 || point["x"].toDouble() < 0 || point["x"].toDouble() > 1
-                || point["y"].toDouble() < 0 || point["y"].toDouble() > 1) return;
+                || point["y"].toDouble() < 0 || point["y"].toDouble() > 1) { fail("That drawing has an invalid point."); return; }
             cleanPoints.append(QJsonObject{{"x", point["x"]}, {"y", point["y"]}});
         }
         QJsonObject annotation{{"tool", input["tool"]}, {"points", cleanPoints}};
@@ -467,19 +514,34 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         for (const auto &key : {"x", "y", "width", "height"}) if (frame[key].isDouble() && frame[key].toDouble() >= 0 && frame[key].toDouble() <= 1) cleanFrame[key] = frame[key];
         if (cleanFrame.size() == 4) annotation["frame"] = cleanFrame;
         auto annotations = state["annotations"].toArray();
+        const bool suppliedId = !QUuid(strokeId).isNull() && strokeId.size() == 36;
+        if (suppliedId) for (const auto &mark : annotations) {
+            if (mark.toObject()["id"] != strokeId) continue;
+            if (mark.toObject()["participant"] != participant) fail("That drawing identifier is already in use.");
+            return;
+        }
         int pointCount = points.size();
         for (const auto &mark : annotations) pointCount += mark.toObject()["points"].toArray().size();
         if (annotations.size() >= 100 || pointCount > 16384) { fail("This canvas is full. Undo some marks or build this change before adding more."); return; }
-        annotation["id"] = uid(); annotation["author"] = author;
+        annotation["id"] = suppliedId ? strokeId : uid(); annotation["author"] = author; annotation["participant"] = participant;
+        auto colour = input["color"].toString();
+        static const QRegularExpression hexColour("^#[0-9a-fA-F]{6}$");
+        if (!hexColour.match(colour).hasMatch()) {
+            colour = "#138EF5";
+            for (const auto &value : m_network->sharing(id)["participants"].toArray()) {
+                const auto member = value.toObject();
+                if (member["id"] == participant) colour = member["color"].toString(colour);
+            }
+        }
+        annotation["color"] = colour;
         annotation["revision"] = state["revision"]; annotation["time"] = Workspace::now();
         annotations.append(annotation);
         state["annotations"] = annotations;
-        state["epoch"] = state["epoch"].toInt() + 1;
-        state["proposal"] = QJsonObject();
+        if (!isConflict(state)) { state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject(); }
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
-        persist(id, state);
+        if (!persist(id, state)) { fail("Could not save the drawing. Please try again."); return; }
     } else if (type == "undo") {
         auto annotations = state["annotations"].toArray();
         for (int i = annotations.size() - 1; i >= 0; --i) {
@@ -488,24 +550,43 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             }
         }
         state["annotations"] = annotations;
-        state["epoch"] = state["epoch"].toInt() + 1;
-        state["proposal"] = QJsonObject();
+        if (!isConflict(state)) { state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject(); }
         persist(id, state);
-    } else if (type == "accept") {
+    } else if (type == "accept" || type == "rejectProposal") {
         auto proposal = state["proposal"].toObject();
         if (proposal.isEmpty() || proposal["id"] != command["proposalId"]
             || proposal["epoch"] != state["epoch"]) { fail("That proposal has changed. Review the latest one."); return; }
         if (!proposal["conflict"].isObject()) { fail("Only conflicting requests need agreement. Ask the agent to prepare this change again."); return; }
-        if (!m_validatingProject.isEmpty() || m_agent.busy()) { fail("The agent is already working."); return; }
-        if (!proposal["authors"].toArray().contains(author)) { fail("This conflict needs agreement only from the people whose requests conflict."); return; }
-        auto accepted = proposal["accepted"].toArray();
-        if (!accepted.contains(author)) accepted.append(author);
+        if (proposal["resolving"].toBool() || m_validatingProject == id) { fail("This resolution is already being prepared."); return; }
+        const auto voters = proposal["voters"].toObject();
+        if (voters.size() < 2 || !voters.contains(participant)) { fail("Only the people whose requests conflict can decide this proposal."); return; }
+        if (type == "rejectProposal") {
+            removeConflictRequests(state, proposal);
+            state["epoch"] = state["epoch"].toInt() + 1;
+            state["proposal"] = QJsonObject();
+            addMessage(state, state["agentName"].toString(), author + " declined the proposed resolution. The app stays as it is.", "system");
+            if (persist(id, state)) { publish(id); QTimer::singleShot(0, this, &Session::nextRequest); }
+            return;
+        }
+        const auto choice = command["choice"].toString("compromise");
+        const auto option = choice.isEmpty() ? QString("compromise") : choice;
+        const auto original = proposal["choices"].toObject().value(option).toObject();
+        if (option != "compromise" && original.isEmpty()) { fail("That resolution is unavailable."); return; }
+        auto votes = proposal["votes"].toObject();
+        votes[participant] = option;
+        proposal["votes"] = votes;
+        QJsonArray accepted;
+        for (const auto &key : voters.keys()) if (votes[key] == option) accepted.append(voters[key]);
         proposal["accepted"] = accepted;
+        const bool unanimous = accepted.size() == voters.size();
+        if (unanimous) {
+            removeConflictRequests(state, proposal);
+            proposal["resolving"] = true;
+            proposal["selected"] = option;
+        }
         state["proposal"] = proposal;
         if (!persist(id, state)) return;
-        bool everyone = true;
-        for (const auto &contributor : proposal["authors"].toArray()) if (!accepted.contains(contributor)) everyone = false;
-        if (everyone) { m_activeRequest = QJsonObject(); applyProposal(id, state); }
+        if (unanimous) QTimer::singleShot(0, this, &Session::nextRequest);
     } else if (type == "agentName") {
         const auto name = command["name"].toString().trimmed().remove('@').left(30);
         if (name.isEmpty() || name.contains(' ')) { fail("Use a single name without spaces."); return; }
@@ -569,6 +650,19 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     m_agentAuthor.clear();
     bool automatic = false;
     state.remove("activeRequest");
+    const auto agreement = state["proposal"].toObject();
+    const auto resolution = m_activeRequest["resolution"].toString();
+    if (!resolution.isEmpty()) {
+        if (state["epoch"].toInt() != m_agentEpoch || agreement["id"] != resolution) {
+            persist(id, state); publish(id); return;
+        }
+        state["proposal"] = QJsonObject();
+        if (reply["conflict"].isObject() || (reply["kind"] != "proposal" && reply["kind"] != "restore")) {
+            addMessage(state, state["agentName"].toString(), reply["message"].toString() +
+                " The agreed request did not produce an app change.", "agent");
+            persist(id, state); publish(id); return;
+        }
+    }
     const bool sourceTool=reply["kind"]=="inspect" || reply["kind"]=="retry" || reply["kind"]=="artifact";
     if (!state.value("import").toObject().isEmpty() && (sourceTool || !state.value("import").toObject()["previewReady"].toBool())
         && state["epoch"].toInt() == m_agentEpoch) {
@@ -614,28 +708,48 @@ void Session::finishAgent(const QJsonObject &agentReply) {
             QJsonArray authors{requester};
             if (conflict.isObject()) {
                 authors = conflict.toObject()["authors"].toArray();
-                QSet<QString> knownAuthors;
-                for (const auto &value : state["messages"].toArray()) {
-                    const auto message = value.toObject();
-                    if (message["kind"] == "human") knownAuthors.insert(message["author"].toString());
+                QJsonObject voters, choices;
+                const auto directions = state["directions"].toObject();
+                const auto messages = state["messages"].toArray();
+                const auto roster = m_network->sharing(id)["participants"].toArray();
+                for (const auto &value : authors) {
+                    const auto name = value.toString();
+                    QString participant;
+                    // Current requests and authenticated membership bind votes
+                    // to people even when a display name changes on one device.
+                    for (const auto &person : roster)
+                        if (person.toObject()["name"] == name) participant = person.toObject()["id"].toString();
+                    for (qsizetype i = messages.size(); participant.isEmpty() && i > 0; --i) {
+                        const auto message = messages.at(i - 1).toObject();
+                        if (message["kind"] == "human" && message["author"] == name) participant = message["participant"].toString();
+                    }
+                    if (!participant.isEmpty() && !voters.contains(participant)) {
+                        voters[participant] = name;
+                        const auto direction = directions.value(participant).toObject();
+                        if (direction["revision"] == state["revision"]) choices[direction["id"].toString()] = direction;
+                    }
                 }
-                for (const auto &value : state["annotations"].toArray())
-                    knownAuthors.insert(value.toObject()["author"].toString());
-                for (const auto &value : state["decisions"].toArray())
-                    for (const auto &author : value.toObject()["authors"].toArray()) knownAuthors.insert(author.toString());
-                for (const auto &author : authors) {
-                    if (knownAuthors.contains(author.toString())) continue;
+                if (voters.size() != authors.size() || voters.size() < 2) {
                     addMessage(state, state["agentName"].toString(), "I couldn't identify the people involved in that conflict. Please clarify whose requests differ and ask me again.", "system");
                     persist(id, state);
                     publish(id);
                     return;
                 }
+                proposal["voters"] = voters;
+                proposal["choices"] = choices;
+                proposal["votes"] = QJsonObject();
             }
             proposal["id"] = uid(); proposal["epoch"] = m_agentEpoch;
             proposal["requestedBy"] = requester;
             proposal["authors"] = authors;
             automatic = conflict.isNull();
             proposal["accepted"] = automatic ? QJsonArray{requester} : QJsonArray();
+            if (!resolution.isEmpty()) {
+                proposal["authors"] = agreement["authors"];
+                proposal["accepted"] = agreement["accepted"];
+                proposal["conflict"] = agreement["conflict"];
+                proposal["resolving"] = true;
+            }
             state["proposal"] = proposal;
         }
         addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent");
@@ -652,6 +766,8 @@ void Session::agentError(const QString &message, const QString &code) {
     m_agentAuthor.clear();
     if (id.isEmpty()) { emit error(message); return; }
     auto state = m_workspace.load(id);
+    if (m_activeRequest.contains("resolution") && state["proposal"].toObject()["id"] == m_activeRequest["resolution"])
+        state["proposal"] = QJsonObject();
     auto details=m_agent.diagnostics();
     if (!code.isEmpty()) { details["code"]=code; details["layer"]="centaur.coordinator"; }
     details["requestId"]=m_activities.value(id)["requestId"];
@@ -695,7 +811,7 @@ void Session::applyProposal(const QString &id, QJsonObject state) {
 }
 
 void Session::retryRequest(QJsonObject &state) {
-    if (m_activeRequest.isEmpty()) return;
+    if (m_activeRequest.isEmpty() || m_activeRequest.contains("resolution")) return;
     auto queue = state["agentQueue"].toArray(); queue.prepend(m_activeRequest); state["agentQueue"] = queue;
 }
 
@@ -750,13 +866,31 @@ void Session::nextRequest() {
         const auto id = project.toMap()["id"].toString();
         auto state = m_workspace.load(id); auto queue = state["agentQueue"].toArray();
         if (m_imports.contains(id)) continue;
-        if (queue.isEmpty()) continue;
-        m_activeRequest = queue.first().toObject(); queue.removeFirst(); state["agentQueue"] = queue;
+        const auto proposal = state["proposal"].toObject();
+        if (isConflict(state)) {
+            if (!proposal["resolving"].toBool()) continue;
+            if (proposal["selected"] == "compromise") {
+                m_activeRequest = {};
+                applyProposal(id, state);
+                publish(id);
+                return;
+            }
+            m_activeRequest = proposal["choices"].toObject().value(proposal["selected"].toString()).toObject();
+            m_activeRequest["resolution"] = proposal["id"];
+        } else {
+            if (queue.isEmpty()) continue;
+            m_activeRequest = queue.first().toObject(); queue.removeFirst(); state["agentQueue"] = queue;
+        }
         state["activeRequest"] = m_activeRequest;
         if (!persist(id, state)) return;
         m_agentProject = id; m_agentAuthor = m_activeRequest["author"].toString(); m_agentEpoch = state["epoch"].toInt();
         beginActivity(id,m_activeRequest);
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
+        request.remove("directions");
+        if (m_activeRequest.contains("resolution")) {
+            request["approvedResolution"] = m_activeRequest["text"];
+            request.remove("proposal");
+        }
         request["logicalRequestId"]=m_activities.value(id).value("requestId");
         request.remove("importLocal");
         if (!state.value("import").toObject().isEmpty()) request["sourceInspection"] = state.value("importLocal").toObject()["context"];
