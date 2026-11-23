@@ -684,7 +684,20 @@ void SharedProject::receive(const QJsonObject &data) {
         m_snapshot = data; m_connected = true; m_delay = 1000;
         status(writable() ? "Connected · shared project" : "Open in another window · view only"); m_heartbeat.start(); flush();
     } else if (type == "ack") {
-        if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) { m_outbox.removeFirst(); m_inflight = false; if (save()) flush(); }
+        if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) {
+            const auto done = m_outbox.takeAt(0).toObject();
+            const auto project = state();
+            if (project["sharing"].toObject()["annotationIds"].toInt() == 1 && done["type"] == "annotation") {
+                const auto id = done["annotation"].toObject()["id"].toString();
+                bool saved = false;
+                for (const auto &item : project["annotations"].toArray())
+                    if (item.toObject()["id"] == id) { saved = true; break; }
+                if (!id.isEmpty() && !saved && done["baseRevision"] == project["revision"])
+                    emit annotationRejected(id, "That drawing was not saved. Draw again on the current app.");
+            }
+            m_inflight = false;
+            if (save()) flush();
+        }
     } else if (type == "error") emit error(data["message"].toString());
     else if (type == "annotationRejected") {
         emit annotationRejected(data["annotationId"].toString(), data["message"].toString());

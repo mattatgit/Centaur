@@ -213,7 +213,21 @@ void Session::start(bool background) {
                 auto queue = state["agentQueue"].toArray(); queue.prepend(state["activeRequest"]);
                 state["agentQueue"] = queue; state.remove("activeRequest"); persist(id, state);
             }
-            const auto proposal = state["proposal"].toObject();
+            auto proposal = state["proposal"].toObject();
+            if (proposal["conflict"].isObject() && !proposal.contains("voters") && !m_network->sharing(id)["enabled"].toBool()) {
+                QJsonObject voters, votes;
+                for (const auto &value : proposal["authors"].toArray()) {
+                    const auto name = value.toString();
+                    if (name.isEmpty()) continue;
+                    const auto participant = "local:" + name;
+                    voters[participant] = name;
+                    if (proposal["accepted"].toArray().contains(value)) votes[participant] = "compromise";
+                }
+                proposal["voters"] = voters;
+                proposal["votes"] = votes;
+                state["proposal"] = proposal;
+                persist(id, state);
+            }
             // Do not auto-apply proposals made under the old everyone-agrees
             // policy, or resume an interrupted automatic check without context.
             if (!proposal.isEmpty() && (!proposal["conflict"].isObject()
@@ -402,7 +416,10 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     auto state = m_workspace.load(id);
     if (state.isEmpty()) { fail("That project is unavailable."); return; }
     const auto author = command["author"].toString().trimmed().left(50);
-    const auto participant = qobject_cast<QSslSocket *>(sender) ? command["_memberId"].toString() : QString("host");
+    const auto sharing = m_network->sharing(id);
+    const bool shared = sharing["enabled"].toBool();
+    const auto participant = qobject_cast<QSslSocket *>(sender) ? command["_memberId"].toString()
+        : shared ? QString("host") : "local:" + author;
     if (author.isEmpty()) { fail("Choose your name before contributing."); return; }
     if (!command["_memberId"].toString().isEmpty()) {
         auto acks = state["networkAcks"].toObject();
@@ -453,7 +470,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating"
                 || imported["status"] == "failed" || imported["status"] == "interrupted");
         const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
-        if (!addressed) {
+        if (!addressed && sharing["participants"].toArray().size() >= 2) {
             const auto pointer = state["humanPointer"].toObject();
             if (pointer.isEmpty() || pointer["participant"] != participant) {
                 state.remove("humanPointer");
@@ -464,7 +481,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
                 }
             }
         }
-        if (addressed) {
+        if (addressed || (!shared && isConflict(state))) {
             if (isConflict(state)) removeConflictRequests(state, state["proposal"].toObject());
             state["epoch"] = state["epoch"].toInt() + 1; state["proposal"] = QJsonObject();
         }
@@ -528,7 +545,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         static const QRegularExpression hexColour("^#[0-9a-fA-F]{6}$");
         if (!hexColour.match(colour).hasMatch()) {
             colour = "#138EF5";
-            for (const auto &value : m_network->sharing(id)["participants"].toArray()) {
+            for (const auto &value : sharing["participants"].toArray()) {
                 const auto member = value.toObject();
                 if (member["id"] == participant) colour = member["color"].toString(colour);
             }

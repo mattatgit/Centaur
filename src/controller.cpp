@@ -117,7 +117,10 @@ QJsonArray Controller::projectCollaborators(const QString &id) const {
     // guest project can also lack a roster from an older host.
     return result.size() >= 2 ? result : QJsonArray{};
 }
-QString Controller::participantId() const { return remoteProject() ? m_shared.value(m_projectId)->participantId() : QString("host"); }
+QString Controller::participantId() const {
+    if (remoteProject()) return m_shared.value(m_projectId)->participantId();
+    return hostsShare(m_projectId) ? QString("host") : "local:" + m_author;
+}
 QString Controller::drawingColor() const {
     const auto self = participantId();
     for (const auto &value : m_states.value(m_projectId)["sharing"].toObject()["participants"].toArray()) {
