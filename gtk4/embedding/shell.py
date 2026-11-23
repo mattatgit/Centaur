@@ -861,9 +861,15 @@ class Centaur(Gtk.Application):
     def message_avatar(self,message):
         author=message.get('author')
         identity=message.get('participant')
-        is_self=identity==self.data.get('participantId') if identity else author==self.data.get('author')
+        if not isinstance(identity,str): identity=None
+        local_history=not identity or identity=='host' or identity.startswith('local:')
+        is_self=identity==self.data.get('participantId') or (
+            local_history and not self.data.get('remote') and author==self.data.get('author'))
         for participant in self.project.get('sharing',{}).get('participants',[]):
-            if (participant.get('id')==identity if identity else participant.get('name')==author):
+            matches_name=participant.get('name')==author
+            if participant.get('id')==identity or (matches_name and (not identity or
+                    (local_history and participant.get('id')=='host'))):
+                if not identity and matches_name and author==self.data.get('author'): is_self=True
                 return self.person_avatar(dict(participant,self=is_self))
         return self.person_avatar({'self':is_self})
 

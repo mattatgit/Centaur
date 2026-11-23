@@ -129,6 +129,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         pid=until(lambda:control.data.get('project',{}).get('id') if control.data.get('project',{}).get('name')=='Multiplayer Verification' else None,
                   'Could not create multiplayer project')
         projects(host,hw); click(host,hw,'open-'+pid); until(lambda:opened(host),'Host native app unavailable')
+        message(host,hw,'Project note from before sharing')
         click(guest,gw,'nav-settings'); click(guest,gw,'settings-name')
         driver.key('ctrl+a'); driver.type('Framework')
         until(lambda:guest()['author']=='Framework','Guest name did not save')
@@ -140,7 +141,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         remote_image(guest,guest_root,'Matt',shared_host); remote_image(host,host_root,'Framework',shared_guest)
         message(host,hw,'Host profile image'); message(guest,gw,'Guest profile image')
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
-            until(lambda:len(state()['chatRows'])>=2 and all(row['avatar'].get('image') for row in state()['chatRows'][:2]),
+            until(lambda:len(state()['chatRows'])>=3 and all(row['avatar'].get('image') for row in state()['chatRows'][:3]),
                   'Chat rendered initials instead of profile images')
             driver.screenshot(window,evidence/f'avatars-chat-{name}.png')
             projects(state,window); move_over(driver,window,target(state,'open-'+pid))
