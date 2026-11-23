@@ -214,7 +214,7 @@ void Session::start(bool background) {
                 state["agentQueue"] = queue; state.remove("activeRequest"); persist(id, state);
             }
             auto proposal = state["proposal"].toObject();
-            if (proposal["conflict"].isObject() && !proposal.contains("voters") && !m_network->sharing(id)["enabled"].toBool()) {
+            if (proposal.value("conflict").isObject() && !proposal.contains("voters") && !m_network->sharing(id)["enabled"].toBool()) {
                 QJsonObject voters, votes;
                 for (const auto &value : proposal["authors"].toArray()) {
                     const auto name = value.toString();
@@ -668,7 +668,7 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     bool automatic = false;
     state.remove("activeRequest");
     const auto agreement = state["proposal"].toObject();
-    const auto resolution = m_activeRequest["resolution"].toString();
+    const auto resolution = m_activeRequest.value("resolution").toString();
     if (!resolution.isEmpty()) {
         if (state["epoch"].toInt() != m_agentEpoch || agreement["id"] != resolution) {
             persist(id, state); publish(id); return;
