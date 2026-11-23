@@ -10,6 +10,8 @@ import time
 
 DESKTOP_ID = 'org.centaur.Gtk4.desktop'
 APP = f'Shell.AppSystem.get_default().lookup_app({json.dumps(DESKTOP_ID)})'
+WINDOWS = ("global.get_window_actors().map(actor => actor.meta_window)"
+           ".filter(window => window.get_wm_class() === 'org.centaur.Gtk4')")
 
 
 def shell_eval(code):
@@ -65,14 +67,14 @@ def main(previous, candidate, version, folder):
         assert profile.resolve() == package
 
     def windows():
-        return shell_eval(f'{APP}?.get_windows().map(window => window.get_pid())') or []
+        return shell_eval(f'{WINDOWS}.map(window => window.get_pid())') or []
 
     def expect_version(pid, expected):
         settings = Path(f'/proc/{pid}/environ').read_bytes().split(b'\0')
         assert f'CENTAUR_GTK4_BUILD_ID={expected}'.encode() in settings, f'GNOME launched the wrong build (PID {pid})'
 
     def close_window(pid):
-        shell_eval(f'{APP}.get_windows().find(window => window.get_pid() === {pid}).delete(global.get_current_time())')
+        shell_eval(f'{WINDOWS}.find(window => window.get_pid() === {pid}).delete(global.get_current_time())')
         wait(lambda: pid not in windows(), 'Centaur did not close')
 
     def launch_from_gnome(expected):

@@ -152,8 +152,10 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state.remove("humanPointer");
                     state.remove("directions");
                     const auto original = proposal["choices"].toObject()[proposal["selected"].toString()].toObject();
-                    recordConflictOutcome(state, proposal, original.isEmpty() ? "Agreed on the Agent's suggestion. The app was updated."
-                        : "Agreed on " + original["author"].toString() + "’s request. The app was updated.");
+                    const QString choice = original.isEmpty() ? QString("the Agent's suggestion")
+                        : original["author"].toString() + "’s request";
+                    const QString result = proposal["kind"] == "restore" ? " That version of the app was restored." : " The app was updated.";
+                    recordConflictOutcome(state, proposal, "Agreed on " + choice + "." + result);
                     state["proposal"] = QJsonObject();
                     state.remove("creationPending");
                     auto imported=state.value("import").toObject();
@@ -840,7 +842,7 @@ void Session::finishAgent(const QJsonObject &agentReply) {
                 proposal["inlineConflict"] = agreement["inlineConflict"];
                 proposal["voters"] = agreement["voters"];
                 proposal["votes"] = agreement["votes"];
-            } else if (conflict.isObject()) {
+            } else if (conflict.isObject() && state["appFormat"] == "gtk4-v1") {
                 conflictId = proposal["id"].toString();
                 proposal["inlineConflict"] = true;
             }
