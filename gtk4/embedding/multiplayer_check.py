@@ -189,7 +189,9 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
               'Shared pointer did not follow the zoomed app')
         message(guest,gw,'A further note by the same author')
         assert host()['project']['humanPointer']['messageId']==active['messageId']
-        for n in range(7): message(guest,gw,f'Follow-up {n} '+('Keep the pointer anchored as the conversation scrolls. '*7))
+        for n in range(7):
+            text=f'Follow-up {n} '+('Keep the pointer anchored as the conversation scrolls. '*7)
+            message(guest,gw,text.strip())
         until(lambda:not host()['sharedPointer']['tail'] and host()['project'].get('humanPointer'),'Offscreen pointer tail was still rendered')
         move_over(driver,hw,target(host,'chat-scroller')); driver.scroll(up=True)
         until(lambda:host()['sharedPointer']['tail'],'Pointer failed to return when its message scrolled into view')
