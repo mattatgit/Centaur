@@ -15,6 +15,29 @@ from ink_check import place_agent_pointer
 from workspace_polish_check import move_over
 
 
+def fixture_avatar(path,colour,alpha=False):
+    pixels=Random(path.stem).randbytes(640*640*3)
+    image=Image.frombytes('RGB',(640,640),pixels)
+    image.paste(colour,(255,255,385,385))
+    if alpha:
+        image=image.convert('RGBA')
+        image.paste((0,0,0,0),(0,0,100,640))
+    image.save(path)
+    return path
+
+
+def select_avatar(driver,state,window,click,source):
+    click(state,window,'settings-avatar')
+    chooser=until(lambda:next((node for node in driver.nodes() if node.get('name')=='Choose an avatar'
+                              and node.get('pid')==state()['pid']),None),'Avatar chooser missing')
+    driver.ipc(f"[con_id={chooser['id']}] focus")
+    driver.key('ctrl+l')
+    time.sleep(.25)
+    driver.key('ctrl+a')
+    driver.type(str(source))
+    driver.key('Return')
+
+
 def check_multiplayer(driver, folder, launch, click, message, bridge, env, host, hw, reply, starter):
     evidence=folder/'multiplayer'
     evidence.mkdir()
@@ -46,21 +69,9 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         click(guest,gw,'open-'+pid)
         until(lambda:opened(guest) and guest()['status']=='Guest connected','Guest did not reconnect to saved membership')
 
-    def avatar_source(name,colour,alpha=False):
-        path=folder/(name+'.png')
-        pixels=Random(name).randbytes(640*640*3)
-        image=Image.frombytes('RGB',(640,640),pixels)
-        image.paste(colour,(255,255,385,385))
-        if alpha:
-            image=image.convert('RGBA')
-            image.paste((0,0,0,0),(0,0,100,640))
-        image.save(path)
-        return path
-
     def upload(state,window,root,source,format):
-        projects(state,window); click(state,window,'nav-settings'); click(state,window,'settings-avatar')
-        until(lambda:any(node.get('name')=='Choose an avatar' for node in driver.nodes()),'Avatar chooser missing')
-        driver.key('ctrl+l'); driver.type(str(source)); driver.key('Return')
+        projects(state,window); click(state,window,'nav-settings')
+        select_avatar(driver,state,window,click,source)
         original=root/'profile-avatar'
         wire=root/'profile-avatar-wire'
         until(lambda:wire.is_file() and original.is_file() and original.read_bytes()==source.read_bytes(),'Avatar did not save its original upload')
@@ -134,10 +145,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         driver.key('ctrl+a'); driver.type('Framework')
         until(lambda:guest()['author']=='Framework','Guest name did not save')
         invite_and_join()
-        photo=avatar_source('avatar-photograph',(41,116,203))
-        assert 1_100_000<photo.stat().st_size<1_350_000
-        shared_host=upload(host,hw,host_root,photo,'JPEG')
-        shared_guest=upload(guest,gw,guest_root,avatar_source('avatar-alpha',(224,96,43),True),'PNG')
+        shared_host=(host_root/'profile-avatar-wire').read_bytes()
+        shared_guest=upload(guest,gw,guest_root,fixture_avatar(folder/'avatar-alpha.png',(224,96,43),True),'PNG')
         remote_image(guest,guest_root,'Matt',shared_host); remote_image(host,host_root,'Framework',shared_guest)
         message(host,hw,'Host profile image'); message(guest,gw,'Guest profile image')
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
@@ -147,13 +156,15 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             projects(state,window); move_over(driver,window,target(state,'open-'+pid))
             target(state,'collaborators-'+pid); driver.screenshot(window,evidence/f'avatars-roster-{name}.png')
             click(state,window,'open-'+pid); until(lambda:opened(state),'Could not return to canvas')
-        updated=upload(guest,gw,guest_root,avatar_source('avatar-updated',(178,61,130),True),'PNG')
+        updated=upload(guest,gw,guest_root,fixture_avatar(folder/'avatar-updated.png',(178,61,130),True),'PNG')
         assert updated!=shared_guest
         remote_image(host,host_root,'Framework',updated)
         reopen_guest()
         remote_image(host,host_root,'Framework',updated); remote_image(guest,guest_root,'Matt',shared_host)
+        print('PASS: remote avatar transfer, active replacement and reconnect',flush=True)
 
         draw(host,hw,'#138EF5','host-blue',.33); draw(guest,gw,'#FF6157','guest-red',.52)
+        print('PASS: host and guest strokes present before and after acknowledgement',flush=True)
         place_agent_pointer(driver,guest,gw,click)
         message(guest,gw,'Look at this part of the app')
         active=until(lambda:host()['project'].get('humanPointer'),'Human pointer did not sync')
@@ -175,6 +186,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         message(host,hw,'I have seen the pointer')
         until(lambda:all(not state()['project'].get('humanPointer') and not state()['sharedPointer']['tail']
                          for state in (host,guest)),'The other participant’s reply did not clear the arrow everywhere')
+        print('PASS: shared pointer anchor, zoom, scroll and reply lifetime',flush=True)
 
         # A queued conflicting request must stay parked during voting, even if
         # it would otherwise return a valid automatic app update.

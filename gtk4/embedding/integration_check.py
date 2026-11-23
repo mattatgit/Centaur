@@ -18,7 +18,7 @@ from activity_check import check_activity
 from pass2_check import check_settings_feedback,check_cards_and_profile,check_waiting_flows
 from workspace_polish_check import check_workspace_polish,check_unshared_hover
 from sharing_check import check_sharing
-from multiplayer_check import check_multiplayer
+from multiplayer_check import check_multiplayer,fixture_avatar,select_avatar
 
 
 class Bridge:
@@ -153,14 +153,14 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'ui-settings.png')
         # Exercise the real native file chooser; only the disposable profile
         # receives this fixture image. No owner avatar/configuration is used.
-        avatar_source=folder/'avatar-fixture.png'
-        Image.new('RGB',(80,80),(64,128,192)).save(avatar_source)
-        click(hs,hw,'settings-avatar')
-        until(lambda:any(n.get('name')=='Choose an avatar' for n in driver.nodes()),'Native avatar chooser did not open')
-        driver.key('ctrl+l'); driver.type(str(avatar_source)); driver.key('Return')
+        avatar_source=fixture_avatar(folder/'avatar-photograph.png',(64,128,192))
+        assert 1_100_000<avatar_source.stat().st_size<1_350_000
+        select_avatar(driver,hs,hw,click,avatar_source)
         until(lambda:(roots[0]/'profile-avatar').exists() and hs()['settings']['status']=='Changes saved','Avatar did not persist through the native chooser')
         assert (roots[0]/'profile-avatar').read_bytes()==avatar_source.read_bytes()
         assert (roots[0]/'profile-avatar').stat().st_mode & 0o777 == 0o600
+        with Image.open(roots[0]/'profile-avatar-wire') as avatar:
+            assert avatar.size==(256,256) and avatar.format=='JPEG'
         driver.screenshot(hw,folder/'ui-settings-avatar-uploaded.png')
         summary['checks'].append('native-avatar-chooser-original-bytes-private-persistence-and-saved-status')
         assert {'v2/'+name for name in ('6ae43.svg','e625a.svg','ce828.svg','d77f2.svg','995cf.svg')} <= {item['file'] for item in hs()['assetSlots']}

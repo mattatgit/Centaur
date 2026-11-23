@@ -123,21 +123,24 @@ def check_footer(driver,folder):
         controls.origin_page='settings'
         controls.work=work
         owner.page='settings'
-        with patch('update_ui.time.monotonic',return_value=100):
+        # Keep the simulated receipt in the past when returning to the runner's
+        # real clock, including on a freshly booted machine.
+        first_edit=time.monotonic()-10
+        with patch('update_ui.time.monotonic',return_value=max(0,first_edit-30)):
             controls.tick()
         assert controls.completion_waiting and controls.icon.state=='disabled'
         owner.page='workspace'
-        with patch('update_ui.time.monotonic',return_value=130):
+        with patch('update_ui.time.monotonic',return_value=first_edit):
             controls.refresh_footer()
-        assert controls.completion_until==135 and controls.icon.state=='complete'
+        assert controls.completion_until==first_edit+5 and controls.icon.state=='complete'
         owner.page='projects'
-        with patch('update_ui.time.monotonic',return_value=131):
+        with patch('update_ui.time.monotonic',return_value=first_edit+1):
             controls.refresh_footer()
         owner.page='workspace'
-        with patch('update_ui.time.monotonic',return_value=134):
+        with patch('update_ui.time.monotonic',return_value=first_edit+4):
             controls.refresh_footer()
-        assert controls.completion_until==135 and not controls.completion_waiting
-        with patch('update_ui.time.monotonic',return_value=135):
+        assert controls.completion_until==first_edit+5 and not controls.completion_waiting
+        with patch('update_ui.time.monotonic',return_value=first_edit+5):
             controls.refresh_footer()
         assert controls.icon.state=='disabled'
         evidence['checks'].append('settings-receipt-awaits-first-edit-and-keeps-original-deadline-across-navigation')
