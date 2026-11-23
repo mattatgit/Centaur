@@ -108,7 +108,10 @@ if cfg.get('fixtureProgressGate'):
         driver.ipc(f'[con_id={window}] move position {40 if name=="host" else 1280} px 60 px')
         return process,state,window
     def click(state,window,name):
-        if name in ('create','import','join'): click(state,window,'project-menu')
+        if name in ('create','import','join'):
+            until(lambda:state().get('page')=='projects' and not state().get('motion',{}).get('workspaceRunning'),
+                  'Projects navigation did not settle before opening its menu')
+            if name not in state().get('targets',{}): click(state,window,'project-menu')
         x,y,w,h=target(state,name)
         driver.click(window,round(x+w/2),round(y+h/2))
         time.sleep(.15)
