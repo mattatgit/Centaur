@@ -206,6 +206,14 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         message(host,hw,'I have seen the pointer')
         until(lambda:all(not state()['project'].get('humanPointer') and not state()['sharedPointer']['tail']
                          for state in (host,guest)),'The other participant’s reply did not clear the arrow everywhere')
+        # The host was deliberately scrolled back to an older message. Return
+        # to the end before checking the new pointer on both screens.
+        move_over(driver,hw,target(host,'chat-scroller'))
+        for _ in range(10):
+            driver.scroll()
+            scroll=host()['chatScroll']
+            if scroll['upper']-scroll['pageSize']-scroll['value']<12: break
+        else: raise AssertionError('Host chat could not return to the latest message')
         place_agent_pointer(driver,host,hw,click)
         message(host,hw,'The host points here')
         until(lambda:all(state()['sharedPointer']['tail'] and state()['sharedPointer']['color']=='#138EF5'
