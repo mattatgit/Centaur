@@ -557,9 +557,13 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
         if (current["id"]==peer.project && current.contains("agentActivity")) state["agentActivity"]=current["agentActivity"];
     }
     auto messages = state["messages"].toArray();
+    const auto activeConflict = state["proposal"].toObject()["id"].toString();
     int size = QJsonDocument(messages).toJson(QJsonDocument::Compact).size();
     while (messages.size() > 1 && size > 2 * 1024 * 1024) {
-        size -= QJsonDocument(messages.first().toObject()).toJson(QJsonDocument::Compact).size(); messages.removeFirst();
+        const auto first = messages.first().toObject();
+        const auto index = !activeConflict.isEmpty() && first["conflictId"] == activeConflict ? 1 : 0;
+        size -= QJsonDocument(messages.at(index).toObject()).toJson(QJsonDocument::Compact).size();
+        messages.removeAt(index);
     }
     state["messages"] = messages;
     auto decisions = state["decisions"].toArray();

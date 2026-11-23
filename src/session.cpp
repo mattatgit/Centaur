@@ -49,6 +49,23 @@ static void removeConflictRequests(QJsonObject &state, const QJsonObject &propos
     state["agentQueue"] = queue;
 }
 
+static const QString splitVoteOutcome = QStringLiteral("Neither side could agree, so no changes have been made to the app.");
+
+static bool endSplitVote(QJsonObject &state, const QJsonObject &proposal) {
+    QSet<QString> options;
+    const auto votes = proposal["votes"].toObject();
+    for (const auto &value : votes) options.insert(value.toString());
+    if (options.size() < 2) return false;
+    removeConflictRequests(state, proposal);
+    auto directions = state["directions"].toObject();
+    for (const auto &voter : proposal["voters"].toObject().keys()) directions.remove(voter);
+    state["directions"] = directions;
+    state["epoch"] = state["epoch"].toInt() + 1;
+    state["proposal"] = QJsonObject();
+    recordConflictOutcome(state, proposal, splitVoteOutcome);
+    return true;
+}
+
 Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QObject(parent), m_workspace(root), m_agent(nullptr,agentDeadlineMs) {
     m_updateToken = qEnvironmentVariable("CENTAUR_UPDATE_STARTING");
     m_socketName = "centaur-" + QString::fromLatin1(QCryptographicHash::hash(
@@ -257,8 +274,12 @@ void Session::start(bool background) {
             if (!proposal.isEmpty() && (!proposal["conflict"].isObject()
                 || proposal["voters"].toObject().size() < 2 || proposal["resolving"].toBool())) {
                 if (proposal["conflict"].isObject()) removeConflictRequests(state, proposal);
+                recordConflictOutcome(state, proposal, "The vote was interrupted. The app is unchanged.");
                 state["proposal"] = QJsonObject();
                 addMessage(state, state["agentName"].toString(), state["agentQueue"].toArray().isEmpty() ? "An unfinished change wasn't applied. Ask me again to continue." : "An interrupted change is queued to continue.", "system");
+                persist(id, state);
+            } else if (proposal["conflict"].isObject() && endSplitVote(state, proposal)) {
+                if (proposal["inlineConflict"] != true) addMessage(state, state["agentName"].toString(), splitVoteOutcome, "system");
                 persist(id, state);
             }
         }
@@ -346,7 +367,11 @@ void Session::addMessage(QJsonObject &state, const QString &author, const QStrin
     if (history.open(QIODevice::WriteOnly | QIODevice::Append))
         history.write(QJsonDocument(message).toJson(QJsonDocument::Compact) + '\n');
     // Bound live state and model context on modest hardware.
-    while (messages.size() > 250) messages.removeFirst();
+    const auto activeConflict = state["proposal"].toObject()["id"].toString();
+    while (messages.size() > 250) {
+        const auto first = messages.first().toObject();
+        messages.removeAt(!activeConflict.isEmpty() && first["conflictId"] == activeConflict ? 1 : 0);
+    }
     state["messages"] = messages;
 }
 
@@ -625,22 +650,13 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         if (option != "compromise" && original.isEmpty()) { fail("That resolution is unavailable."); return; }
         auto votes = proposal["votes"].toObject();
         if (votes.contains(participant)) return;
-        for (const auto &value : votes) {
-            if (value == option) continue;
-            removeConflictRequests(state, proposal);
-            auto directions = state["directions"].toObject();
-            for (const auto &voter : voters.keys()) directions.remove(voter);
-            state["directions"] = directions;
-            state["epoch"] = state["epoch"].toInt() + 1;
-            state["proposal"] = QJsonObject();
-            const QString outcome = "Neither side could agree, so no changes have been made to the app.";
-            recordConflictOutcome(state, proposal, outcome);
-            if (proposal["inlineConflict"] != true) addMessage(state, state["agentName"].toString(), outcome, "system");
+        votes[participant] = option;
+        proposal["votes"] = votes;
+        if (endSplitVote(state, proposal)) {
+            if (proposal["inlineConflict"] != true) addMessage(state, state["agentName"].toString(), splitVoteOutcome, "system");
             if (persist(id, state)) { publish(id); QTimer::singleShot(0, this, &Session::nextRequest); }
             return;
         }
-        votes[participant] = option;
-        proposal["votes"] = votes;
         QJsonArray accepted;
         for (const auto &key : voters.keys()) if (votes[key] == option) accepted.append(voters[key]);
         proposal["accepted"] = accepted;

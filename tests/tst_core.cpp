@@ -1294,6 +1294,31 @@ private slots:
         QCOMPARE(workspace.source(id), source);
         QCOMPARE(workspace.load(id)["decisions"].toArray().size(), 1);
     }
+    void restartConcludesSplitVoteSavedByPreviousRelease() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Split vote", "", &error);
+        const auto initial = workspace.source(id);
+        auto state = workspace.load(id);
+        state["epoch"] = 2;
+        state["proposal"] = QJsonObject{{"id", "p1"}, {"epoch", 2},
+            {"conflict", QJsonObject{{"reason", "Opposing colour requests"}}},
+            {"voters", QJsonObject{{"host", "Matt"}, {"guest", "Saori"}}},
+            {"votes", QJsonObject{{"host", "compromise"}, {"guest", "old-request"}}},
+            {"choices", QJsonObject{{"old-request", QJsonObject{{"id", "old-request"}}}}}};
+        state["agentQueue"] = QJsonArray{QJsonObject{{"id", "old-request"}}};
+        QVERIFY(workspace.save(id, state));
+
+        Session reopened(dir.path()); reopened.start();
+        state = workspace.load(id);
+        QVERIFY(state["proposal"].toObject().isEmpty());
+        QVERIFY(state["agentQueue"].toArray().isEmpty());
+        QCOMPARE(state["revision"].toInt(), 1);
+        QCOMPARE(workspace.source(id), initial);
+        QCOMPARE(state["messages"].toArray().last().toObject()["text"].toString(),
+                 QString("Neither side could agree, so no changes have been made to the app."));
+    }
     void brokenQmlLeavesTheCurrentAppIntact() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/broken-qml-agent";
