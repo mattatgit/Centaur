@@ -228,7 +228,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         proposal=conflict_requests('@centaur Use the Host Choice heading','@centaur Use the Framework Choice heading',1)
         choices=proposal['choices']
         assert len(choices)==2 and host()['project']['queueCount']>=1
-        assert all('approval-'+choice in host()['targets'] for choice in ('agent','guest','host'))
+        for choice in ('agent','guest','host'):
+            target(host,'approval-'+choice)
         conflict_id=proposal['id']
         record=next(m['id'] for m in host()['project']['messages'] if m.get('conflictId')==conflict_id)
         assert host()['chatMessageAppearance'][record]['inConversation']
