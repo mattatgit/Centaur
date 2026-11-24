@@ -473,7 +473,7 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             }
         }
         peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString();
-        peer.credential = hash; peer.avatars = data["avatars"] == 1; m_peers[socket] = peer;
+        peer.credential = hash; peer.avatars = data["avatars"] == 1; peer.attachments = data["attachments"] == 1; m_peers[socket] = peer;
         write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}, {"profileNames", 1}, {"avatars", 1}});
         if (joined) emit membershipChanged();
         sendSnapshot(socket);
@@ -481,6 +481,9 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
     }
     if (data["type"] == "getAttachment") {
         const auto hash=data["hash"].toString();
+        if (!m_shares.value(peer.project).toObject()["members"].toObject().contains(peer.credential)) {
+            socket->disconnectFromHost(); return;
+        }
         const auto ref=Attachments::referencedImage(m_workspace.load(peer.project),hash);
         const auto bytes=ref.isEmpty() ? QByteArray() : Attachments::read(m_workspace.projectPath(peer.project),ref);
         write(socket,{{"type","attachment"},{"hash",hash.left(64)},{"bytes",QString::fromLatin1(bytes.toBase64())}});
@@ -615,6 +618,17 @@ void CollaborationHost::sendSnapshot(QSslSocket *socket) {
         if (current["id"]==peer.project && current.contains("agentActivity")) state["agentActivity"]=current["agentActivity"];
     }
     auto messages = state["messages"].toArray();
+    if (!peer.attachments) {
+        for (qsizetype i=0; i<messages.size(); ++i) {
+            auto message=messages[i].toObject();
+            const auto refs=message["attachments"].toArray();
+            if (refs.isEmpty()) continue;
+            auto text=message["text"].toString();
+            if (!text.isEmpty()) text+="\n";
+            message["text"]=text+"Shared visual references · update Centaur to view them.";
+            messages[i]=message;
+        }
+    }
     const auto activeConflict = state["proposal"].toObject()["id"].toString();
     int size = QJsonDocument(messages).toJson(QJsonDocument::Compact).size();
     while (messages.size() > 1 && size > 2 * 1024 * 1024) {
@@ -678,7 +692,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
             const auto candidate = secret();
             if (privateFile(file, {{"token", candidate}})) profileToken = candidate;
         }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"displayName", m_editLock->isLocked() ? author() : QString()}, {"leave", leaving()}, {"avatars", 1}, {"profileToken", profileToken}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"displayName", m_editLock->isLocked() ? author() : QString()}, {"leave", leaving()}, {"avatars", 1}, {"attachments", 1}, {"profileToken", profileToken}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
@@ -763,7 +777,7 @@ void SharedProject::connectHost() {
         finish(saved.contains("ended") ? "sharingEnded" : "left");
         return;
     }
-    m_buffer.clear(); m_attachmentRequest={}; m_checkedAttachments.clear();
+    ++m_attachmentSerial; m_buffer.clear(); m_attachmentRequest={}; m_checkedAttachments.clear();
     m_connected = false; m_nameProtocol = false; m_avatarProtocol = false; m_advertisedAvatar.clear();
     status("Connecting to project host…");
     if (m_iroh) { m_tunnelling = true; m_iroh->tunnel(m_connection["endpoint"].toObject()); }
@@ -809,6 +823,7 @@ void SharedProject::receive(const QJsonObject &data) {
         emit changed();
     } else if (type=="attachment") {
         if (m_terminal || leaving() || m_attachmentRequest.isEmpty() || data["hash"]!=m_attachmentRequest["hash"]) return;
+        ++m_attachmentSerial;
         const auto ref=m_attachmentRequest;
         m_attachmentRequest={};
         const auto encoded=data["bytes"].toString();
@@ -831,7 +846,9 @@ void SharedProject::receive(const QJsonObject &data) {
         if (!privateFile(path() + "/snapshot.json", data) || !Workspace::writeFile(path() + "/" + Workspace::sourceName(state), source.toUtf8())) {
             emit error("Could not save the shared app on this device."); m_socket.abort(); return;
         }
-        m_snapshot = data; m_connected = true; m_delay = 1000; fetchNextAttachment();
+        m_snapshot = data; m_connected = true; m_delay = 1000;
+        if (m_checkedAttachments.size()>2048) m_checkedAttachments.clear();
+        fetchNextAttachment();
         status(writable() ? "Connected · shared project" : "Open in another window · view only"); m_heartbeat.start(); flush();
     } else if (type == "ack") {
         if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) {
@@ -884,10 +901,22 @@ void SharedProject::fetchNextAttachment() {
             if (ref["type"]!="image" || m_checkedAttachments.contains(hash) || Attachments::imagePath(path(),ref).isEmpty()) continue;
             if (!Attachments::read(path(),ref).isEmpty()) { m_checkedAttachments.insert(hash); continue; }
             m_attachmentRequest=ref;
-            write(&m_socket,{{"type","getAttachment"},{"hash",hash}});
+            requestAttachment(false);
             return;
         }
     }
+}
+void SharedProject::requestAttachment(bool retry) {
+    const auto serial=++m_attachmentSerial;
+    write(&m_socket,{{"type","getAttachment"},{"hash",m_attachmentRequest["hash"]}});
+    QTimer::singleShot(20000,this,[this,serial,retry] {
+        if (serial!=m_attachmentSerial || !connected() || m_terminal || leaving()) return;
+        if (!retry) { requestAttachment(true); return; }
+        m_checkedAttachments.insert(m_attachmentRequest["hash"].toString());
+        m_attachmentRequest={};
+        emit error("A shared image did not finish transferring. Reconnect to retry.");
+        emit changed(); fetchNextAttachment();
+    });
 }
 void SharedProject::setDisplayName(const QString &name) {
     if (m_terminal || leaving() || !m_editLock->isLocked()) return;

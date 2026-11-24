@@ -4,10 +4,10 @@ import re
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from gi.repository import Gdk, Gio, GLib, Gtk, Pango
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
 from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, figma_reference,
                               image_filename, mention_suffix, prepare_image, stored_image)
-from ui import OriginalSvg, accessible, box, label, picture
+from ui import OriginalSvg, accessible, box, label
 
 
 def artwork(name, size, rect=None):
@@ -52,7 +52,10 @@ def thumbnail(path, remove):
     frame = Gtk.Box(css_classes=['image-thumbnail'], overflow=Gtk.Overflow.HIDDEN)
     frame.set_margin_top(8)
     frame.set_margin_end(8)
-    pic = picture(path,64,cover=True)
+    preview = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),64,64,True)
+    pic = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(preview))
+    pic.set_content_fit(Gtk.ContentFit.COVER)
+    pic.set_can_shrink(True)
     pic.set_hexpand(True)
     frame.append(pic)
     tile.set_child(frame)
@@ -170,7 +173,8 @@ class ComposerInput:
         clipboard = editor.get_clipboard()
         formats = clipboard.get_formats()
         project = self.project
-        if formats.contain_gtype(Gdk.Texture.__gtype__):
+        if formats.contain_gtype(Gdk.Texture.__gtype__) or any(
+                formats.contain_mime_type(m) for m in ('image/png','image/jpeg','image/webp')):
             editor.stop_emission_by_name('paste-clipboard')
             def texture_ready(source, result):
                 try:
@@ -182,7 +186,7 @@ class ComposerInput:
                     self.ingest(lambda: raw)
                 except (GLib.Error,ValueError) as error: self.owner.show_error(str(error))
             clipboard.read_texture_async(None, texture_ready)
-        elif any(m.startswith('text/plain') for m in formats.get_mime_types()):
+        elif formats.contain_gtype(GObject.TYPE_STRING) or any(m.startswith('text/plain') for m in formats.get_mime_types()):
             editor.stop_emission_by_name('paste-clipboard')
             mark = self.buffer.create_mark(None,self.buffer.get_iter_at_mark(self.buffer.get_insert()),False)
             def text_ready(source, result):
@@ -202,19 +206,24 @@ class ComposerInput:
             clipboard.read_text_async(None,text_ready)
 
     def has_room(self, project):
-        return project and len(self.drafts.get(project,[])) + self.pending.get(project,0) < MAX_ITEMS
+        return project and len(self.drafts.get(project,[])) < MAX_ITEMS
 
     def ingest(self, read):
         project = self.project
         if not self.has_room(project) or sum(self.pending.values()) >= MAX_ITEMS:
             self.owner.show_error('Attach up to eight references at a time.')
             return False
+        placeholder={'type':'loading'}
+        self.drafts.setdefault(project,[]).append(placeholder)
         self.pending[project] = self.pending.get(project,0)+1
-        self.owner.update_send()
+        self.refresh()
         future = self.pool.submit(lambda:prepare_image(read()))
         def finish():
             if self.owner.closing: return False
             self.pending[project] -= 1
+            draft=self.drafts.get(project,[])
+            slot=next((i for i,item in enumerate(draft) if item is placeholder),None)
+            if slot is None: return False
             try:
                 ref, raw = future.result()
                 draft = self.drafts.get(project,[])
@@ -225,9 +234,11 @@ class ComposerInput:
                     if sum(p.stat().st_size for p in self.directory.glob('*.*') if p.is_file()) + len(raw) > 32*MAX_IMAGE:
                         raise ValueError('Send or remove images from other drafts to make room.')
                     path.write_bytes(raw)
-                self.add(project,ref)
-            except (ValueError,OSError) as error: self.owner.show_error(str(error))
-            self.owner.update_send()
+                draft[slot]=ref
+            except (ValueError,OSError) as error:
+                draft.pop(slot)
+                self.owner.show_error(str(error))
+            if project==self.project: self.refresh()
             return False
         future.add_done_callback(lambda _:GLib.idle_add(finish))
         return True
@@ -282,7 +293,13 @@ class ComposerInput:
             if key.startswith('remove-reference-'): del self.owner.targets[key]
         for i,r in enumerate(self.refs):
             remove = lambda i=i:self.remove(i)
-            child = chip(r,False,remove) if r['type']=='figma' else thumbnail(self.directory/image_filename(r),remove)
+            if r['type']=='loading':
+                child=Gtk.Button(label='Preparing image…')
+                child.connect('clicked',lambda _,remove=remove:remove())
+            elif r['type']=='figma':
+                child=chip(r,False,remove)
+            else:
+                child=thumbnail(self.directory/image_filename(r),remove)
             self.flow.insert(child,-1)
             self.owner.targets['remove-reference-'+str(i)]=child.get_last_child()
         self.owner.composer.tray.set_visible(bool(self.refs))
@@ -308,7 +325,6 @@ def available_images(owner, message):
 
 
 def conversation_references(owner, message, author, card):
-    from gi.repository import GdkPixbuf
     wrapper = box(True,8)
     folder = Path(owner.data['sourcePath']).parent/'.centaur'/'attachments'
     for ref in message.get('attachments',[]):

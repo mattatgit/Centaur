@@ -19,13 +19,13 @@ from update_ui import UpdateControls
 from updater import Runtime,Transaction,CACHE,KEY,NIX_FLAGS
 
 
-def check_progress(driver,folder,path,info):
+def check_progress(driver,folder,path,info,local_source=None):
     folder.mkdir()
     # Nix has already fetched and signature-verified this real cache object.
     # Export its canonical NAR instead of making a second Python HTTP request
     # that may be rejected by a cache's user-agent/CDN policy.
     with (folder/'payload.nar').open('wb') as output:
-        subprocess.run(['nix',*NIX_FLAGS,'nar','dump-path',path],stdout=output,check=True,timeout=20)
+        subprocess.run(['nix',*NIX_FLAGS,'nar','dump-path',str(local_source or path)],stdout=output,check=True,timeout=20)
     payload=(folder/'payload.nar').read_bytes()
     assert len(payload)==info['narSize'] and info['signatures']
     narinfo='\n'.join(['StorePath: '+path,'URL: nar/progress.nar','Compression: none',

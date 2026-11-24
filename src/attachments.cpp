@@ -140,6 +140,7 @@ bool Attachments::prepare(const QString &project, const QJsonValue &items, QJson
     }
     if (!storeImages(project, images)) return false;
     clean = accepted;
+    error.clear();
     if (outgoing) *outgoing = wire;
     return true;
 }

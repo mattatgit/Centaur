@@ -61,7 +61,8 @@ async function resolve(input, grants, token, fetchImpl=fetch) {
       const target=ref.nodeId ? root : root?.children?.flatMap(p=>p.children || []).find(n=>n.visible!==false);
       if (!target?.id) throw new Error('Select a visible Figma frame or component for this reference.');
       entry.selectedNode=target.id;
-      entry.design=outline(target);
+      entry.design=outline(root);
+      entry.previewScope=ref.nodeId ? "selected node" : "first visible frame in the file";
       const size=target.absoluteBoundingBox || {};
       const scale=Math.max(.01,Math.min(1,1536/Math.max(size.width || 1,size.height || 1)));
       const render=new URL('https://api.figma.com/v1/images/'+ref.fileKey);

@@ -84,6 +84,7 @@ jobs:
           GSK_RENDERER: cairo
           LIBGL_ALWAYS_SOFTWARE: '1'
           CENTAUR_GTK4_PRODUCT: '1'
+          CENTAUR_CHECK_SIGNED_TRANSFER: ${{ github.ref != 'refs/heads/main' && '1' || '0' }}
         run: |
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/gtk4-runtime"
           mkdir -m 700 "$XDG_RUNTIME_DIR"

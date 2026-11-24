@@ -71,6 +71,7 @@ private:
         qint64 lastSeen = 0;
         QString credential;
         bool avatars = false;
+        bool attachments = false;
         QSet<QString> sentAvatars;
     };
     QHash<QSslSocket *, Peer> m_peers;
@@ -116,6 +117,8 @@ signals:
 private:
     QString m_joinErrorCode = "connection";
     void fetchNextAttachment();
+    void requestAttachment(bool retry);
+    quint64 m_attachmentSerial = 0;
     QJsonObject m_attachmentRequest;
     QSet<QString> m_checkedAttachments;
     void connectHost();

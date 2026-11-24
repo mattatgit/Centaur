@@ -110,6 +110,7 @@ def run(session):
             try:
                 until(lambda:ui(lambda:peer.data.get('snapshotReady')),35)
                 exchange('POST','hello',{'revision':revision,'system':architecture})
+                until(lambda:exchange('GET','ready'),900)
                 ui(lambda:peer.service.send('author',name='Composer '+role))
                 if role=='host':
                     ui(lambda:peer.service.send('create',name='Composer cross-machine test',description=''))

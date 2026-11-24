@@ -431,7 +431,7 @@ class Centaur(Gtk.Application):
         text=buffer.get_text(*buffer.get_bounds(),False)
         inputs=getattr(self,'composer_input',None)
         ready=bool(text.strip() or (inputs and inputs.refs)) and self.data.get('connected',False) and self.pending_message is None
-        if inputs and inputs.pending.get(inputs.project): ready=False
+        if inputs and any(r['type']=='loading' for r in inputs.refs): ready=False
         self.send_button.set_sensitive(ready)
         self.send_icons.set_visible_child_name('enabled' if ready else 'disabled')
 

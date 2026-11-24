@@ -80,6 +80,18 @@ private slots:
         };
         sendImage(host,hostPath,guestPath,Qt::red);
         sendImage(guest,guestPath,hostPath,Qt::blue);
+        // A connected guest can fetch only references posted in its project.
+        QImage privateImage(7,5,QImage::Format_RGB32); privateImage.fill(Qt::yellow);
+        QBuffer privateData; QVERIFY(privateData.open(QIODevice::WriteOnly)); QVERIFY(privateImage.save(&privateData,"PNG"));
+        const auto privateHash=QString::fromLatin1(QCryptographicHash::hash(privateData.data(),QCryptographicHash::Sha256).toHex());
+        const QJsonObject privateRef{{"type","image"},{"hash",privateHash},{"format","png"}};
+        QVERIFY(Attachments::store(hostPath,privateRef,privateData.data()));
+        Probe peer(objectFile(guestPath+"/connection.json"));
+        QTRY_VERIFY(peer.has("welcome"));
+        peer.send({{"type","getAttachment"},{"hash",privateHash}});
+        QTRY_VERIFY(peer.has("attachment"));
+        for (const auto &packet:peer.messages)
+            if (packet["type"]=="attachment") QVERIFY(packet["bytes"].toString().isEmpty());
         const auto cached = objectFile(guestPath + "/snapshot.json");
         QVERIFY(!QJsonDocument(cached).toJson().contains(hostRoot.path().toUtf8()));
         QJsonArray clean;

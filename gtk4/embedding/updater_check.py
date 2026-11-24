@@ -14,7 +14,7 @@ import time
 from check import read,until,target
 from integration_check import Bridge
 from test_driver import Driver
-from updater import Runtime, CACHE, KEY, NIX_FLAGS, RELEASE_TAGS, update_system
+from updater import Runtime, CACHE, KEY, NIX_FLAGS, RELEASE_TAGS, update_system, check_update
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
 from build_display import compact_version
@@ -36,7 +36,7 @@ def download_counter(folder,manifest):
     assert updates[0]==[0,info['downloadSize']] and updates[-1]==[info['downloadSize']]*2,updates
     assert any(done>0 for done,total in updates),'Real Nix transfer reported no payload bytes'
     (work/'progress.json').write_text(json.dumps({'storePath':path,'updates':updates},indent=2))
-    check_progress(driver=Driver(),folder=folder/'visible-download',path=path,info=info)
+    check_progress(driver=Driver(),folder=folder/'visible-download',path=path,info=info,local_source=work/'empty-store'/path.lstrip('/'))
 
 
 def maintenance(folder,env):
@@ -72,6 +72,12 @@ def maintenance(folder,env):
 
 
 def main():
+    if len(sys.argv)==3 and sys.argv[1]=='--signed-transfer':
+        folder=Path(sys.argv[2]).resolve(); folder.mkdir(parents=True,exist_ok=False)
+        manifest=check_update('engineering-check',0)
+        if not manifest: raise ValueError('No signed release available for the transfer check')
+        download_counter(folder,manifest)
+        return 0
     previous=Path(sys.argv[1]).resolve(); manifest=read(Path(sys.argv[2])); folder=Path(sys.argv[3]).resolve()
     folder.mkdir(parents=True,exist_ok=False)
     driver=Driver(); driver.ipc('output HEADLESS-1 mode 1920x1200')
