@@ -23,6 +23,8 @@ on:
       - 'CMakeLists.txt'
       - 'flake.*'
       - '.github/workflows/gtk4-integration.yml'
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -46,7 +48,7 @@ jobs:
             runner: ubuntu-24.04
     timeout-minutes: 25
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: cachix/install-nix-action@v31
@@ -64,7 +66,7 @@ jobs:
       - name: Build retained service and run core, network and Iroh regressions
         run: nix build -L --no-update-lock-file .#gtk4-preview.services -o result-services
       - name: Cache service only after its regressions pass
-        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        if: success() && github.ref == 'refs/heads/main' && vars.CENTAUR_CACHIX_CACHE != ''
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           CENTAUR_CACHIX_CACHE: ${{ vars.CENTAUR_CACHIX_CACHE }}
@@ -106,14 +108,14 @@ jobs:
           CENTAUR_PACKAGE_ATTRIBUTE: gtk4-preview
         run: bash scripts/publish-binary-cache.sh result-gtk4 "$RUNNER_TEMP/gtk4-distribution" '${{ matrix.system }}' "$GITHUB_SHA"
       - name: Save signed-cache metadata
-        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        if: success() && github.ref == 'refs/heads/main' && vars.CENTAUR_CACHIX_CACHE != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: gtk4-product-distribution-${{ matrix.system }}
           path: ${{ runner.temp }}/gtk4-distribution/metadata/
           if-no-files-found: error
       - name: Exercise Settings update against the published signed package
-        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        if: success() && github.ref == 'refs/heads/main' && vars.CENTAUR_CACHIX_CACHE != ''
         env:
           GTK_A11Y: none
           GSK_RENDERER: cairo
@@ -130,7 +132,7 @@ jobs:
             -c dbus-run-session --config-file="$dbus_config" -- \
             timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-update-evidence" result-test-seat/bin/centaur-test-seat
       - name: Relaunch the updated profile in the same GNOME Shell session
-        if: success() && vars.CENTAUR_CACHIX_CACHE != ''
+        if: success() && github.ref == 'refs/heads/main' && vars.CENTAUR_CACHIX_CACHE != ''
         run: |
           # A stalled regional runner mirror can exhaust the job before GNOME starts.
           mirror=https://archive.ubuntu.com/ubuntu
