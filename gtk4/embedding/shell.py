@@ -1643,8 +1643,23 @@ class Centaur(Gtk.Application):
                 if accept:
                     ok,bounds=accept.compute_bounds(chooser)
                     if ok:
+                        rows={}
+                        pending=[chooser]
+                        while pending:
+                            widget=pending.pop()
+                            child=widget.get_first_child()
+                            while child:
+                                if child.get_mapped(): pending.append(child)
+                                child=child.get_next_sibling()
+                            if not isinstance(widget,Gtk.Label): continue
+                            name=widget.get_text()
+                            if not name.lower().endswith(('.png','.jpg','.jpeg','.webp')): continue
+                            visible,rect=widget.compute_bounds(chooser)
+                            if visible and rect.get_width()>0:
+                                rows[hashlib.sha256(name.encode()).hexdigest()]=[rect.get_x()+rect.get_width()/2,rect.get_y()+rect.get_height()/2]
                         data['imageChooser']={'width':chooser.get_width(),'height':chooser.get_height(),
                             'canAccept':accept.is_sensitive(),'selected':chooser.get_files().get_n_items(),
+                            'rows':rows,
                             'button':[bounds.get_x()+bounds.get_width()/2,bounds.get_y()+bounds.get_height()/2]}
             draft_buffer=self.editor.get_buffer()
             draft=draft_buffer.get_text(draft_buffer.get_start_iter(),draft_buffer.get_end_iter(),False).encode()

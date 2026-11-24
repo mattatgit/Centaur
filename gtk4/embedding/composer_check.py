@@ -118,30 +118,43 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     click(guest,gw,'attach')
     chooser=until(lambda:next((node for node in driver.nodes() if node.get('name')=='Attach images'
                  and node.get('pid')==guest()['pid']),None),'Native multi-image chooser did not open')
-    driver.ipc(f"[con_id={chooser['id']}] focus"); driver.key('ctrl+l'); time.sleep(.25)
-    driver.key('ctrl+a'); driver.type(str(source))
+    # The earlier Settings flow opened this actual file, so it is listed
+    # in GTK's Recent view. Select its rendered row in the multi-file chooser.
+    # A typed location is a separate mode and is not a selected file row.
+    recent=source.with_name('avatar-photograph.png')
+    name_hash=sha256(recent.name.encode()).hexdigest()
+    def chooser_click(native,point):
+        rect=driver.rect(chooser['id'])
+        x,y=point
+        driver.click(chooser['id'],round(x+(rect['width']-native['width'])/2),
+                     round(y+(rect['height']-native['height'])/2))
+    def recent_visible():
+        native=guest().get('imageChooser')
+        return native if native and name_hash in native['rows'] else None
+    native=until(recent_visible,'Recent test image did not appear in the chooser')
+    chooser_click(native,native['rows'][name_hash])
+    native=until(lambda:v if (v:=guest().get('imageChooser')) and v['selected']==1 and v['canAccept'] else None,
+                 'The native file chooser did not select the image')
     driver.screenshot(chooser['id'],evidence/'composer-image-picker.png',focus=False)
     driver.key('Return')
-    # The multiple-file dialog may select the named file on Return and wait
-    # for an explicit Open. Click its actual native action when it is still up.
-    def selection():
-        if guest()['draft']['attachments']: return 'loaded'
-        native=guest().get('imageChooser')
-        if native and native['selected'] and native['canAccept']: return native
-    try: selected=until(selection,'Native chooser did not select the named image')
+    time.sleep(.35)
+    native=guest().get('imageChooser')
+    if native and native['selected'] and native['canAccept'] and any(n['id']==chooser['id'] for n in driver.nodes()):
+        chooser_click(native,native['button'])
+    try:
+        until(lambda:guest()['draft']['attachments']==['image'] and guest()['draft']['canSend'],
+              'The selected native image did not load')
     except AssertionError:
-        if any(node['id']==chooser['id'] for node in driver.nodes()):
-            driver.screenshot(chooser['id'],evidence/'composer-picker-after-return.png',focus=False)
+        if any(n['id']==chooser['id'] for n in driver.nodes()):
+            driver.screenshot(chooser['id'],evidence/'composer-picker-after-open.png',focus=False)
         raise
-    if selected!='loaded':
-        rect=driver.rect(chooser['id'])
-        x,y=selected['button']
-        driver.click(chooser['id'],round(x+(rect['width']-selected['width'])/2),
-                     round(y+(rect['height']-selected['height'])/2))
-    until(lambda:guest()['draft']['attachments']==['image'] and guest()['draft']['canSend'],'Selected image did not load')
     click(guest,gw,'send')
     until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1
                      for m in host()['project']['messages']),'Host never received the guest’s selected image')
+    from attachment_model import prepare_image
+    picked=prepare_image(recent.read_bytes())[0]
+    assert any(m.get('text')=='Guest visual reference' and m.get('attachments')==[picked]
+               for m in host()['project']['messages']),'The chosen file did not reach the other participant'
     from PIL import Image
     second=evidence/'drop-input.jpg'
     Image.new('RGB',(320,180),'#138ef5').save(second)

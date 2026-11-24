@@ -94,6 +94,7 @@ class ComposerInput:
         owner.composer.scroll.get_vadjustment().connect('value-changed', lambda *_: self.refresh_suggestion())
         self.editor.connect('paste-clipboard', self.paste)
         target = Gtk.DropTarget.new(Gdk.FileList,Gdk.DragAction.COPY)
+        target.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         target.connect('drop', self.drop)
         owner.composer.add_controller(target)
         self.refresh()
