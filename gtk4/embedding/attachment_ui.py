@@ -4,6 +4,9 @@ import re
 import socket
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import gi
+gi.require_version('Gtk','4.0')
+gi.require_version('Gdk','4.0')
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
 from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, figma_reference,
                               image_filename, mention_suffix, prepare_image, stored_image)

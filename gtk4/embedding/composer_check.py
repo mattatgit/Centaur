@@ -1,6 +1,7 @@
 """Exercise the actual composer on the two native GTK clients."""
 from contextlib import contextmanager
 from hashlib import sha256
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -8,56 +9,43 @@ from check import until
 
 
 @contextmanager
-def clipboard(kind, value):
+def reference_source(driver,kind,*values):
+    program=Path(__file__).with_name('composer_fixture.py')
+    with subprocess.Popen([sys.executable,str(program),kind,*map(str,values)]) as helper:
+        try:
+            node=until(lambda:next((node for node in driver.nodes() if node.get('pid')==helper.pid
+                           and node.get('name')=='Composer reference source'),None),'External reference window did not appear')
+            fixture=node['id']
+            driver.ipc(f'[con_id={fixture}] floating enable, resize set 152 72, move position 620 180')
+            until(lambda:driver.rect(fixture)['width']==152,'Reference window did not settle')
+            yield fixture
+        finally:
+            helper.terminate(); helper.wait(timeout=4)
+
+
+@contextmanager
+def clipboard(driver,kind,value):
     mime='image/png' if kind=='image' else 'text/plain;charset=utf-8'
-    data=value.read_bytes() if kind=='image' else value.encode('utf-8')
-    # wl-copy owns the actual compositor selection. A display connection
-    # without a focused Wayland surface cannot claim it with Gdk.Clipboard.
-    child=subprocess.Popen(['wl-copy','--foreground','--type',mime],stdin=subprocess.PIPE)
-    try:
-        child.stdin.write(data); child.stdin.close()
-        def available():
-            types=subprocess.run(['wl-paste','--list-types'],capture_output=True,text=True,timeout=3)
-            return types.returncode==0 and mime in types.stdout.splitlines()
-        until(available,'Fixture did not own the Wayland clipboard')
+    data=value.read_bytes() if kind=='image' else value.encode()
+    with reference_source(driver,kind,value) as fixture:
+        driver.click(fixture,50,32)
+        def owns_selection():
+            result=subprocess.run(['wl-paste','--no-newline','--type',mime],capture_output=True,timeout=3)
+            return result.returncode==0 and result.stdout==data
+        until(owns_selection,'The external window did not copy the requested bytes')
         yield
-    finally:
-        child.terminate(); child.wait(timeout=4)
 
 
 def drop_files(driver, state, window, paths):
     from check import target
-    program = """
-import sys,gi
-from pathlib import Path
-gi.require_version('Gtk','4.0')
-from gi.repository import Gtk,Gdk,GLib
-app=Gtk.Application(application_id='org.centaur.ComposerFileFixture')
-def activate(app):
-    view=Gtk.ApplicationWindow(application=app,title='Composer file fixture',decorated=False)
-    area=Gtk.Label(label='Drag images');view.set_child(area)
-    source=Gtk.DragSource(actions=Gdk.DragAction.COPY)
-    uris=''.join(Path(path).resolve().as_uri()+chr(13)+chr(10) for path in sys.argv[1:])
-    source.set_content(Gdk.ContentProvider.new_for_bytes('text/uri-list',GLib.Bytes.new(uris.encode())))
-    area.add_controller(source);view.present()
-app.connect('activate',activate);app.run([])
-"""
-    with subprocess.Popen([sys.executable,'-c',program,*map(str,paths)]) as helper:
-        try:
-            node=until(lambda:next((n for n in driver.nodes() if n.get('pid')==helper.pid and
-                            n.get('name')=='Composer file fixture'),None),'File drag source did not appear')
-            fixture=node['id']
-            driver.ipc(f'[con_id={fixture}] floating enable, resize set 152 72, move position 620 180')
-            time.sleep(.2)
-            rect=driver.rect(fixture); receiver=driver.rect(window)
-            x,y,w,h=target(state,'composer')
-            dx=round(receiver['x']+x+w/2-rect['x']-36)
-            dy=round(receiver['y']+y+h/2-rect['y']-30)
-            driver.drag_path(fixture,36,30,[(18,0),(dx,dy),(dx+1,dy)])
-            until(lambda:len(state()['draft']['attachments'])==len(paths),
-                  'The composer did not receive the file drop')
-        finally:
-            helper.terminate(); helper.wait(timeout=4)
+    with reference_source(driver,'drop',*paths) as fixture:
+        rect=driver.rect(fixture); receiver=driver.rect(window)
+        x,y,w,h=target(state,'composer')
+        dx=round(receiver['x']+x+w/2-rect['x']-36)
+        dy=round(receiver['y']+y+h/2-rect['y']-30)
+        driver.drag_path(fixture,36,30,[(18,0),(dx,dy),(dx+1,dy)])
+        until(lambda:len(state()['draft']['attachments'])==len(paths),
+              'The composer did not receive the file drop')
 
 
 def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root):
@@ -73,10 +61,10 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     until(lambda:host()['draft']['bytes']==len(('@'+name+' ').encode()),'Tab did not accept the mention')
     driver.key('ctrl+a','BackSpace')
     url='https://www.figma.com/design/Fixture123/branch/Branch42/Shared-composer?node-id=17-2'
-    with clipboard('text',url):
+    with clipboard(driver,'text',url):
         click(host,hw,'editor'); driver.key('ctrl+v')
         until(lambda:host()['draft']['attachments']==['figma'],'The pasted Figma link did not become a chip')
-    with clipboard('image',source):
+    with clipboard(driver,'image',source):
         click(host,hw,'editor'); driver.key('ctrl+v')
         until(lambda:host()['draft']['attachments']==['figma','image'],'Clipboard image was not attached')
     driver.screenshot(hw,evidence/'composer-mixed.png')
@@ -104,7 +92,7 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     driver.key('Escape')
     until(lambda:not guest()['form'],'Image inspector did not close')
     click(guest,gw,'editor');driver.type('Guest visual reference')
-    with clipboard('image',source):
+    with clipboard(driver,'image',source):
         click(guest,gw,'editor'); driver.key('ctrl+v')
         until(lambda:guest()['draft']['attachments']==['image'],'Guest could not attach image')
     click(guest,gw,'remove-reference-0')

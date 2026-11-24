@@ -70,10 +70,10 @@ if [[ ${CENTAUR_GTK4_UPDATER:-0} == 1 ]]; then
     "$package/bin/centaur-gtk4-updater-check" "$CENTAUR_UPDATER_PREVIOUS" "$CENTAUR_UPDATER_MANIFEST" "$reports/updater"
 elif [[ ${CENTAUR_GTK4_PRODUCT:-0} == 1 ]]; then
     "$package/bin/centaur-gtk4-check" "$reports/embedding"
-    "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
     if [[ ${CENTAUR_CHECK_SIGNED_TRANSFER:-0} == 1 ]]; then
         "$package/bin/centaur-gtk4-updater-check" --signed-transfer "$reports/signed-transfer"
     fi
+    "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
 elif [[ ${CENTAUR_GTK4_PRODUCT_ONLY:-0} == 1 ]]; then
     "$package/bin/centaur-gtk4-integration-check" "$reports/integration"
 else
