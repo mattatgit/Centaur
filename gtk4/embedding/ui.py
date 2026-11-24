@@ -268,6 +268,7 @@ class Composer(Gtk.Widget):
         self.add_css_class('composer')
         self.editor = editor; self.row = row
         scroll = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER, vscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
+        self.scroll=scroll
         scroll.set_child(editor)
         self.area = Gtk.Overlay(); self.area.set_child(scroll)
         self.placeholder = label('', 'composer-placeholder', True)
@@ -280,6 +281,17 @@ class Composer(Gtk.Widget):
         focus.connect('enter', lambda c: self.add_css_class('focus'))
         focus.connect('leave', lambda c: self.remove_css_class('focus'))
         editor.add_controller(focus)
+
+    def set_attachments(self, flow):
+        self.flow=flow
+        self.tray=Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,vscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
+        self.tray.set_child(flow)
+        self.tray.set_parent(self)
+        self.tray.set_visible(False)
+
+    def tray_size(self, width):
+        if not getattr(self,'tray',None) or not self.tray.get_visible(): return 0
+        return min(144,self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-32))[1])+8
 
     def changed(self, buffer):
         self.placeholder.set_visible(not buffer.get_char_count()); self.queue_resize()
@@ -298,17 +310,22 @@ class Composer(Gtk.Widget):
         # The editor scrolls, so its minimum remains 128 even when the natural
         # text height grows. Claiming both as the minimum violates GTK's
         # height-for-width contract during typing/resizing.
-        return (128, height, -1, -1)
+        extra=self.tray_size(for_size if for_size>=0 else 384)
+        return (128+min(80,extra), min(292,height+extra), -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
-        allocate(self.area, width - 32, height - 56, 16, 16)
+        extra=min(self.tray_size(width),max(0,height-112))
+        if extra: allocate(self.tray,width-32,max(1,extra-8),16,8)
+        allocate(self.area, width - 32, height - 56-extra, 16, 16+extra)
         allocate(self.row, width - 16, 32, 8, height - 40)
 
     def do_snapshot(self, snapshot):
         snapshot.render_background(self.get_style_context(), 0, 0, self.get_width(), self.get_height())
+        if getattr(self,"tray",None) and self.tray.get_visible(): self.snapshot_child(self.tray,snapshot)
         self.snapshot_child(self.area, snapshot); self.snapshot_child(self.row, snapshot)
 
     def release(self):
+        if getattr(self,"tray",None): self.tray.unparent()
         self.area.unparent(); self.row.unparent()
 
 

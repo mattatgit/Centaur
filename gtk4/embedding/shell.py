@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 from uuid import uuid4
+from attachment_ui import ComposerInput, artwork, icon_button, available_images, conversation_references
 from avatars import shared_avatar
 from chat_identity import message_profile
 from datetime import datetime
@@ -207,7 +208,7 @@ class Centaur(Gtk.Application):
         self.build_projects(); self.build_workspace(); self.build_systems(); self.build_settings()
         self.navigate('projects'); self.set_mode('Interact')
         self.window.connect('close-request',lambda w:self.close()); self.window.present()
-        self.service = Service(self.root,self.receive)
+        self.service = Service(self.root,self.receive,self.runtime.name)
         os.environ.pop('CENTAUR_UPDATE_STARTING',None)
         GLib.timeout_add(200,self.poll)
 
@@ -367,11 +368,18 @@ class Centaur(Gtk.Application):
         self.targets.update({'import-run':self.import_run,'import-retry':self.import_retry})
         self.editor=Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR,accepts_tab=False); self.editor.add_css_class('message'); self.targets['editor']=self.editor
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE); key.connect('key-pressed',self.editor_key); self.editor.add_controller(key)
-        row=box(spacing=8); self.mention=button('@centaur',self.insert_mention,tone='plain'); row.append(self.mention)
+        row=box(spacing=8)
+        self.attach=icon_button('Attach images',artwork('db162.svg',16,(2,2,12,12)),lambda:self.composer_input.pick(),'composer-action')
+        row.append(self.attach); self.targets['attach']=self.attach
         spacer=box(); spacer.set_hexpand(True); row.append(spacer)
-        self.send_button=button('',self.send,css='send-button',tone='soft',width=32)
-        self.send_button.set_child(send_art()); accessible(self.send_button,'Send message'); row.append(self.send_button); self.targets['send']=self.send_button
+        self.send_icons=Gtk.Stack()
+        for key,filename in [('enabled','0bc46.svg'),('disabled','5be6d.svg')]:
+            icon=artwork(filename,16,(2.839,4.248,10.682,7.864)); icon.add_css_class('send-arrow')
+            self.send_icons.add_named(icon,key)
+        self.send_button=icon_button('Send message',self.send_icons,self.send,'composer-action')
+        row.append(self.send_button); self.targets['send']=self.send_button
         self.composer=Composer(self.editor,row); chat.append(self.composer)
+        self.composer_input=ComposerInput(self)
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)
@@ -421,12 +429,14 @@ class Centaur(Gtk.Application):
         if self.project:
             self.navigate('workspace'); GLib.idle_add(lambda:self.start_preview(force=True))
 
-    def insert_mention(self):
-        buffer=self.editor.get_buffer(); buffer.insert_at_cursor('@'+self.project.get('agentName','centaur')+' '); self.editor.grab_focus()
-
     def update_send(self):
-        buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
-        self.send_button.set_sensitive(bool(text.strip()) and self.data.get('connected',False) and self.pending_message is None)
+        buffer=self.editor.get_buffer()
+        text=buffer.get_text(*buffer.get_bounds(),False)
+        inputs=getattr(self,'composer_input',None)
+        ready=bool(text.strip() or (inputs and inputs.refs)) and self.data.get('connected',False) and self.pending_message is None
+        if inputs and inputs.pending.get(inputs.project): ready=False
+        self.send_button.set_sensitive(ready)
+        self.send_icons.set_visible_child_name('enabled' if ready else 'disabled')
 
     @staticmethod
     def clear(widget):
@@ -585,7 +595,7 @@ class Centaur(Gtk.Application):
         row=self.message_widgets.get(pointer.get('messageId')) if hasattr(self,'message_widgets') else None
         if not row or not self.viewport or self.page!='workspace' or pointer.get('revision')!=self.project.get('revision'):
             return None,None
-        ok,message=row[1].compute_bounds(self.root_overlay)
+        ok,message=getattr(row[1],"pointer_anchor",row[1]).compute_bounds(self.root_overlay)
         shown,viewport=self.chat_scroll.compute_bounds(self.root_overlay)
         mapped,canvas=self.ink.compute_bounds(self.root_overlay)
         if not (ok and shown and mapped): return None,None
@@ -678,11 +688,13 @@ class Centaur(Gtk.Application):
             self.cancel_comment()
             if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
             buffer.set_text(self.drafts.get(new_id,'')); self.pending_message=None
+            self.composer_input.refresh()
         pending=self.pending_message
         if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'].strip()[:12000] and self.message_profile(m).get('self')
-                           and (pending.get('comment') is None or m.get('comment')==pending['comment']) for m in self.project.get('messages',[])):
+                           and m.get('attachments',[])==pending['attachments'] and (pending.get('comment') is None or m.get('comment')==pending['comment']) for m in self.project.get('messages',[])):
             if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==pending['text']: buffer.set_text('')
             self.pending_message=None
+            self.composer_input.confirmed(pending['attachments'])
             if self.comment.clear(pending.get('commentToken')):
                 self.comment_overlay.queue_draw(); self.ink.set_cursor_from_name(None)
         if self.comment.phase!='idle' and self.comment.revision!=self.project.get('revision'): self.cancel_comment()
@@ -706,8 +718,7 @@ class Centaur(Gtk.Application):
             model=model.replace('openai-codex/','OpenAI Codex · ').replace('gpt-','GPT ').replace('-',' ').replace(' sol',' Sol')
             status=data.get('status','')
             self.chat_status.set_text(status+' · '+(model or 'Model not reported yet') if data.get('agentAvailable') else status+' · Agent unavailable')
-            button_text(self.mention,'@'+self.project.get('agentName','centaur'))
-            self.composer.placeholder.set_text('Message, or ask @'+self.project.get('agentName','centaur'))
+            self.composer.placeholder.set_text('Message, or ask @'+self.composer_input.name())
             self.update_send()
             queued=self.project.get('queueCount',0)
             activity=self.current_activity()
@@ -720,7 +731,7 @@ class Centaur(Gtk.Application):
             conflict=proposal if proposal.get('conflict') else {}
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),participants,conflict,
                                  data.get('participantId'),data.get('ownMemberships'),data.get('author'),data.get('connected'),
-                                 activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
+                                 activity.get('requestId'),activity.get('afterMessage'),[available_images(self,m) for m in self.project.get('messages',[]) if m.get('attachments')]],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
             imported=self.project.get('import') or {}; phase=imported.get('status')
@@ -953,7 +964,7 @@ class Centaur(Gtk.Application):
             face=self.person_avatar(profile) if profile else None
             conflict=proposal if conflict_id and message.get('conflictId')==conflict_id else None
             vote_state=(conflict,self.project.get('sharing',{}).get('participants',[]),self.data.get('participantId'),self.data.get('connected')) if conflict else None
-            fingerprint=(self.project.get('id'),avatar_stamp,face,profile.get('self'),profile.get('displayName'),vote_state,
+            fingerprint=(self.project.get('id'),available_images(self,message),avatar_stamp,face,profile.get('self'),profile.get('displayName'),vote_state,
                          hashlib.sha256(json.dumps(message,sort_keys=True).encode()).digest())
             old=previous_rows.get(key)
             rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None,profile,face,conflict))
@@ -1056,6 +1067,8 @@ class Centaur(Gtk.Application):
             details=message['agentDiagnostics']
             action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
             action.set_halign(Gtk.Align.START); column.append(action)
+        if message.get('attachments'):
+            item=conversation_references(self,message,author,item)
         return item,(avatar,name,stamp,body),action,mark
 
     def add_conflict_choices(self,column,proposal):
@@ -1091,8 +1104,8 @@ class Centaur(Gtk.Application):
 
     def send(self):
         buffer=self.editor.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
-        if text.strip() and self.data.get('connected') and self.pending_message is None:
-            fields={'text':text}
+        if self.send_button.get_sensitive() and (text.strip() or self.composer_input.refs):
+            fields={'text':text,'projectId':self.project['id'],'attachments':list(self.composer_input.refs)}
             if self.comment.phase=='placed': fields['comment']=self.comment.target
             agent='@'+self.project.get('agentName','centaur').lower()
             if agent in text.lower() and self.viewport:
@@ -1119,11 +1132,12 @@ class Centaur(Gtk.Application):
                     fields.update(image=str(target),imageRevision=self.project['revision'])
                 except Exception as error:
                     self.show_error('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
-            self.pending_message={'text':text,'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
+            self.pending_message={'text':text,'attachments':fields['attachments'],'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
             self.send_button.set_sensitive(False)
             if not self.service.send('message',**fields): self.pending_message=None
 
     def editor_key(self,controller,keyval,keycode,state):
+        if self.composer_input.key(keyval,state): return True
         if keyval in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state & Gdk.ModifierType.SHIFT_MASK:
             self.send(); return True
         return False
@@ -1658,7 +1672,7 @@ class Centaur(Gtk.Application):
             pointer=self.project.get('humanPointer') or {}
             row=getattr(self,'message_widgets',{}).get(pointer.get('messageId'))
             if row:
-                ok,rect=self.window_bounds(row[1])
+                ok,rect=self.window_bounds(getattr(row[1],"pointer_anchor",row[1]))
                 if ok: data['sharedPointer']['messageBounds']=[rect.get_x(),rect.get_y(),rect.get_width(),rect.get_height()]
             data['inkPending']=list(self.pending_strokes)
             data['drawingColor']=self.data.get('drawingColor')
@@ -1735,7 +1749,7 @@ class Centaur(Gtk.Application):
         self.canvas_layer.release()
         if self.active_form: self.dismiss_dialog(self.active_form)
         if hasattr(self,'service'): self.service.close()
-        self.composer.release(); self.cards.clear(); self.settings_limit.release(); self.empty_limit.release()
+        self.composer_input.close(); self.composer.release(); self.cards.clear(); self.settings_limit.release(); self.empty_limit.release()
         self.runtime.cleanup()
         return False
 

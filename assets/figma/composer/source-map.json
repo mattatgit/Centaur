@@ -1,0 +1,150 @@
+{
+  "figmaFile": "9RnuP79pD007wjhTdXZ5WW",
+  "section": "165:1852",
+  "assets": {
+    "db162.svg": {
+      "file": "db162.svg",
+      "bytes": 438,
+      "sha256": "f136db4ba047b9616967509b060c066736a512dc8dbf78f357783e7f89f862df",
+      "references": [
+        {
+          "node": "171:1229",
+          "variable": "imgIcon"
+        }
+      ],
+      "rootDimensions": {
+        "width": "12",
+        "height": "12",
+        "viewBox": "0 0 12 12"
+      }
+    },
+    "5be6d.svg": {
+      "file": "5be6d.svg",
+      "bytes": 514,
+      "sha256": "69f471b81a9bce7e5b766825a76de248d0f919906db32710981d6152ce17603a",
+      "references": [
+        {
+          "node": "171:1635",
+          "variable": "imgArrow"
+        }
+      ],
+      "rootDimensions": {
+        "width": "10.682",
+        "height": "7.86396",
+        "viewBox": "0 0 10.682 7.86396"
+      }
+    },
+    "0bc46.svg": {
+      "file": "0bc46.svg",
+      "bytes": 500,
+      "sha256": "4435a3d7c3a0fbfb162594928fe63dfe92bc496fec92380ec3d949d550238d0f",
+      "references": [
+        {
+          "node": "171:1635",
+          "variable": "imgArrow1"
+        }
+      ],
+      "rootDimensions": {
+        "width": "10.682",
+        "height": "7.86396",
+        "viewBox": "0 0 10.682 7.86396"
+      }
+    },
+    "538c8.svg": {
+      "file": "538c8.svg",
+      "bytes": 988,
+      "sha256": "bbfad7557b45f7bb1ea0840077da094aa8efa310decedde0ba7dfb727de472ec",
+      "references": [
+        {
+          "node": "165:2456",
+          "variable": "imgFigmaIcon"
+        }
+      ],
+      "rootDimensions": {
+        "width": "16",
+        "height": "16",
+        "viewBox": "0 0 16 16"
+      }
+    },
+    "20fa9.svg": {
+      "file": "20fa9.svg",
+      "bytes": 455,
+      "sha256": "1c08697778bebc31c1df7fc5f471686153a7c408ff8227a6cd128e1e1aeb86a9",
+      "references": [
+        {
+          "node": "165:2456",
+          "variable": "img"
+        }
+      ],
+      "rootDimensions": {
+        "width": "5.24273",
+        "height": "5.24273",
+        "viewBox": "0 0 5.24273 5.24273"
+      }
+    },
+    "f0a73.svg": {
+      "file": "f0a73.svg",
+      "bytes": 483,
+      "sha256": "7c7de56f2a334f744da3ef7268eaf16f7ee5e065bed0617178196477f07bcfb2",
+      "references": [
+        {
+          "node": "176:2180",
+          "variable": "imgX"
+        }
+      ],
+      "rootDimensions": {
+        "width": "8.57107",
+        "height": "8.57129",
+        "viewBox": "0 0 8.57107 8.57129"
+      }
+    },
+    "69532.svg": {
+      "file": "69532.svg",
+      "bytes": 276,
+      "sha256": "1765c34dc2e84dfe219eafa053f9c3840c8d4e00f5ba21bb3beba4c235af97ed",
+      "references": [
+        {
+          "node": "174:1856",
+          "variable": "imgLine323553"
+        }
+      ],
+      "rootDimensions": {
+        "width": "352",
+        "height": "1",
+        "viewBox": "0 0 352 1"
+      }
+    },
+    "69bbb.svg": {
+      "file": "69bbb.svg",
+      "bytes": 236,
+      "sha256": "504a664c2213673af755ef9c6731324095646b7ae83e598e8be6f1a5bad1dc59",
+      "references": [
+        {
+          "node": "174:1856",
+          "variable": "imgLine"
+        }
+      ],
+      "rootDimensions": {
+        "width": "360",
+        "height": "1",
+        "viewBox": "0 0 360 1"
+      }
+    },
+    "3361a.svg": {
+      "file": "3361a.svg",
+      "bytes": 554,
+      "sha256": "7bcfc8fa0aa5f5e7c21d18671d3c38697b5891c8ecee1ce53f55de982112ccaf",
+      "references": [
+        {
+          "node": "174:1856",
+          "variable": "imgFilledIcons"
+        }
+      ],
+      "rootDimensions": {
+        "width": "10",
+        "height": "10",
+        "viewBox": "0 0 10 10"
+      }
+    }
+  }
+}
