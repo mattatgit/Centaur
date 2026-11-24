@@ -119,7 +119,25 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     chooser=until(lambda:next((node for node in driver.nodes() if node.get('name')=='Attach images'
                  and node.get('pid')==guest()['pid']),None),'Native multi-image chooser did not open')
     driver.ipc(f"[con_id={chooser['id']}] focus"); driver.key('ctrl+l'); time.sleep(.25)
-    driver.key('ctrl+a'); driver.type(str(source)); driver.key('Return')
+    driver.key('ctrl+a'); driver.type(str(source))
+    driver.screenshot(chooser['id'],evidence/'composer-image-picker.png',focus=False)
+    driver.key('Return')
+    # The multiple-file dialog may select the named file on Return and wait
+    # for an explicit Open. Click its actual native action when it is still up.
+    def selection():
+        if guest()['draft']['attachments']: return 'loaded'
+        native=guest().get('imageChooser')
+        if native and native['selected'] and native['canAccept']: return native
+    try: selected=until(selection,'Native chooser did not select the named image')
+    except AssertionError:
+        if any(node['id']==chooser['id'] for node in driver.nodes()):
+            driver.screenshot(chooser['id'],evidence/'composer-picker-after-return.png',focus=False)
+        raise
+    if selected!='loaded':
+        rect=driver.rect(chooser['id'])
+        x,y=selected['button']
+        driver.click(chooser['id'],round(x+(rect['width']-selected['width'])/2),
+                     round(y+(rect['height']-selected['height'])/2))
     until(lambda:guest()['draft']['attachments']==['image'] and guest()['draft']['canSend'],'Selected image did not load')
     click(guest,gw,'send')
     until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1

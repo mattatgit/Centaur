@@ -1635,6 +1635,17 @@ class Centaur(Gtk.Application):
                            else self.error_label.get_text() if self.error_toast.get_visible() else ''),
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
             data['focusedTargets']=[name for name,widget in self.targets.items() if widget.has_focus()]
+            data['imageChooser']=None
+            for chooser in Gtk.Window.list_toplevels():
+                if not (isinstance(chooser,Gtk.FileChooserDialog) and chooser.get_mapped() and chooser.get_title()=='Attach images'):
+                    continue
+                accept=chooser.get_widget_for_response(Gtk.ResponseType.ACCEPT) or chooser.get_default_widget()
+                if accept:
+                    ok,bounds=accept.compute_bounds(chooser)
+                    if ok:
+                        data['imageChooser']={'width':chooser.get_width(),'height':chooser.get_height(),
+                            'canAccept':accept.is_sensitive(),'selected':chooser.get_files().get_n_items(),
+                            'button':[bounds.get_x()+bounds.get_width()/2,bounds.get_y()+bounds.get_height()/2]}
             draft_buffer=self.editor.get_buffer()
             draft=draft_buffer.get_text(draft_buffer.get_start_iter(),draft_buffer.get_end_iter(),False).encode()
             data['draft']={'bytes':len(draft),'sha256':hashlib.sha256(draft).hexdigest(),

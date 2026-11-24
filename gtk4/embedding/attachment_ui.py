@@ -155,7 +155,8 @@ class ComposerInput:
                 if not error.matches(Gtk.DialogError.quark(),Gtk.DialogError.DISMISSED):
                     self.owner.show_error('The image chooser could not open the selection.')
                 return
-            if self.project==project: self.files(files)
+            if self.project==project and files:
+                self.files(files.get_item(index) for index in range(files.get_n_items()))
         Gtk.FileDialog(title='Attach images',filters=filters,modal=True).open_multiple(self.owner.window,None,selected)
 
     def drop(self, target, value, x, y):
