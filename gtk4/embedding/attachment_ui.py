@@ -39,7 +39,7 @@ def chip(ref, activate, remove=None):
         row.append(title)
     row.set_tooltip_text(ref['url'])
     if remove:
-        row.append(icon_button('Remove Figma link', artwork('20fa9.svg',16,(5,5,6,6)),remove,'chip-action'))
+        row.append(icon_button('Remove Figma link', artwork('20fa9.svg',16,(5.38,5.38,5.24,5.24)),remove,'chip-action'))
     row.set_halign(Gtk.Align.START)
     row.set_valign(Gtk.Align.CENTER)
     return row
@@ -59,7 +59,7 @@ def thumbnail(path, remove):
     pic.set_hexpand(True)
     frame.append(pic)
     tile.set_child(frame)
-    close = icon_button('Remove image',artwork('f0a73.svg',16,(4,4,8,8)),remove,'image-remove')
+    close = icon_button('Remove image',artwork('f0a73.svg',16,(3.71,3.71,8.57,8.57)),remove,'image-remove')
     close.set_halign(Gtk.Align.END); close.set_valign(Gtk.Align.START)
     tile.add_overlay(close)
     return tile
@@ -72,6 +72,7 @@ class ComposerInput:
         self.directory = Path(owner.runtime.name)
         self.drafts = {}
         self.pending = {}
+        self.clipboard_reads=set()
         self.titles_inflight = 0
         self.metadata_pool = ThreadPoolExecutor(max_workers=2,thread_name_prefix='figma-title')
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='composer-image')
@@ -175,8 +176,46 @@ class ComposerInput:
         clipboard = editor.get_clipboard()
         formats = clipboard.get_formats()
         project = self.project
-        if formats.contain_gtype(Gdk.Texture.__gtype__) or any(
-                formats.contain_mime_type(m) for m in ('image/png','image/jpeg','image/webp')):
+        image_types=[mime for mime in ('image/png','image/jpeg','image/webp') if formats.contain_mime_type(mime)]
+        if image_types:
+            # Read the encoded selection under the same limits as the picker.
+            # Asking GTK for a texture first would decode it before validation.
+            editor.stop_emission_by_name('paste-clipboard')
+            def stream_ready(source,result):
+                try:
+                    stream,_mime=source.read_finish(result)
+                    if stream is None: return
+                    if project!=self.project:
+                        stream.close(None)
+                        return
+                    cancel=Gio.Cancellable()
+                    self.clipboard_reads.add(cancel)
+                    timer=GLib.timeout_source_new_seconds(10)
+                    timer.set_callback(lambda *_:cancel.cancel() or False)
+                    timer.attach(None)
+                    def close_stream():
+                        timer.destroy()
+                        self.clipboard_reads.discard(cancel)
+                        return False
+                    def read():
+                        raw=bytearray()
+                        try:
+                            while len(raw)<=MAX_INPUT:
+                                chunk=stream.read_bytes(min(65536,MAX_INPUT+1-len(raw)),cancel).get_data()
+                                if not chunk: break
+                                raw.extend(chunk)
+                            return bytes(raw)
+                        except GLib.Error as error:
+                            raise ValueError('The clipboard image could not be read.') from error
+                        finally:
+                            GLib.idle_add(close_stream)
+                            stream.close(None)
+                    if not self.ingest(read):
+                        close_stream(); stream.close(None)
+                except GLib.Error:
+                    self.owner.show_error('The clipboard image could not be read.')
+            clipboard.read_async(image_types,GLib.PRIORITY_DEFAULT,None,stream_ready)
+        elif formats.contain_gtype(Gdk.Texture.__gtype__):
             editor.stop_emission_by_name('paste-clipboard')
             def texture_ready(source, result):
                 try:
@@ -318,6 +357,7 @@ class ComposerInput:
             self.refresh(); self.clean_files()
 
     def close(self):
+        for cancel in self.clipboard_reads: cancel.cancel()
         self.metadata_pool.shutdown(wait=False,cancel_futures=True)
         self.pool.shutdown(wait=False,cancel_futures=True)
 
@@ -326,6 +366,26 @@ def available_images(owner, message):
     source = owner.data.get('sourcePath')
     folder = Path(source).parent/'.centaur'/'attachments' if source else None
     return tuple(bool(folder and stored_image(folder,r)) for r in message.get('attachments',[]) if r.get('type')=='image')
+
+
+class ConversationImage(Gtk.Button):
+    def __init__(self, pixbuf, author, inspect):
+        super().__init__(css_classes=['uploaded-image'],halign=Gtk.Align.START,overflow=Gtk.Overflow.HIDDEN)
+        self.image_width,self.image_height=pixbuf.get_width(),pixbuf.get_height()
+        picture=Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+        picture.set_can_shrink(True)
+        self.set_child(picture)
+        accessible(self,'Inspect image uploaded by '+author)
+        self.connect('clicked',lambda _:inspect())
+
+    def do_get_request_mode(self):
+        return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
+
+    def do_measure(self,orientation,for_size):
+        if orientation==Gtk.Orientation.HORIZONTAL: return 1,self.image_width,-1,-1
+        width=self.image_width if for_size<0 else min(self.image_width,for_size)
+        height=max(1,round(width*self.image_height/self.image_width))
+        return height,height,-1,-1
 
 
 def conversation_references(owner, message, author, card):
@@ -340,8 +400,6 @@ def conversation_references(owner, message, author, card):
             if path:
                 try:
                     pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),232,232,True)
-                    visual = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-                    visual.set_can_shrink(True)
                     def inspect(path=path):
                         dialog, column = owner.dialog('Uploaded image',760)
                         large = Gtk.Picture.new_for_filename(str(path))
@@ -351,9 +409,7 @@ def conversation_references(owner, message, author, card):
                         close = Gtk.Button(label='Close')
                         close.connect('clicked',lambda _:owner.dismiss_dialog(dialog))
                         column.append(close); dialog.present(close)
-                    view = icon_button('Inspect image uploaded by '+author,visual,inspect,'uploaded-image')
-                    view.set_overflow(Gtk.Overflow.HIDDEN)
-                    view.set_halign(Gtk.Align.START)
+                    view=ConversationImage(pixbuf,author,inspect)
                     wrapper.append(view); wrapper.image_buttons.append(view)
                 except GLib.Error:
                     wrapper.append(label('This image could not be read.','muted',True))

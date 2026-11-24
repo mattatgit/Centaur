@@ -259,7 +259,7 @@ class InlineFormError:
         self.field=field
         self.row=box(spacing=6)
         self.row.set_hexpand(True)
-        self.row.append(artwork('3361a.svg',16))
+        self.row.append(artwork('3361a.svg',16,(3,3,10,10)))
         self.caption=label('', 'form-error-text', True)
         self.row.append(self.caption)
         footer.set_halign(Gtk.Align.FILL)

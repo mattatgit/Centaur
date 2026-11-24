@@ -291,7 +291,7 @@ class Composer(Gtk.Widget):
 
     def tray_size(self, width):
         if not getattr(self,'tray',None) or not self.tray.get_visible(): return 0
-        return min(144,self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-32))[1])+8
+        return min(144,self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-16))[1])+8
 
     def changed(self, buffer):
         self.placeholder.set_visible(not buffer.get_char_count()); self.queue_resize()
@@ -315,7 +315,7 @@ class Composer(Gtk.Widget):
 
     def do_size_allocate(self, width, height, baseline):
         extra=min(self.tray_size(width),max(0,height-112))
-        if extra: allocate(self.tray,width-32,max(1,extra-8),16,8)
+        if extra: allocate(self.tray,width-16,max(1,extra-8),8,8)
         allocate(self.area, width - 32, height - 56-extra, 16, 16+extra)
         allocate(self.row, width - 16, 32, 8, height - 40)
 

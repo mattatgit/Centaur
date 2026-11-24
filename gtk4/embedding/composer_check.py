@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from hashlib import sha256
 import subprocess
+import sys
 import time
 from check import until
 
@@ -24,6 +25,41 @@ def clipboard(kind, value):
         child.terminate(); child.wait(timeout=4)
 
 
+def drop_files(driver, state, window, paths):
+    from check import target
+    program = """
+import sys,gi
+from pathlib import Path
+gi.require_version('Gtk','4.0')
+from gi.repository import Gtk,Gdk,GLib
+app=Gtk.Application(application_id='org.centaur.ComposerFileFixture')
+def activate(app):
+    view=Gtk.ApplicationWindow(application=app,title='Composer file fixture',decorated=False)
+    area=Gtk.Label(label='Drag images');view.set_child(area)
+    source=Gtk.DragSource(actions=Gdk.DragAction.COPY)
+    uris=''.join(Path(path).resolve().as_uri()+chr(13)+chr(10) for path in sys.argv[1:])
+    source.set_content(Gdk.ContentProvider.new_for_bytes('text/uri-list',GLib.Bytes.new(uris.encode())))
+    area.add_controller(source);view.present()
+app.connect('activate',activate);app.run([])
+"""
+    with subprocess.Popen([sys.executable,'-c',program,*map(str,paths)]) as helper:
+        try:
+            node=until(lambda:next((n for n in driver.nodes() if n.get('pid')==helper.pid and
+                            n.get('name')=='Composer file fixture'),None),'File drag source did not appear')
+            fixture=node['id']
+            driver.ipc(f'[con_id={fixture}] floating enable, resize set 152 72, move position 620 180')
+            time.sleep(.2)
+            rect=driver.rect(fixture); receiver=driver.rect(window)
+            x,y,w,h=target(state,'composer')
+            dx=round(receiver['x']+x+w/2-rect['x']-36)
+            dy=round(receiver['y']+y+h/2-rect['y']-30)
+            driver.drag_path(fixture,36,30,[(18,0),(dx,dy),(dx+1,dy)])
+            until(lambda:len(state()['draft']['attachments'])==len(paths),
+                  'The composer did not receive the file drop')
+        finally:
+            helper.terminate(); helper.wait(timeout=4)
+
+
 def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root):
     pid=host()['project']['id']
     name=host()['project']['agentName']
@@ -38,10 +74,10 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     driver.key('ctrl+a','BackSpace')
     url='https://www.figma.com/design/Fixture123/branch/Branch42/Shared-composer?node-id=17-2'
     with clipboard('text',url):
-        driver.key('ctrl+v')
+        click(host,hw,'editor'); driver.key('ctrl+v')
         until(lambda:host()['draft']['attachments']==['figma'],'The pasted Figma link did not become a chip')
     with clipboard('image',source):
-        driver.key('ctrl+v')
+        click(host,hw,'editor'); driver.key('ctrl+v')
         until(lambda:host()['draft']['attachments']==['figma','image'],'Clipboard image was not attached')
     driver.screenshot(hw,evidence/'composer-mixed.png')
     assert host()['draft']['bytes']==0 and host()['draft']['canSend']
@@ -57,15 +93,19 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         path=directory/pid/'.centaur'/'attachments'/filename
         until(lambda:path.is_file() and sha256(path.read_bytes()).hexdigest()==ref['hash'],'Image content failed verification')
     until(lambda:not host()['draft']['attachments'],'Confirmed message stayed in composer')
+    from check import target
+    image_control='inspect-image-'+sent['id']+'-0'
+    image_box=target(guest,image_control)
+    assert 1<=image_box[2]<=232 and 1<=image_box[3]<=232, image_box
     driver.screenshot(gw,evidence/'composer-shared-history.png')
-    click(guest,gw,'inspect-image-'+sent['id']+'-0')
+    click(guest,gw,image_control)
     until(lambda:guest()['form']=='Uploaded image','Sent image inspector did not open')
     driver.screenshot(gw,evidence/'composer-inspector.png')
     driver.key('Escape')
     until(lambda:not guest()['form'],'Image inspector did not close')
     click(guest,gw,'editor');driver.type('Guest visual reference')
     with clipboard('image',source):
-        driver.key('ctrl+v')
+        click(guest,gw,'editor'); driver.key('ctrl+v')
         until(lambda:guest()['draft']['attachments']==['image'],'Guest could not attach image')
     click(guest,gw,'remove-reference-0')
     until(lambda:not guest()['draft']['attachments'],'Could not remove image')
@@ -79,3 +119,11 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     click(guest,gw,'send')
     until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1
                      for m in host()['project']['messages']),'Host never received the guest’s selected image')
+    from PIL import Image
+    second=evidence/'drop-input.jpg'
+    Image.new('RGB',(320,180),'#138ef5').save(second)
+    drop_files(driver,guest,gw,[source,second])
+    until(lambda:guest()['draft']['attachments']==['image','image'] and guest()['draft']['canSend'],
+          'Dropped files did not become two composer images')
+    driver.screenshot(gw,evidence/'composer-dropped-images.png')
+    click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')
