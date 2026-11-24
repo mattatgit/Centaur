@@ -779,6 +779,7 @@ void SharedProject::receive(const QJsonObject &data) {
         // but this device has already opted out of the project.
         if (leaving()) { finish("left"); return; }
         m_avatarProtocol = data["avatars"] == 1;
+        if (m_nameProtocol && m_editLock->isLocked()) write(&m_socket, {{"type","profileName"},{"displayName",author()}});
         refreshAvatar();
         emit changed();
     } else if (type == "avatar") {

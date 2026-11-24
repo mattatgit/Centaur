@@ -67,7 +67,9 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
         time.sleep(.15); assert all(abs(a-b)<.01 for a,b in zip(state()['commentPointer']['head'],[x,y])),'A placed head kept following the pointer'
         driver.screenshot(window,folder/(name+'-placed.png'))
         with Image.open(folder/(name+'-placed.png')) as image:
-            assert any(r>200 and g<170 and b<170 and r-g>60 for r,g,b in image.convert('RGB').crop((x-4,y-4,x+4,y+4)).getdata()),'Pointer head was not rendered in coral red'
+            expected=bytes.fromhex(state()['drawingColor'].lstrip('#'))
+            pixels=image.convert('RGB').crop((x-4,y-4,x+4,y+4)).getdata()
+            assert any(max(abs(a-b) for a,b in zip(pixel,expected))<=8 for pixel in pixels),'Pointer head lost its assigned drawing colour'
         return mark['reference']
 
     resize_host(1440,944)

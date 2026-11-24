@@ -16,6 +16,13 @@
 #include <QRegularExpression>
 
 static QString uid() { return QUuid::createUuid().toString(QUuid::WithoutBraces); }
+static QJsonObject participantProfile(const QJsonObject &sharing, const QString &id) {
+    for (const auto &entry : sharing["participants"].toArray()) {
+        const auto person = entry.toObject();
+        if (person["id"] == id) return person;
+    }
+    return {};
+}
 static QString runner(bool gtk = false) {
     if (gtk) return qEnvironmentVariable("CENTAUR_GTK_RUNNER", QCoreApplication::applicationDirPath() + "/centaur-gtk4-preview");
     return qEnvironmentVariable("CENTAUR_PREVIEW", QCoreApplication::applicationDirPath() + "/centaur-preview");
@@ -153,7 +160,7 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state.remove("directions");
                     const auto original = proposal["choices"].toObject()[proposal["selected"].toString()].toObject();
                     const QString choice = original.isEmpty() ? QString("the Agent's suggestion")
-                        : original["author"].toString() + "’s request";
+                        : original["displayAuthor"].toString(original["author"].toString()) + "’s request";
                     const QString result = proposal["kind"] == "restore" ? " That version of the app was restored." : " The app was updated.";
                     recordConflictOutcome(state, proposal, "Agreed on " + choice + "." + result);
                     state["proposal"] = QJsonObject();
@@ -364,14 +371,9 @@ void Session::addMessage(QJsonObject &state, const QString &author, const QStrin
     if (!comment.isEmpty()) message["comment"] = comment;
     if (!participant.isEmpty()) {
         message["participant"] = participant;
-        for (const auto &entry : m_network->sharing(state["id"].toString())["participants"].toArray()) {
-            const auto person = entry.toObject();
-            if (person["id"] == participant) {
-                if (person.contains("displayName")) message["displayAuthor"] = person["displayName"];
-                if (person.contains("profileId")) message["profileId"] = person["profileId"];
-                break;
-            }
-        }
+        const auto person = participantProfile(m_network->sharing(state["id"].toString()), participant);
+        if (person.contains("displayName")) message["displayAuthor"] = person["displayName"];
+        if (person.contains("profileId")) message["profileId"] = person["profileId"];
     }
     if (!conflictId.isEmpty()) message["conflictId"] = conflictId;
     messages.append(message);
@@ -490,6 +492,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     const bool shared = sharing["enabled"].toBool();
     const auto participant = qobject_cast<QSslSocket *>(sender) ? command["_memberId"].toString()
         : shared ? QString("host") : "local:" + author;
+    const auto displayName = participantProfile(sharing, participant)["displayName"].toString(author);
     if (author.isEmpty()) { fail("Choose your name before contributing."); return; }
     if (!command["_memberId"].toString().isEmpty()) {
         auto acks = state["networkAcks"].toObject();
@@ -583,7 +586,8 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             queue.append(request);
             state["agentQueue"] = queue;
             auto directions = state["directions"].toObject();
-            directions[participant] = QJsonObject{{"id", request["id"]}, {"author", author}, {"text", text}, {"revision", state["revision"]}};
+            directions[participant] = QJsonObject{{"id", request["id"]}, {"participant", participant},
+                {"author", author}, {"displayAuthor", displayName}, {"text", text}, {"revision", state["revision"]}};
             state["directions"] = directions;
         }
         if (!persist(id, state)) return;
@@ -667,8 +671,8 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             removeConflictRequests(state, proposal);
             state["epoch"] = state["epoch"].toInt() + 1;
             state["proposal"] = QJsonObject();
-            recordConflictOutcome(state, proposal, author + " declined the proposed resolution. The app stays as it is.");
-            addMessage(state, state["agentName"].toString(), author + " declined the proposed resolution. The app stays as it is.", "system");
+            recordConflictOutcome(state, proposal, displayName + " declined the proposed resolution. The app stays as it is.");
+            addMessage(state, state["agentName"].toString(), displayName + " declined the proposed resolution. The app stays as it is.", "system");
             if (persist(id, state)) { publish(id); QTimer::singleShot(0, this, &Session::nextRequest); }
             return;
         }
@@ -735,7 +739,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto local=state["importLocal"].toObject(); local.remove("pending"); local.remove("currentTool"); state["importLocal"]=local;
         auto imported=state["import"].toObject();
         if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="interrupted"; state["import"]=imported; }
-        addMessage(state, state["agentName"].toString(), author + " stopped the agent. Pending requests were cleared.", "system");
+        addMessage(state, state["agentName"].toString(), displayName + " stopped the agent. Pending requests were cleared.", "system");
         persist(id, state);
         QTimer::singleShot(0, this, &Session::nextRequest);
     }

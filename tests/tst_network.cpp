@@ -1,3 +1,4 @@
+#include <QUuid>
 #include "controller.h"
 #include "collaboration.h"
 #include <QtTest>
@@ -81,6 +82,46 @@ private slots:
         QTRY_VERIFY(guest.projectId()!=id); QVERIFY(!guest.remoteProject());
         QCOMPARE(host.projects().size(),1); QCOMPARE(guest.projects().size(),2);
         QVERIFY(!QJsonDocument(QJsonObject::fromVariantMap(host.project())).toJson().contains(guestRoot.path().toUtf8()));
+    }
+    void sameChosenNamesRemainDistinctAndEditable() {
+        QTemporaryDir hostRoot, guestRoot;
+        Controller host(hostRoot.path()); host.start(); host.setAuthor("Morgan");
+        host.createProject("Profiles", ""); const auto id = host.projectId();
+        host.invitePeople("127.0.0.1");
+        Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(), "Morgan");
+        QTRY_COMPARE(guest.projectId(), id);
+        QCOMPARE(guest.author(), QString("Morgan"));
+        auto last = [&] {
+            const auto messages = host.project()["messages"].toList();
+            return messages.value(messages.size()-1).toMap();
+        };
+        guest.sendMessage("First membership");
+        QTRY_COMPARE(last()["text"].toString(), QString("First membership"));
+        const auto first = last()["participant"].toString();
+        QVERIFY(!QUuid(first).isNull());
+        QCOMPARE(last()["displayAuthor"].toString(), QString("Morgan"));
+        QCOMPARE(last()["profileId"].toString(), first);
+        host.setAuthor("Chosen (2)");
+        host.sendMessage("Host rename");
+        QTRY_COMPARE(last()["text"].toString(), QString("Host rename"));
+        QCOMPARE(last()["participant"].toString(), QString("host"));
+        QCOMPARE(last()["displayAuthor"].toString(), QString("Chosen (2)"));
+        guest.setAuthor("Chosen (2)");
+        guest.sendMessage("Guest rename");
+        QTRY_COMPARE(last()["text"].toString(), QString("Guest rename"));
+        QCOMPARE(last()["displayAuthor"].toString(), QString("Chosen (2)"));
+        QCOMPARE(last()["participant"].toString(), first);
+        guest.leaveProject(id);
+        QTRY_VERIFY(host.projectCollaborators(id).isEmpty());
+        QTRY_VERIFY(!QFile::exists(guestRoot.path()+"/shared/"+id+"/connection.json"));
+        host.invitePeople("127.0.0.1");
+        guest.joinProject(host.invitationCode(), "Chosen (2)");
+        QTRY_VERIFY(guest.canContribute() && guest.remoteProject());
+        guest.sendMessage("Fresh membership");
+        QTRY_COMPARE(last()["text"].toString(), QString("Fresh membership"));
+        QVERIFY(last()["participant"].toString()!=first);
+        QCOMPARE(last()["profileId"].toString(), first);
+        QCOMPARE(last()["displayAuthor"].toString(), QString("Chosen (2)"));
     }
     void commentTargetsTravelWithMessagesAndRejectStaleOrInvalidLocations() {
         QTemporaryDir hostRoot, guestRoot;
