@@ -18,6 +18,9 @@ from urllib.parse import urlsplit
 
 
 def run(session):
+    # A disposable test uses the same software renderer as the native checks.
+    # Set this before GTK opens a display on a VM with no Vulkan device.
+    os.environ.setdefault('GSK_RENDERER','cairo')
     from PIL import Image
     import gi
     gi.require_version("Gtk","4.0")
@@ -45,7 +48,7 @@ def run(session):
             conn.request(method,address.path+'/'+role+'/'+suffix,body=body)
             response=conn.getresponse(); raw=response.read(8192)
             if response.status==404 and method=='GET': return None
-            if response.status!=200: raise ValueError('Test session rejected the request.')
+            if response.status!=200: raise ValueError(f'The test coordinator rejected {suffix} (HTTP {response.status}).')
             return json.loads(raw)
         finally: conn.close()
 
@@ -101,18 +104,22 @@ def run(session):
         def capture():
             widget=peer.root_overlay
             width,height=widget.get_width(),widget.get_height()
+            if not widget.get_mapped() or min(width,height)<=0: return None
             shot=Gtk.Snapshot.new(); Gtk.WidgetPaintable.new(widget).snapshot(shot,width,height)
             node=shot.to_node()
-            if not node: raise ValueError('The disposable window has not been drawn.')
+            if not node: return None
             texture=peer.window.get_renderer().render_texture(node,Graphene.Rect().init(0,0,width,height))
             return base64.b64encode(texture.save_to_png_bytes().get_data()).decode('ascii')
         def check():
+            stage='opening the test window'
             try:
                 until(lambda:ui(lambda:peer.data.get('snapshotReady')),35)
+                stage='waiting for the other machine'
                 exchange('POST','hello',{'revision':revision,'system':architecture})
                 until(lambda:exchange('GET','ready'),900)
                 ui(lambda:peer.service.send('author',name='Composer '+role))
                 if role=='host':
+                    stage='creating a disposable project and invitation'
                     ui(lambda:peer.service.send('create',name='Composer cross-machine test',description=''))
                     until(lambda:ui(lambda:peer.project.get('id')),30)
                     ui(lambda:peer.service.send('invite',address='iroh'))
@@ -120,19 +127,29 @@ def run(session):
                     exchange('POST','invite',{'invitation':code})
                     ui(lambda:peer.dismiss_dialog(peer.active_form) if peer.active_form else None)
                 else:
+                    stage='joining the disposable project'
                     offer=until(lambda:exchange('GET','invite'),480)
                     ui(lambda:peer.service.send('join',name='Composer guest',code=offer['invitation']))
+                stage='connecting both participants'
                 until(lambda:ui(lambda:len(peer.project.get('sharing',{}).get('participants',[]))>=2 and peer.data.get('connected')),150)
+                stage='sending a picture and design link'
                 ui(post_picture)
                 until(lambda:ui(lambda:len(peer.composer_input.refs)==2 and peer.send_button.get_sensitive()),30)
                 ui(peer.send)
+                stage='checking both messages and image files'
                 result=until(lambda:ui(exchange_complete),120)
-                exchange('POST','result',{'revision':revision,'system':architecture,'messages':result,'screenshot':ui(capture)})
+                stage='saving the verified exchange'
+                exchange('POST','verified',{'revision':revision,'system':architecture,'messages':result})
+                stage='capturing the disposable window'
+                screenshot=until(lambda:ui(capture),20)
+                stage='saving the screenshot'
+                exchange('POST','result',{'revision':revision,'system':architecture,'messages':result,'screenshot':screenshot})
+                stage='waiting for both results'
                 until(lambda:exchange('GET','complete'),120)
                 print('Both GTK clients verified both images. This disposable session will close.',flush=True)
             except Exception as error:
-                failures.append(str(error)); print('Engineering check stopped:',str(error),file=sys.stderr,flush=True)
-                try: exchange('POST','failure',{'step':type(error).__name__,'revision':revision})
+                failures.append(str(error)); print(f'Engineering check stopped while {stage}: {error}',file=sys.stderr,flush=True)
+                try: exchange('POST','failure',{'step':stage,'errorType':type(error).__name__,'revision':revision})
                 except Exception: pass
             finally: GLib.idle_add(lambda:peer.quit() or False)
         worker=threading.Thread(target=check,daemon=True); worker.start()
