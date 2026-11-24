@@ -378,9 +378,9 @@ void CollaborationHost::read(QSslSocket *socket) {
 void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
     auto peer = m_peers.value(socket);
     peer.lastSeen = now(); m_peers[socket] = peer;
-    auto reject = [socket](const QString &message) { write(socket, {{"type", "rejected"}, {"message", message}}); socket->disconnectFromHost(); };
+    auto reject = [socket](const QString &message, const QString &code = "unavailable") { write(socket, {{"type", "rejected"}, {"message", message}, {"code",code}}); socket->disconnectFromHost(); };
     if (peer.member.isEmpty()) {
-        if (data["type"] != "hello" || data["version"] != 1) { reject("This Centaur connection is incompatible."); return; }
+        if (data["type"] != "hello" || data["version"] != 1) { reject("This Centaur connection is incompatible.","version"); return; }
         const auto id = data["project"].toString();
         const auto token = data["memberToken"].toString();
         if (token.size() != 43) { reject("The participant credential is invalid."); return; }
@@ -391,7 +391,7 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         const auto state = m_workspace.load(id);
         if (share.isEmpty() || state.isEmpty() || state["archived"].toBool()) { reject("This project is no longer shared."); return; }
         if (state["appFormat"] == "gtk4-v1" && !data["appFormats"].toArray().contains("gtk4-v1")) {
-            reject("This project requires the GTK4 version of Centaur."); return;
+            reject("This project requires the GTK4 version of Centaur.","version"); return;
         }
         auto members = share["members"].toObject();
         auto member = members[hash].toObject();
@@ -412,7 +412,7 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         if (joined) {
             auto invites = share["invites"].toObject();
             const auto invitationHash = digest(data["invite"].toString().toUtf8());
-            if (invites[invitationHash].toDouble() < now()) { reject("This invitation has expired or has already been used. Ask for a new one."); return; }
+            if (invites[invitationHash].toDouble() < now()) { reject("This invitation has expired or has already been used. Ask for a new one.","expired"); return; }
             auto name = data["name"].toString().trimmed().left(50);
             if (name.isEmpty()) { reject("Enter your name to join."); return; }
             auto formerProfiles = share["formerProfiles"].toObject();
@@ -708,6 +708,10 @@ QJsonObject SharedProject::parseInvitation(const QString &code, QString *error) 
     const auto text = code.trimmed();
     const bool internet = text.startsWith("centaur2:");
     auto data = (text.startsWith("centaur1:") || internet) && text.size() < 4096 ? QJsonDocument::fromJson(QByteArray::fromBase64(text.mid(9).toLatin1(), QByteArray::Base64UrlEncoding)).object() : QJsonObject();
+    if (!data.isEmpty() && data["version"].isDouble() && data["version"].toInt() != (internet ? 2 : 1)) {
+        if (error) *error = "This invite code requires another version of Centaur.";
+        return {};
+    }
     const auto id = data["project"].toString();
     const auto pin = data["pin"].toString();
     const auto ip = QHostAddress(data["host"].toString());
@@ -856,7 +860,14 @@ void SharedProject::receive(const QJsonObject &data) {
             finish("sharingEnded"); return;
         }
         m_terminal = true; m_connected = false; m_removed = type == "removed";
-        status(data["message"].toString()); emit error(m_status);
+        const auto message = data["message"].toString();
+        m_joinErrorCode = data["code"].toString();
+        if (m_joinErrorCode.isEmpty()) {
+            if (message.contains("has expired or has already been used")) m_joinErrorCode = "expired";
+            else if (message.contains("incompatible") || message.contains("requires the GTK4 version")) m_joinErrorCode = "version";
+            else m_joinErrorCode = "unavailable";
+        }
+        status(message); emit error(m_status);
         const auto file = path() + "/connection.json";
         if (readObject(file)["memberToken"] == m_connection["memberToken"]) QFile::remove(file);
         m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();

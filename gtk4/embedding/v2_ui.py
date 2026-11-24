@@ -253,6 +253,30 @@ def prompt_field(placeholder):
     return view,overlay
 
 
+class InlineFormError:
+    def __init__(self, footer, field):
+        from attachment_ui import artwork
+        self.field=field
+        self.row=box(spacing=6)
+        self.row.set_hexpand(True)
+        self.row.append(artwork('3361a.svg',16))
+        self.caption=label('', 'form-error-text', True)
+        self.row.append(self.caption)
+        footer.set_halign(Gtk.Align.FILL)
+        footer.set_margin_start(16)
+        footer.prepend(self.row)
+        self.clear()
+
+    def set(self, message, invalid):
+        self.caption.set_text(message)
+        if invalid: self.field.add_css_class('invalid')
+        self.row.set_visible(True)
+
+    def clear(self):
+        self.row.set_visible(False)
+        self.field.remove_css_class('invalid')
+
+
 def cancel_button(owner,dialog,footer,callback=None):
     item=button('Cancel',lambda:(callback() if callback else None,owner.dismiss_dialog(dialog)),tone='plain',width=69)
     footer.append(item); return item

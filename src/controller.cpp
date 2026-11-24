@@ -168,31 +168,58 @@ void Controller::stopSharingProject(const QString &id) {
     route(id, {{"type", "stopSharing"}});
 }
 void Controller::copyInvitation() { QGuiApplication::clipboard()->setText(m_invitationCode); }
+void Controller::joinFailure(const QString &code, const QString &message) {
+    emit joinFailed(code, message);
+    emit error(message);
+}
+void Controller::waitForJoin(SharedProject *project) {
+    const auto id = project->id();
+    m_joinMessage.clear(); m_joiningId = id; refresh();
+    const auto attempt = ++m_joinAttempt;
+    QTimer::singleShot(60000, project, [this,project,id,attempt] {
+        if (m_joinAttempt != attempt || m_joiningId != id || project->connected()) return;
+        // Keep the membership token. The host may have admitted this guest
+        // just before the connection failed, even if its reply was lost.
+        m_joiningId.clear(); refresh();
+        joinFailure("connection","Could not reach the host. Check the connection and try again.");
+    });
+}
 void Controller::joinProject(const QString &code, const QString &name) {
-    if (name.trimmed().isEmpty()) { emit error("Enter your name to join."); return; }
+    if (!m_joiningId.isEmpty()) return;
+    if (name.trimmed().isEmpty()) { joinFailure("name","Enter your name to join."); return; }
     QString error;
     auto connection = SharedProject::parseInvitation(code, &error);
-    if (connection.isEmpty()) { emit this->error(error); return; }
+    if (connection.isEmpty()) { joinFailure(error.contains("version") ? "version" : "invalid",error); return; }
     const auto id = connection["project"].toString();
     if (const auto *existing = m_shared.value(id, nullptr); existing && existing->failed()) {
-        if (!existing->endNotice().isEmpty()) { emit this->error("Respond to the previous sharing notice before rejoining this project."); return; }
+        if (!existing->endNotice().isEmpty()) { joinFailure("unavailable","Respond to the previous sharing notice before rejoining this project."); return; }
         discardShared(id);
     }
     if (const auto *existing = m_shared.value(id, nullptr); existing && existing->leaving()) {
-        emit this->error("Wait for the host to confirm your departure before rejoining."); return;
+        joinFailure("unavailable","Wait for the host to confirm your departure before rejoining."); return;
     }
-    if (m_shared.contains(id)) { openProject(id); emit joined(); return; }
-    if (m_states.contains(id)) { emit this->error("This project is already on this computer."); return; }
+    if (auto *existing = m_shared.value(id)) {
+        if (existing->connected()) { openProject(id); emit joined(); }
+        else waitForJoin(existing);
+        return;
+    }
+    if (m_states.contains(id)) { joinFailure("unavailable","This project is already on this computer."); return; }
     const auto chosenName = name.trimmed().left(50);
     connection["name"] = chosenName;
     connection["displayName"] = chosenName;
     auto *project = new SharedProject(dataRoot(), connection, this);
-    if (!project->save(&error)) { delete project; emit this->error("Could not save the invitation: " + error); return; }
-    m_joinMessage.clear(); m_joiningId = id; addShared(project); project->start();
+    if (!project->save(&error)) { delete project; joinFailure("unavailable","Could not save the invitation: " + error); return; }
+    addShared(project); waitForJoin(project); project->start();
 }
 void Controller::addShared(SharedProject *project) {
     m_shared.insert(project->id(), project);
-    connect(project, &SharedProject::error, this, &Controller::error);
+    connect(project, &SharedProject::error, this, [this,project](const QString &message) {
+        if (project->id() == m_joiningId) {
+            m_joiningId.clear();
+            refresh();
+            joinFailure(project->joinErrorCode(), message);
+        } else emit error(message);
+    });
     connect(project, &SharedProject::annotationRejected, this, &Controller::annotationRejected);
     connect(project, &SharedProject::changed, this, &Controller::refresh);
     refresh();
@@ -305,7 +332,7 @@ void Controller::refresh() {
     m_agentExecutable = m_localSnapshot["agentExecutable"].toString();
     m_busyProject = m_localSnapshot["busyProject"].toString();
     if (!m_projectId.isEmpty() && !m_states.contains(m_projectId)) closeProject();
-    if (!m_joiningId.isEmpty() && m_shared.value(m_joiningId)->failed()) { m_joinMessage = m_shared.value(m_joiningId)->status(); m_joiningId.clear(); }
+
     if (!m_joiningId.isEmpty() && m_shared.value(m_joiningId)->connected()) {
         const auto id = m_joiningId; m_joiningId.clear(); openProject(id); emit joined();
     }

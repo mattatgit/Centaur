@@ -133,8 +133,12 @@ signals:
     void previewStopping();
     void previewOutput(const QByteArray &output);
     void error(const QString &message);
+    void joinFailed(const QString &code, const QString &message);
     void annotationRejected(const QString &id, const QString &message);
 private:
+    quint64 m_joinAttempt = 0;
+    void waitForJoin(SharedProject *project);
+    void joinFailure(const QString &code, const QString &message);
     void receive(const QJsonObject &data);
     void command(QJsonObject data);
     bool route(const QString &id, QJsonObject data);

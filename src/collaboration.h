@@ -100,6 +100,7 @@ public:
     bool busy() const { return m_snapshot["busy"].toBool(); }
     int pendingCount() const { return m_outbox.size(); }
     bool connected() const { return m_connected; }
+    QString joinErrorCode() const { return m_joinErrorCode; }
     bool failed() const { return m_terminal; }
     bool removed() const { return m_removed; }
     bool leaving() const { return m_connection["leaving"].toBool(); }
@@ -113,6 +114,7 @@ signals:
     void error(const QString &message);
     void annotationRejected(const QString &id, const QString &message);
 private:
+    QString m_joinErrorCode = "connection";
     void fetchNextAttachment();
     QJsonObject m_attachmentRequest;
     QSet<QString> m_checkedAttachments;

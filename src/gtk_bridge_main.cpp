@@ -56,7 +56,16 @@ int main(int argc, char **argv) {
     };
     QObject::connect(&controller, &Controller::changed, &app, snapshot);
     QObject::connect(&controller, &Controller::preferencesChanged, &app, snapshot);
-    QObject::connect(&controller, &Controller::error, &app, [](const QString &error) { output({{"type", "error"}, {"message", error}}); });
+    QString reportedJoinError;
+    QObject::connect(&controller, &Controller::error, &app, [&](const QString &error) {
+        if (!reportedJoinError.isEmpty() && reportedJoinError == error) { reportedJoinError.clear(); return; }
+        output({{"type", "error"}, {"message", error}});
+    });
+    QObject::connect(&controller, &Controller::joined, &app, [] { output({{"type","joined"}}); });
+    QObject::connect(&controller, &Controller::joinFailed, &app, [&](const QString &code, const QString &message) {
+        reportedJoinError = message;
+        output({{"type","joinFailed"}, {"code",code}, {"message",message}});
+    });
     const auto rejectAnnotation = [](const QString &id, const QString &message) {
         output({{"type", "annotationRejected"}, {"annotationId", id}, {"message", message}});
     };

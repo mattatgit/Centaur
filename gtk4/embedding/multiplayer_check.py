@@ -70,13 +70,11 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         until(lambda:guest()['form']=='Join a project','Join dialog missing')
         if used_code:
             driver.type(used_code); driver.key('Return')
-            until(lambda:'already been used' in guest()['error'],'Used invitation did not explain rejection')
+            until(lambda:'expired' in guest()['error'],'Used invitation did not explain rejection')
             assert all(p['id']!=pid for p in guest()['projects']), 'Rejected invitation reopened a departed project'
             driver.screenshot(gw,evidence/'used-invitation.png')
-            click(guest,gw,'dismiss-join-error')
-            until(lambda:not guest()['error'],'The invitation error did not dismiss')
-            click(guest,gw,'join-submit')
-            until(lambda:'already been used' in guest()['error'],'Second rejection did not appear')
+            driver.key('Return')
+            assert 'expired' in guest()['error'], 'Unchanged rejected invitation was resubmitted'
             click(guest,gw,'join-code'); driver.key('ctrl+a')
         driver.type(code); driver.key('Return')
         until(lambda:opened(guest) and guest()['status']=='Guest connected','Disposable guest could not join')

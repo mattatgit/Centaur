@@ -235,11 +235,6 @@ class Centaur(Gtk.Application):
         self.targets.update({'projects-empty':self.empty_projects,
                              'projects-empty-illustration':self.empty_projects.clay,
                              'projects-empty-shadow':self.empty_projects.shadow})
-        self.join_progress=label('','small muted',True); self.projects_inner.append(self.join_progress); self.join_progress.set_visible(False)
-        self.join_progress.set_margin_start(40); self.join_progress.set_margin_end(40)
-        self.cancel_join=button('Cancel join',lambda:self.service.send('cancelJoin')); self.cancel_join.set_halign(Gtk.Align.START)
-        self.cancel_join.set_margin_start(40); self.cancel_join.set_margin_bottom(40)
-        self.projects_inner.append(self.cancel_join); self.cancel_join.set_visible(False)
         self.stack.add_named(page,'projects')
 
     def build_systems(self):
@@ -645,6 +640,19 @@ class Centaur(Gtk.Application):
         self.error_toast.set_visible(True)
 
     def receive(self,data):
+        if data.get('type') in ('joined','joinFailed'):
+            if self.active_form and self.active_form is getattr(self,'join_dialog',None):
+                self.join_submitted=False
+                if data['type']=='joined':
+                    self.dismiss_dialog(self.join_dialog)
+                else:
+                    kind=data.get('code')
+                    self.join_invalid=kind in ('invalid','expired','version')
+                    reason='This invite code has expired or was already used' if kind=='expired' else data.get('message','Could not join the project. Please retry.')
+                    self.join_problem.set(reason,self.join_invalid)
+                    self.join_feedback.set_visible(False)
+                    self.update_join()
+            return
         if data.get('type')=='annotationRejected':
             self.pending_strokes.pop(data.get('annotationId'),None)
             self.ink.queue_draw()
@@ -664,8 +672,8 @@ class Centaur(Gtk.Application):
                 self.message_key=None; self.refresh_messages(); self.working_mark.set_working(False); self.update_send()
             self.pending_message=None; self.update_send()
             reason=data.get('message','Could not complete that action.')
-            if self.active_form and self.active_form is getattr(self,'join_dialog',None):
-                self.join_error_text.set_text(reason); self.join_error.set_visible(True)
+            if self.active_form and self.active_form is getattr(self,'join_dialog',None) and data.get('code')=='local_service_disconnected':
+                self.join_submitted=False; self.join_problem.set(reason,False); self.update_join()
             else: self.show_error(reason)
             return
         if data.get('type')=='sent': return
@@ -698,10 +706,7 @@ class Centaur(Gtk.Application):
             if self.comment.clear(pending.get('commentToken')):
                 self.comment_overlay.queue_draw(); self.ink.set_cursor_from_name(None)
         if self.comment.phase!='idle' and self.comment.revision!=self.project.get('revision'): self.cancel_comment()
-        self.join_progress.set_text(data.get('joinStatus','') if data.get('joining') else '')
-        self.join_progress.set_visible(data.get('joining',False))
         if hasattr(self,'join_submit'): self.update_join()
-        self.cancel_join.set_visible(data.get('joining',False))
         self.profile_name.set_text(data.get('author','Your settings'))
         role=data.get('collaborationRole','')
         self.profile_role.set_text(role); self.profile_role.set_visible(bool(role))
@@ -763,7 +768,6 @@ class Centaur(Gtk.Application):
             self.invitation_dialog(invitation)
         if hasattr(self,'join_dialog') and self.join_dialog.get_visible():
             self.join_feedback.set_text(data.get('joinStatus','')); self.join_feedback.set_visible(bool(data.get('joining') and data.get('joinStatus')))
-            if data.get('remote') and data.get('connected'): self.dismiss_dialog(self.join_dialog)
         if data.get('endedShares',[])!=getattr(self,'ended_shares',None):
             self.refresh_ended_shares(data.get('endedShares',[]))
         elif self.ended_shares and not self.active_form and any(n['id'] not in self.reviewed_shares for n in self.ended_shares):
@@ -1151,7 +1155,7 @@ class Centaur(Gtk.Application):
         def escape(c,keyval,keycode,state):
             if keyval==Gdk.KEY_Escape:
                 if hasattr(dialog,'escape_handler') and dialog.escape_handler(): return True
-                if dialog is getattr(self,'join_dialog',None): self.service.send('cancelJoin')
+                if dialog is getattr(self,'join_dialog',None) and self.join_submitted: return True
                 self.dismiss_dialog(dialog); return True
             return False
         key.connect('key-pressed',escape); dialog.add_controller(key)
@@ -1317,19 +1321,20 @@ class Centaur(Gtk.Application):
         invitation,widget=prompt_field('Paste the invite code here'); self.join_code=invitation
         field(content,'Invite code',widget)
         self.join_feedback=label('','small muted',True); self.join_feedback.set_visible(False); content.append(self.join_feedback)
-        self.join_error=box(spacing=8); self.join_error_text=label('','error',True); self.join_error_text.set_hexpand(True)
-        dismiss=button('Dismiss',lambda:self.join_error.set_visible(False),tone='plain')
-        self.join_error.append(self.join_error_text); self.join_error.append(dismiss); self.join_error.set_visible(False)
-        content.append(self.join_error); self.targets['dismiss-join-error']=dismiss
-        cancel_button(self,dialog,footer,lambda:self.service.send('cancelJoin'))
+        from v2_ui import InlineFormError
+        self.join_problem=InlineFormError(footer,widget)
+        self.join_error=self.join_problem.row; self.join_error_text=self.join_problem.caption
+        self.join_cancel=cancel_button(self,dialog,footer)
+        self.join_invalid=False; self.join_submitted=False
         def done():
-            buf=invitation.get_buffer(); code=buf.get_text(buf.get_start_iter(),buf.get_end_iter(),False)
-            name=self.data.get('author','').strip()
-            if name and code.strip() and not self.data.get('joining'):
-                self.join_error.set_visible(False)
-                self.service.send('join',name=name,code=code)
+            if not self.join_submit.get_sensitive(): return
+            buf=invitation.get_buffer(); code=buf.get_text(*buf.get_bounds(),False)
+            self.join_problem.clear(); self.join_submitted=True; self.update_join()
+            self.service.send('join',name=self.data['author'],code=code)
+        def edited(_):
+            self.join_invalid=False; self.join_problem.clear(); self.update_join()
         self.join_submit=button('Join project',done,tone='dark',width=94); footer.append(self.join_submit)
-        invitation.get_buffer().connect('changed',lambda b:self.update_join()); self.update_join()
+        invitation.get_buffer().connect('changed',edited); self.update_join()
         self.targets.update({'join-code':invitation,'join-submit':self.join_submit})
         key=Gtk.EventControllerKey(); key.set_propagation_phase(Gtk.PropagationPhase.CAPTURE)
         key.connect('key-pressed',lambda c,k,code,state:(done(),True)[1] if k in (Gdk.KEY_Return,Gdk.KEY_KP_Enter) and not state&Gdk.ModifierType.SHIFT_MASK else False)
@@ -1356,9 +1361,9 @@ class Centaur(Gtk.Application):
         self.service.send('invite',address='iroh')
 
     def update_join(self):
-        joining=self.data.get('joining',False); self.join_code.set_sensitive(not joining)
+        joining=self.join_submitted; self.join_code.set_sensitive(not joining); self.join_cancel.set_sensitive(not joining)
         buffer=self.join_code.get_buffer(); text=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
-        self.join_submit.set_sensitive(not joining and bool(self.data.get('author','').strip()) and bool(text.strip()))
+        self.join_submit.set_sensitive(not joining and not self.join_invalid and bool(self.data.get('author','').strip()) and bool(text.strip()))
         button_text(self.join_submit,'Connecting…' if joining else 'Join project')
 
     @staticmethod
@@ -1582,9 +1587,7 @@ class Centaur(Gtk.Application):
         self.profile_text.set_visible(not compact)
         inset=24 if self.stack.get_width()<720 else 40
         margins(self.cards,inset)
-        self.join_progress.set_margin_start(inset); self.join_progress.set_margin_end(inset)
         self.sharing_notices.set_margin_start(inset); self.sharing_notices.set_margin_end(inset)
-        self.cancel_join.set_margin_start(inset); self.cancel_join.set_margin_bottom(inset)
         setting_margin=24 if self.stack.get_width()<648 else 72
         margins(self.settings_inner,setting_margin); self.settings_inner.set_margin_top(48)
         self.settings_limit.maximum=504+2*setting_margin
