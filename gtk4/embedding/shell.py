@@ -1651,8 +1651,8 @@ class Centaur(Gtk.Application):
                             while child:
                                 if child.get_mapped(): pending.append(child)
                                 child=child.get_next_sibling()
-                            if not isinstance(widget,Gtk.Label): continue
-                            name=widget.get_text()
+                            if not isinstance(widget,(Gtk.Inscription,Gtk.Label)): continue
+                            name=widget.get_text() or ''
                             if not name.lower().endswith(('.png','.jpg','.jpeg','.webp')): continue
                             visible,rect=widget.compute_bounds(chooser)
                             if visible and rect.get_width()>0:

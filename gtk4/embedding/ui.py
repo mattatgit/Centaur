@@ -284,7 +284,7 @@ class Composer(Gtk.Widget):
 
     def set_attachments(self, flow):
         self.flow=flow
-        self.tray=Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,vscrollbar_policy=Gtk.PolicyType.AUTOMATIC)
+        self.tray=Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER,vscrollbar_policy=Gtk.PolicyType.EXTERNAL)
         self.tray.set_child(flow)
         self.tray.set_parent(self)
         self.tray.set_visible(False)
@@ -315,7 +315,14 @@ class Composer(Gtk.Widget):
 
     def do_size_allocate(self, width, height, baseline):
         extra=min(self.tray_size(width),max(0,height-112))
-        if extra: allocate(self.tray,width-16,max(1,extra-8),8,8)
+        if extra:
+            tray_height=max(1,extra-8)
+            natural=self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-16))[1]
+            # A fitting chip row is shorter than a native scrollbar. Request
+            # the bar only when the allocated tray actually needs to scroll.
+            policy=Gtk.PolicyType.AUTOMATIC if natural>tray_height and tray_height>=36 else Gtk.PolicyType.EXTERNAL
+            if self.tray.get_policy()[1]!=policy: self.tray.set_policy(Gtk.PolicyType.NEVER,policy)
+            allocate(self.tray,width-16,tray_height,8,8)
         allocate(self.area, width - 32, height - 56-extra, 16, 16+extra)
         allocate(self.row, width - 16, 32, 8, height - 40)
 
