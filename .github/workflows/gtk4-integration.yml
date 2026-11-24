@@ -2,7 +2,7 @@ name: GTK4 Centaur integration
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'codex/composer-collaboration']
     paths:
       - 'src/**'
       - 'gtk4/**'
