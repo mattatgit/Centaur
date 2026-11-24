@@ -32,8 +32,7 @@ def download_counter(folder,manifest):
     path,info=min(leaves,key=lambda pair:pair[1]['downloadSize'])
     updates=[]
     tracker=DownloadProgress(CACHE,download_plan(CACHE,{path:info},{}),lambda done,total:updates.append([done,total]))
-    runtime.copy_with_progress(['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',CACHE,
-                               '--to',str(work/'empty-store'),'--extra-trusted-public-keys',KEY,path],tracker)
+    runtime.transfer(CACHE,path,tracker,work/'empty-store')
     assert updates[0]==[0,info['downloadSize']] and updates[-1]==[info['downloadSize']]*2,updates
     assert any(done>0 for done,total in updates),'Real Nix transfer reported no payload bytes'
     (work/'progress.json').write_text(json.dumps({'storePath':path,'updates':updates},indent=2))

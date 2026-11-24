@@ -17,6 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
+from cache_transfer import measured_cache
 from download_progress import DownloadProgress, download_plan, path_info, progress_message
 
 CACHE = 'https://mattatgit-centaur.cachix.org'
@@ -159,6 +160,18 @@ class Runtime:
         except subprocess.TimeoutExpired: raise UpdateError('The download took too long. Your installed version is preserved; try again later.') from None
         except OSError: raise UpdateError('Could not download the update. Your installed version is preserved.') from None
 
+    def transfer(self,cache,path,tracker, destination=None):
+        # The cache wrapper measures the actual bytes. Keep subprocess logging
+        # separate so internal-json cannot double count the same transfer.
+        class Diagnostics:
+            def feed(self,line): pass
+            def tick(self): pass
+            def flush(self): pass
+        with measured_cache(cache,tracker) as source:
+            args=['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',source]
+            if destination: args.extend(['--to',str(destination)])
+            self.copy_with_progress(args+['--extra-trusted-public-keys',KEY,path],Diagnostics())
+
     def download(self,manifest,progress=None,verifying=None):
         path=manifest['storePath']
         plan=None
@@ -170,8 +183,7 @@ class Runtime:
             plan=download_plan(CACHE,remote,local)
         except (UpdateError,ValueError,KeyError,TypeError): pass
         tracker=DownloadProgress(CACHE,plan,progress or (lambda done,total:None))
-        self.copy_with_progress(['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',CACHE,
-                                 '--extra-trusted-public-keys',KEY,path],tracker)
+        self.transfer(CACHE,path,tracker)
         if verifying: verifying()
         self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
         # Existing dependencies may only have nixos.org signatures locally.

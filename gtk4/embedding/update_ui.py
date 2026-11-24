@@ -87,7 +87,7 @@ class UpdateControls:
         return False
 
     def set_sensitive(self,value):
-        self.button.set_sensitive(value); self.footer_button.set_sensitive(bool(value and self.manifest))
+        self.button.set_sensitive(value); self.footer_button.set_sensitive(bool(value))
 
     def reset_footer_action(self):
         focus=self.owner.window.get_focus()
@@ -109,9 +109,9 @@ class UpdateControls:
         self.footer_labels.set_visible_child_name(name)
         self.owner.targets['update-caption']=self.footer_labels.get_visible_child()
         self.refresh_footer_status()
-        accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'No update available'}[name],
+        accessible(self.footer_button,{'available':'Update available','updating':'Updating Centaur','complete':'Update complete','disabled':'Check for updates'}[name],
                    'Installed version '+compact_version(self.owner.version()))
-        self.footer_button.set_sensitive(name=='available' and not self.checking)
+        self.footer_button.set_sensitive(name in ('available','disabled') and not self.checking)
         accessible(self.button,'Update app' if self.manifest else 'Check for updates')
         button_text(self.button,'Update app' if self.manifest else 'Check for updates')
 

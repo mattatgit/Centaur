@@ -57,10 +57,13 @@ def check_footer(driver,folder):
     try:
         wait(window.get_mapped,'Updater fixture did not map');handle=driver.find_window('org.centaur.Gtk4',os.getpid());settle()
         stable=[bounds(controls.footer_button),bounds(controls.footer_version)]
-        assert bounds(controls.icon)[2:]==[16,16] and not controls.footer_button.get_sensitive()
+        assert bounds(controls.icon)[2:]==[16,16] and controls.footer_button.get_sensitive()
         assert controls.icon.state=='disabled' and controls.footer_version.get_text()=='V0.4 4451f19'
         assert controls.version.get_text()=='Centaur V0.4 4451f19'
-        photo('disabled');click(controls.footer_button);assert owner.active_form is None and not controls.work
+        photo('disabled')
+        with patch('update_ui.check_update',return_value=None) as discover:
+            click(controls.footer_button); wait(lambda:not controls.checking,'Footer discovery did not finish')
+            assert discover.call_count == 1 and owner.active_form is None and not controls.work
         evidence['checks'].append('original-disabled-16px-download-art-and-static-right-version-chip')
         # A late background discovery result must not move the user's focus.
         entry.grab_focus();settle();focus=window.get_focus()
@@ -95,7 +98,7 @@ def check_footer(driver,folder):
             write_json(work/'status.json',{'phase':'downloading','message':'Downloaded 0.0 of 16.5 MB',
                                           'downloadBytes':downloaded,'totalBytes':16_500_000})
             controls.tick();settle(.06)
-            expected=f'Downloaded {downloaded/1_000_000:.1f} of 16.5 MB'
+            expected=f'Downloaded {downloaded/1_000_000:.1f} of 16.5 MB' if downloaded else 'Preparing to download 16.5 MB…'
             assert controls.status.get_text()==controls.footer_status.get_text()==expected
         evidence['checks'].append('footer-and-settings-use-advancing-byte-count-even-with-stale-status-text')
         for phase in ('starting','downloading','verifying','ready'):

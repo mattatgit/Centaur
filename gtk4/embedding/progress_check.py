@@ -59,11 +59,9 @@ def check_progress(driver,folder,path,info):
     plan=download_plan(cache,{path:dict(info,url='nar/progress.nar',downloadSize=len(payload))},{})
     runtime=Runtime(folder); transaction=Transaction(folder,runtime)
     tracker=DownloadProgress(cache,plan,transaction.download_progress)
-    args=['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',cache,'--to',str(folder/'empty-store'),
-          '--extra-trusted-public-keys',KEY,path]
     errors=[]
     def copy():
-        try: runtime.copy_with_progress(args,tracker,timeout=30)
+        try: runtime.transfer(cache,path,tracker,folder/'empty-store')
         except Exception as error: errors.append(error)
     worker=threading.Thread(target=copy,daemon=True)
     Gtk.init()

@@ -29,6 +29,9 @@ def download_plan(cache,remote,local):
 
 
 def progress_message(done,total):
+    if not done:
+        if total == 0: return 'Checking files already on this device…'
+        return 'Waiting for download…' if total is None else f'Preparing to download {total/1_000_000:.1f} MB…'
     if total is None: return f'Downloaded {done/1_000_000:.1f} MB'
     return f'Downloaded {done/1_000_000:.1f} of {total/1_000_000:.1f} MB'
 
@@ -79,6 +82,12 @@ class DownloadProgress:
             elif event.get('action')=='stop': self.activities.pop(activity,None)
         except (ValueError,KeyError,TypeError,IndexError):
             pass  # Unknown diagnostics must never prevent an otherwise valid update.
+
+    def record(self,url,done):
+        url=self.url_key(url)
+        if self.plan is not None and (url not in self.plan or done>self.plan[url]): self.unplanned=True
+        self.received[url]=max(done,self.received.get(url,0))
+        self.tick()
 
     def tick(self):
         if time.monotonic()-self.last_time>=.2: self.flush()
