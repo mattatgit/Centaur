@@ -91,7 +91,7 @@ jobs:
           nix build --no-link .#gtk4-preview.dbusForTests
           nix build .#gtk4-preview.waylandTestSeat -o result-test-seat
           dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
-          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
+          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git nixpkgs#wl-clipboard \
             -c dbus-run-session --config-file="$dbus_config" -- \
             timeout 720s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-integration-evidence" result-test-seat/bin/centaur-test-seat
       - name: Save native screenshots, reports and limitations
@@ -132,7 +132,7 @@ jobs:
           export CENTAUR_UPDATER_PREVIOUS
           export CENTAUR_UPDATER_MANIFEST="$RUNNER_TEMP/gtk4-distribution/metadata/manifest.json"
           dbus_config=$(nix eval --raw .#gtk4-preview.dbusConfig)
-          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git \
+          nix shell --inputs-from . nixpkgs#sway nixpkgs#grim nixpkgs#dbus nixpkgs#git nixpkgs#wl-clipboard \
             -c dbus-run-session --config-file="$dbus_config" -- \
             timeout 300s bash scripts/check-gtk4-wayland.sh result-gtk4 "$RUNNER_TEMP/gtk4-update-evidence" result-test-seat/bin/centaur-test-seat
       - name: Relaunch the updated profile in the same GNOME Shell session

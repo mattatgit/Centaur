@@ -2,32 +2,26 @@
 from contextlib import contextmanager
 from hashlib import sha256
 import subprocess
-import sys
 import time
 from check import until
 
 
 @contextmanager
 def clipboard(kind, value):
-    # A real Wayland selection owner. Its event loop serves the receiving
-    # process even while the native-input driver is waiting for a frame.
-    code = """
-import sys, gi
-gi.require_version('Gtk','4.0')
-from gi.repository import Gtk,Gdk,GLib
-Gtk.init()
-clip=Gdk.Display.get_default().get_clipboard()
-value=Gdk.Texture.new_from_filename(sys.argv[2]) if sys.argv[1]=='image' else sys.argv[2]
-clip.set_content(Gdk.ContentProvider.new_for_value(value))
-Gdk.Display.get_default().flush()
-print('ready',flush=True)
-GLib.MainLoop().run()
-"""
-    with subprocess.Popen([sys.executable,'-c',code,kind,str(value)],stdout=subprocess.PIPE,text=True) as child:
-        try:
-            if child.stdout.readline().strip()!='ready': raise AssertionError('Clipboard setup failed')
-            yield
-        finally: child.terminate(); child.wait(timeout=5)
+    mime='image/png' if kind=='image' else 'text/plain;charset=utf-8'
+    data=value.read_bytes() if kind=='image' else value.encode('utf-8')
+    # wl-copy owns the actual compositor selection. A display connection
+    # without a focused Wayland surface cannot claim it with Gdk.Clipboard.
+    child=subprocess.Popen(['wl-copy','--foreground','--type',mime],stdin=subprocess.PIPE)
+    try:
+        child.stdin.write(data); child.stdin.close()
+        def available():
+            types=subprocess.run(['wl-paste','--list-types'],capture_output=True,text=True,timeout=3)
+            return types.returncode==0 and mime in types.stdout.splitlines()
+        until(available,'Fixture did not own the Wayland clipboard')
+        yield
+    finally:
+        child.terminate(); child.wait(timeout=4)
 
 
 def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root):
