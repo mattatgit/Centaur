@@ -45,7 +45,7 @@ def measured_cache(cache, progress):
             source = archive or urljoin(cache + '/',key)
             response_started = False
             try:
-                request = urllib.request.Request(source,headers={'Accept-Encoding':'identity'},method='HEAD' if archive and not body else 'GET')
+                request = urllib.request.Request(source,headers={'Accept-Encoding':'identity','User-Agent':'Centaur GTK4 updater'},method='HEAD' if archive and not body else 'GET')
                 with urllib.request.urlopen(request,timeout=25) as response:
                     if archive:
                         self.send_response(200)
@@ -82,7 +82,10 @@ def measured_cache(cache, progress):
                 if not response_started: self.send_error(502)
 
     server=http.server.ThreadingHTTPServer(('127.0.0.1',0),Handler)
-    thread=threading.Thread(target=server.serve_forever,daemon=True)
+    def heartbeat():
+        with lock: progress.tick()
+    server.service_actions=heartbeat
+    thread=threading.Thread(target=server.serve_forever,args=(.2,),daemon=True)
     thread.start()
     try:
         yield f'http://127.0.0.1:{server.server_port}'+prefix.rstrip('/')

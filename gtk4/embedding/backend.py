@@ -43,7 +43,8 @@ class CasildaBackend:
     def start(self, spec, runtime, report):
         if self.process is not None:
             raise RuntimeError('Stop the previous preview before starting another')
-        env = dict(os.environ)
+        env = {key:value for key,value in os.environ.items()
+               if not key.startswith('FIGMA_') and key != 'CREDENTIALS_DIRECTORY'}
         for key in ('DISPLAY', 'WAYLAND_DISPLAY', 'WAYLAND_SOCKET'):
             env.pop(key, None)
         env.update(GDK_BACKEND='wayland', GTK_A11Y='none')

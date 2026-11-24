@@ -365,10 +365,11 @@ void Session::publish(const QString &id) {
 }
 
 void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind,
-                         const QJsonObject &comment, const QString &participant, const QString &conflictId, const QJsonArray &attachments) {
+                         const QJsonObject &comment, const QString &participant, const QString &conflictId, const QJsonArray &attachments, const QString &clientId) {
     auto messages = state["messages"].toArray();
     QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
+    if (!QUuid(clientId).isNull()) message["clientId"]=QUuid(clientId).toString(QUuid::WithoutBraces);
     if (!attachments.isEmpty()) message["attachments"]=attachments;
     if (!comment.isEmpty()) message["comment"] = comment;
     if (!participant.isEmpty()) {
@@ -540,7 +541,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             }
             comment = {{"point", cleanPoint}, {"frame", cleanFrame}, {"revision", state["revision"]}};
         }
-        addMessage(state, author, text, "human", comment, participant, {},attachments);
+        addMessage(state, author, text, "human", comment, participant, {},attachments,command["clientId"].toString());
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;

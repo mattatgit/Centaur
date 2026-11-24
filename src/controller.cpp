@@ -385,8 +385,8 @@ void Controller::renameProject(const QString &id, const QString &name) {
 void Controller::deleteProject(const QString &id) {
     route(id, {{"type", "delete"}});
 }
-bool Controller::sendMessage(const QString &text, const QString &image, int imageRevision, const QJsonObject &comment, const QJsonArray &attachments) {
-    return route(m_projectId, {{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}, {"comment", comment}, {"attachments", attachments}});
+bool Controller::sendMessage(const QString &text, const QString &image, int imageRevision, const QJsonObject &comment, const QJsonArray &attachments, const QString &clientId) {
+    return route(m_projectId, {{"type", "message"}, {"text", text}, {"image", image}, {"imageRevision", imageRevision}, {"comment", comment}, {"attachments", attachments}, {"clientId",clientId}});
 }
 void Controller::addAnnotation(const QVariantMap &annotation) { command({{"type", "annotation"}, {"annotation", QJsonObject::fromVariantMap(annotation)}}); }
 bool Controller::submitAnnotation(const QJsonObject &annotation, int revision) {

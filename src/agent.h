@@ -12,7 +12,7 @@
 class Agent : public QObject {
     Q_OBJECT
 public:
-    explicit Agent(QObject *parent = nullptr, int deadlineMs = 180000);
+    explicit Agent(QObject *parent = nullptr, int deadlineMs = 180000, QString designSocket = "/run/centaur-figma.sock");
     ~Agent() override;
     bool available() const;
     QString executable() const;
@@ -37,6 +37,7 @@ private:
     void prepareVisuals(const QString &project, QJsonObject state, const QString &source, const QString &canvas);
     void startPrepared(const QString &projectPath, const QJsonObject &state, const QString &source, const QStringList &images);
     void closeDesignSocket();
+    QString m_designSocketPath;
     QLocalSocket *m_designSocket = nullptr;
     std::unique_ptr<QTemporaryDir> m_visualDir;
     void readOutput();

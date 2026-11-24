@@ -116,6 +116,9 @@
             '';
           };
         in { default = centaur; } // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          composer-peer-check = pkgs.writeShellScriptBin "composer-peer-check" ''
+            exec ${self.packages.${system}.gtk4-preview}/bin/centaur-gtk4-integration-check --composer-peer "$@"
+          '';
           landline-test-client = landline.packages.${system}.default;
           landline-embedding-test = pkgs.symlinkJoin {
             name = "centaur-landline-embedding-test";

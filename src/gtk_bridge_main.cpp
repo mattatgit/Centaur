@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
                     !Attachments::prepare(path, command["attachments"], attachments, reason, nullptr, nullptr, parser.value("draft-dir")))) {
                     output({{"type","error"}, {"message",reason.isEmpty() ? QString("The active project changed. Your draft was kept.") : reason}});
                 } else if (controller.sendMessage(command["text"].toString(), command["image"].toString(),
-                               command["imageRevision"].toInt(), command["comment"].toObject(), attachments)) {
+                               command["imageRevision"].toInt(), command["comment"].toObject(), attachments, command["clientId"].toString())) {
                     output({{"type","sent"}, {"text",command["text"]}});
                 }
             }

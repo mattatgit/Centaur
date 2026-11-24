@@ -43,6 +43,9 @@ class Checks(list):
 
 
 def main():
+    if len(sys.argv)==3 and sys.argv[1]=="--composer-peer":
+        from composer_peer_check import run
+        return run(sys.argv[2])
     if len(sys.argv)==3 and sys.argv[1]=='--gnome-chat-avatars':
         from gnome_chat_check import check
         check(Path(sys.argv[2]))

@@ -26,7 +26,7 @@ def icon_button(title, child, callback, style):
 
 
 def chip(ref, activate, remove=None):
-    row = box(spacing=6, css='figma-chip')
+    row = box(spacing=8, css='figma-chip')
     row.append(artwork('538c8.svg',16))
     title = label(ref.get('name') or 'Figma design','chip-title')
     title.set_ellipsize(Pango.EllipsizeMode.END)
@@ -278,10 +278,13 @@ class ComposerInput:
     def refresh(self):
         while self.flow.get_first_child():
             self.flow.remove(self.flow.get_first_child())
+        for key in list(self.owner.targets):
+            if key.startswith('remove-reference-'): del self.owner.targets[key]
         for i,r in enumerate(self.refs):
             remove = lambda i=i:self.remove(i)
             child = chip(r,False,remove) if r['type']=='figma' else thumbnail(self.directory/image_filename(r),remove)
             self.flow.insert(child,-1)
+            self.owner.targets['remove-reference-'+str(i)]=child.get_last_child()
         self.owner.composer.tray.set_visible(bool(self.refs))
         self.owner.composer.queue_resize()
         self.owner.update_send()
@@ -328,6 +331,7 @@ def conversation_references(owner, message, author, card):
                         close.connect('clicked',lambda _:owner.dismiss_dialog(dialog))
                         column.append(close); dialog.present(close)
                     view = icon_button('Inspect image uploaded by '+author,visual,inspect,'uploaded-image')
+                    view.set_overflow(Gtk.Overflow.HIDDEN)
                     view.set_halign(Gtk.Align.START)
                     wrapper.append(view)
                 except GLib.Error:

@@ -1,6 +1,9 @@
 #include "workspace.h"
 #include "session.h"
 #include "agent.h"
+#include "attachments.h"
+#include <QLocalServer>
+#include <QBuffer>
 #include "inkitem.h"
 #include "controller.h"
 #include "typography.h"
@@ -69,6 +72,58 @@ private:
 class CoreTests : public QObject {
     Q_OBJECT
 private slots:
+    void hostAgentReceivesCanvasImageAndReadOnlyDesign() {
+        QTemporaryDir root;
+        Workspace workspace(root.path()); QString error;
+        const auto id=workspace.createProject("Design input","",&error);
+        const auto path=workspace.projectPath(id);
+        QImage fixture(24,32,QImage::Format_RGB32); fixture.fill(Qt::green);
+        QBuffer buffer; QVERIFY(buffer.open(QIODevice::WriteOnly)); QVERIFY(fixture.save(&buffer,"PNG"));
+        const auto bytes=buffer.data();
+        const auto hash=QString::fromLatin1(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex());
+        const QJsonObject image{{"type","image"},{"hash",hash},{"format","png"}};
+        QVERIFY(Attachments::store(path,image,bytes));
+        const auto canvas=root.filePath("canvas.png"); QVERIFY(Workspace::writeFile(canvas,bytes));
+        QLocalServer reader;
+        QVERIFY(reader.listen(root.filePath("reader")));
+        QJsonObject query;
+        connect(&reader,&QLocalServer::newConnection,this,[&] {
+            auto *socket=reader.nextPendingConnection();
+            connect(socket,&QLocalSocket::readyRead,socket,[&,socket] {
+                if (!socket->canReadLine()) return;
+                query=QJsonDocument::fromJson(socket->readLine()).object();
+                const QJsonObject design{{"name","Fixture"},{"selectedNode","3:4"},{"png",QString::fromLatin1(bytes.toBase64())}};
+                socket->write(QJsonDocument(QJsonObject{{"results",QJsonArray{design}}}).toJson(QJsonDocument::Compact)+'\n');
+            });
+        });
+        const auto executable=root.filePath("agent");
+        const QByteArray check=R"(count=0
+for arg in "$@"; do
+  case "$arg" in
+    @*.png) test -s "${arg#@}" || exit 4
+            count=$((count+1));;
+    @*.txt) grep -q 'Fixture' "${arg#@}" || exit 5;;
+  esac
+done
+test "$count" = 3 || exit 6
+)";
+        QVERIFY(writeAgentReply(executable,{{"kind","question"},{"message","Reviewed references"}},check));
+        AgentOverride agentEnvironment(executable);
+        Agent agent(nullptr,5000,reader.fullServerName());
+        QSignalSpy done(&agent,&Agent::completed), failed(&agent,&Agent::failed);
+        auto state=workspace.load(id);
+        const QString url="https://www.figma.com/design/FILE/Design?node-id=3-4";
+        state["visualReferences"]=QJsonArray{image,QJsonObject{{"type","figma"},{"url",url}}};
+        agent.ask(path,state,workspace.source(id),canvas);
+        QTRY_VERIFY_WITH_TIMEOUT(!done.isEmpty() || !failed.isEmpty(),6000);
+        QVERIFY2(failed.isEmpty(),failed.isEmpty() ? "" : qPrintable(failed.first().first().toString()));
+        QCOMPARE(query["urls"].toArray(),QJsonArray{url}); QCOMPARE(query["project"].toString(),id);
+        state["visualReferences"]=QJsonArray{QJsonObject{{"type","image"},{"hash",QString(64,'a')},{"format","png"}}};
+        agent.ask(path,state,workspace.source(id),canvas);
+        QCOMPARE(failed.size(),1);
+        QCOMPARE(agent.diagnostics()["code"].toString(),QString("reference_unavailable"));
+    }
+
     void initTestCase() { Q_INIT_RESOURCE(starter); }
     void importedProjectsHaveNoStarterAndRecoverInterruptedAcquisition() {
         QTemporaryDir directory; Workspace workspace(directory.path()); QString error;

@@ -20,7 +20,7 @@
 #include <unistd.h>
 #endif
 
-Agent::Agent(QObject *parent, int deadlineMs) : QObject(parent), m_deadlineMs(std::clamp(deadlineMs,1,180000)) {
+Agent::Agent(QObject *parent, int deadlineMs, QString designSocket) : QObject(parent), m_designSocketPath(std::move(designSocket)), m_deadlineMs(std::clamp(deadlineMs,1,180000)) {
     m_timeout.setSingleShot(true);
     m_timeout.setTimerType(Qt::PreciseTimer);
     m_timeout.setInterval(m_deadlineMs);
@@ -482,7 +482,7 @@ void Agent::prepareVisuals(const QString &project, QJsonObject state, const QStr
         closeDesignSocket();
         startPrepared(project,state,source,images);
     });
-    socket->connectToServer("/run/centaur-figma.sock");
+    socket->connectToServer(m_designSocketPath);
 }
 
 void Agent::startPrepared(const QString &projectPath,const QJsonObject &state,const QString &source,const QStringList &images) {
@@ -656,6 +656,10 @@ void Agent::startPrepared(const QString &projectPath,const QJsonObject &state,co
     // omp reads non-terminal stdin to EOF before processing the argv prompt.
     // All input is in args/attachments; an open QProcess pipe would stall startup.
     m_process.setStandardInputFile(QProcess::nullDevice());
+    auto environment=QProcessEnvironment::systemEnvironment();
+    for (const auto &key:environment.keys())
+        if (key.startsWith("FIGMA_") || key=="CREDENTIALS_DIRECTORY") environment.remove(key);
+    m_process.setProcessEnvironment(environment);
     m_process.start(executable(), args);
     m_timeout.start();
 }
