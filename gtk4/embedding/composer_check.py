@@ -49,6 +49,8 @@ def drop_files(driver, state, window, paths):
 
 
 def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root):
+    from check import target
+    from workspace_polish_check import move_over
     pid=host()['project']['id']
     name=host()['project']['agentName']
     click(host,hw,'editor')
@@ -69,6 +71,22 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         until(lambda:host()['draft']['attachments']==['figma','image'],'Clipboard image was not attached')
     driver.screenshot(hw,evidence/'composer-mixed.png')
     assert host()['draft']['bytes']==0 and host()['draft']['canSend']
+    click(host,hw,'editor')
+    for _ in range(12):
+        previous=host()['focusSequence']
+        driver.key('Tab')
+        until(lambda:host()['focusSequence']>previous,'Native keyboard focus did not move')
+        if 'attach' in host()['focusedTargets']: break
+    assert 'attach' in host()['focusedTargets'],'The attach button was unreachable by keyboard'
+    driver.screenshot(hw,evidence/'composer-keyboard-focus.png')
+    move_over(driver,hw,target(host,'remove-reference-1'))
+    driver.screenshot(hw,evidence/'composer-remove-hover.png')
+    old_size=host()['windowSize']
+    driver.resize(hw,376,old_size[1])
+    until(lambda:host()['layout']['chatWidth']<400 and host()['draft']['canSend'],'Narrow composer did not settle')
+    driver.screenshot(hw,evidence/'composer-narrow.png')
+    driver.resize(hw,*old_size)
+    until(lambda:host()['windowSize']==old_size,'Could not restore the workspace after the narrow check')
     click(host,hw,'send')
     def received(state):
         return next((m for m in reversed(state()['project']['messages']) if len(m.get('attachments',[]))==2 and
@@ -81,7 +99,6 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         path=directory/pid/'.centaur'/'attachments'/filename
         until(lambda:path.is_file() and sha256(path.read_bytes()).hexdigest()==ref['hash'],'Image content failed verification')
     until(lambda:not host()['draft']['attachments'],'Confirmed message stayed in composer')
-    from check import target
     image_control='inspect-image-'+sent['id']+'-0'
     image_box=target(guest,image_control)
     assert 1<=image_box[2]<=232 and 1<=image_box[3]<=232, image_box

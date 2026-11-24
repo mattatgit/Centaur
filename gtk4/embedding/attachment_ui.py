@@ -431,6 +431,8 @@ def conversation_references(owner, message, author, card):
                 wrapper.append(label(notice,'muted',True))
             wrapper.append(label(author+' uploaded this image','upload-attribution',True))
     if message.get('text'):
+        if any(ref.get('type')=='image' for ref in message.get('attachments',[])):
+            card.set_margin_top(16)
         wrapper.append(card)
         wrapper.pointer_anchor = card
     return wrapper
