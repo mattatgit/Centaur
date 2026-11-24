@@ -1,6 +1,7 @@
 // Temporary non-visual bridge: retain the existing coordinator/network/OMP
 // implementation while the frontend and generated apps move to GTK4.
 #include "controller.h"
+#include "attachments.h"
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QSocketNotifier>
@@ -22,7 +23,7 @@ int main(int argc, char **argv) {
     app.setApplicationName("centaur-gtk4-bridge");
     Q_INIT_RESOURCE(starter);
     QCommandLineParser parser; parser.addHelpOption();
-    parser.addOption({"data-dir", "Project data directory", "path"}); parser.process(app);
+    parser.addOption({"data-dir", "Project data directory", "path"}); parser.addOption({"draft-dir", "Private composer staging directory", "path"}); parser.process(app);
     if (parser.value("data-dir").isEmpty()) return 2;
     Controller controller(QDir(parser.value("data-dir")).absolutePath());
     auto snapshot = [&] {
@@ -80,7 +81,18 @@ int main(int argc, char **argv) {
             else if (type == "close") controller.closeProject();
             else if (type == "author") controller.setAuthor(command["name"].toString());
             else if (type == "agentDefaults") settingsValid = controller.setAgentDefaults(command);
-            else if (type == "message") { if (controller.sendMessage(command["text"].toString(), command["image"].toString(), command["imageRevision"].toInt(), command["comment"].toObject())) output({{"type", "sent"}, {"text", command["text"]}}); }
+            else if (type == "message") {
+                QJsonArray attachments;
+                QString reason;
+                const auto path = controller.dataRoot() + (controller.remoteProject() ? "/shared/" : "/projects/") + controller.projectId();
+                if (command.contains("attachments") && (id.isEmpty() || id != controller.projectId() ||
+                    !Attachments::prepare(path, command["attachments"], attachments, reason, nullptr, nullptr, parser.value("draft-dir")))) {
+                    output({{"type","error"}, {"message",reason.isEmpty() ? QString("The active project changed. Your draft was kept.") : reason}});
+                } else if (controller.sendMessage(command["text"].toString(), command["image"].toString(),
+                               command["imageRevision"].toInt(), command["comment"].toObject(), attachments)) {
+                    output({{"type","sent"}, {"text",command["text"]}});
+                }
+            }
             else if (type == "rename") controller.renameProject(id, command["name"].toString());
             else if (type == "delete") controller.deleteProject(id);
             else if (type == "archive") controller.archiveProject(id);

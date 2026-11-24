@@ -1,4 +1,5 @@
 #include "workspace.h"
+#include "attachments.h"
 #include <QDir>
 #include <QCryptographicHash>
 #include <QFile>
@@ -184,6 +185,15 @@ bool Workspace::resolveEndedShare(const QString &id, bool retain, QString *copyI
                 decisions.append(decision);
             }
             state["decisions"] = decisions;
+            for (const auto &message : original["messages"].toArray()) {
+                for (const auto &value : message.toObject()["attachments"].toArray()) {
+                    const auto ref=value.toObject();
+                    if (ref["type"]=="image" && !Attachments::store(path,ref,Attachments::read(m_root+"/shared/"+id,ref))) {
+                        *error="A shared image is unavailable. The saved conversation has been kept for retry.";
+                        return false;
+                    }
+                }
+            }
             QByteArray conversation;
             for (const auto &item : state["messages"].toArray()) conversation += QJsonDocument(item.toObject()).toJson(QJsonDocument::Compact) + '\n';
             const auto filename = sourceName(state);

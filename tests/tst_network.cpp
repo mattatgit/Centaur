@@ -1,5 +1,9 @@
 #include <QUuid>
 #include "controller.h"
+#include "attachments.h"
+#include <QBuffer>
+#include <QImage>
+#include <QCryptographicHash>
 #include "collaboration.h"
 #include <QtTest>
 #include <QTemporaryDir>
@@ -49,6 +53,41 @@ struct Probe {
 class NetworkTests : public QObject {
     Q_OBJECT
 private slots:
+    void mixedAttachmentsTravelBothWays() {
+        QTemporaryDir hostRoot, guestRoot;
+        Controller host(hostRoot.path());
+        host.start(); host.setAuthor("Host"); host.createProject("Visual references", "");
+        const auto id = host.projectId();
+        host.invitePeople("127.0.0.1");
+        Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(), "Guest");
+        QTRY_COMPARE(guest.projectId(), id);
+        const auto hostPath = hostRoot.filePath("projects/" + id);
+        const auto guestPath = guestRoot.filePath("shared/" + id);
+        const QJsonObject link{{"type","figma"},{"name","Design"},{"url","https://www.figma.com/design/abcd/branch/efgh/Design?node-id=1-2"}};
+        auto sendImage = [&](Controller &sender, const QString &from, const QString &to, QColor color) {
+            QImage image(32, 24, QImage::Format_ARGB32);
+            image.fill(color);
+            QBuffer encoded; QVERIFY(encoded.open(QIODevice::WriteOnly)); QVERIFY(image.save(&encoded, "PNG"));
+            const auto bytes = encoded.data();
+            const auto hash = QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+            const QJsonObject ref{{"type","image"},{"hash",hash},{"format","png"}};
+            QVERIFY(Attachments::store(from, ref, bytes));
+            QVERIFY(sender.sendMessage({}, {}, 0, {}, {ref,link}));
+            QTRY_COMPARE_WITH_TIMEOUT(Attachments::read(to, ref), bytes, 5000);
+            const auto messages = host.project()["messages"].toList();
+            QCOMPARE(QJsonArray::fromVariantList(messages.last().toMap()["attachments"].toList()), (QJsonArray{ref,link}));
+            QCOMPARE(messages.last().toMap()["kind"].toString(), QString("human"));
+        };
+        sendImage(host,hostPath,guestPath,Qt::red);
+        sendImage(guest,guestPath,hostPath,Qt::blue);
+        const auto cached = objectFile(guestPath + "/snapshot.json");
+        QVERIFY(!QJsonDocument(cached).toJson().contains(hostRoot.path().toUtf8()));
+        QJsonArray clean;
+        QString reason;
+        QVERIFY(!Attachments::prepare(hostPath, QJsonArray{QJsonObject{{"type","image"},{"hash","../other"},{"format","png"}}}, clean, reason));
+        QVERIFY(!Attachments::prepare(hostPath, QJsonArray{QJsonObject{{"type","figma"},{"url","https://invalid.example/design/abcd"}}}, clean, reason));
+        QVERIFY(!reason.isEmpty());
+    }
     void pendingImportsCanBeSharedWithoutExposingLocalSourceOrMovingGuestPaths() {
         const auto oldClient=qgetenv("CENTAUR_GTK_CLIENT"); qputenv("CENTAUR_GTK_CLIENT","1");
         auto restoreClient=qScopeGuard([oldClient] { if (oldClient.isNull()) qunsetenv("CENTAUR_GTK_CLIENT"); else qputenv("CENTAUR_GTK_CLIENT",oldClient); });

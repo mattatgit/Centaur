@@ -6,11 +6,11 @@ import threading
 
 
 class Service:
-    def __init__(self, root, callback):
+    def __init__(self, root, callback, draft_dir=None):
         from gi.repository import GLib
         self.callback = callback
         self.closing = False
-        self.process = subprocess.Popen([os.environ['CENTAUR_GTK_BRIDGE'], '--data-dir', str(root)],
+        self.process = subprocess.Popen([os.environ['CENTAUR_GTK_BRIDGE'], '--data-dir', str(root)] + (['--draft-dir',str(draft_dir)] if draft_dir else []),
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                         text=True, bufsize=1)
         def read():

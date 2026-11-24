@@ -36,6 +36,7 @@ qt_add_resources(centaur_typography tight_fonts PREFIX "/fonts" BASE assets/font
     assets/fonts/inter-tight/InterTight-Variable.ttf
     assets/fonts/inter-tight/OFL.txt)
 add_library(centaur_core STATIC
+    src/attachments.cpp src/attachments.h
     src/workspace.cpp src/workspace.h
     src/session.cpp src/session.h
     src/session_import.cpp

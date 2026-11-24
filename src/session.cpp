@@ -1,4 +1,5 @@
 #include "session.h"
+#include "attachments.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QJsonArray>
@@ -364,10 +365,11 @@ void Session::publish(const QString &id) {
 }
 
 void Session::addMessage(QJsonObject &state, const QString &author, const QString &text, const QString &kind,
-                         const QJsonObject &comment, const QString &participant, const QString &conflictId) {
+                         const QJsonObject &comment, const QString &participant, const QString &conflictId, const QJsonArray &attachments) {
     auto messages = state["messages"].toArray();
     QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
+    if (!attachments.isEmpty()) message["attachments"]=attachments;
     if (!comment.isEmpty()) message["comment"] = comment;
     if (!participant.isEmpty()) {
         message["participant"] = participant;
@@ -518,7 +520,12 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         } else if (!m_network->stopSharing(id, &error)) { fail(error); return; }
     } else if (type == "message") {
         const auto text = command["text"].toString().trimmed().left(12000);
-        if (text.isEmpty()) return;
+        QJsonArray attachments;
+        QString attachmentError;
+        if (!Attachments::prepare(m_workspace.projectPath(id),command.value("attachments"),attachments,attachmentError)) {
+            fail(attachmentError); return;
+        }
+        if (text.isEmpty() && attachments.isEmpty()) return;
         auto comment = command["comment"].toObject();
         if (!comment.isEmpty()) {
             if (comment["revision"] != state["revision"]) { fail("The app changed before that comment arrived. Place its pointer again on the current app."); return; }
@@ -533,7 +540,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             }
             comment = {{"point", cleanPoint}, {"frame", cleanFrame}, {"revision", state["revision"]}};
         }
-        addMessage(state, author, text, "human", comment, participant);
+        addMessage(state, author, text, "human", comment, participant, {},attachments);
         auto contributors = state["contributors"].toArray();
         if (!contributors.contains(author)) contributors.append(author);
         state["contributors"] = contributors;
@@ -582,7 +589,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             const auto canonical = QFileInfo(filename).canonicalFilePath();
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
             const QJsonObject request{{"id", uid()}, {"author", author}, {"participant", participant}, {"text", text},
-                {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
+                {"attachments",attachments}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
             queue.append(request);
             state["agentQueue"] = queue;
             auto directions = state["directions"].toObject();

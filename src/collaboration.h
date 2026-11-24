@@ -113,6 +113,9 @@ signals:
     void error(const QString &message);
     void annotationRejected(const QString &id, const QString &message);
 private:
+    void fetchNextAttachment();
+    QJsonObject m_attachmentRequest;
+    QSet<QString> m_checkedAttachments;
     void connectHost();
     void read();
     void receive(const QJsonObject &data);
