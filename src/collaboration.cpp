@@ -50,6 +50,10 @@ QString cacheAvatar(const QString &root, const QByteArray &bytes, const QString 
     const auto target = avatarPath(root, hash);
     return (QFileInfo::exists(target) || Workspace::writeFile(target, bytes)) ? hash : QString();
 }
+QString historyIdentity(const QJsonObject &member) {
+    const auto earlier = member["previousIds"].toArray();
+    return member["profileId"].toString(earlier.isEmpty() ? member["id"].toString() : earlier.first().toString());
+}
 const QString hostColour = "#138EF5";
 QString nextColour(const QJsonObject &members) {
     QSet<QString> used;
@@ -228,7 +232,7 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
     if (internet ? !m_iroh.ready() : !listen(error)) return {};
     auto share = m_shares.value(id).toObject();
     if (!share.isEmpty() && !share.contains("iroh") && !share.contains("lan")) share["lan"] = true;
-    share["owner"] = owner;
+    if (!share.contains("owner")) share["owner"] = owner;
     share[internet ? "iroh" : "lan"] = true;
     auto invites = share["invites"].toObject();
     for (const auto &hash : invites.keys()) if (invites[hash].toDouble() < now()) invites.remove(hash);
@@ -254,17 +258,30 @@ QJsonObject CollaborationHost::sharing(const QString &id) const {
     const auto share = m_shares[id].toObject();
     QJsonArray names;
     QJsonArray participants;
-    if (!share.isEmpty()) participants.append(QJsonObject{{"id", "host"}, {"name", share["owner"]},
+    if (!share.isEmpty()) participants.append(QJsonObject{{"id", "host"}, {"name", share["owner"]}, {"displayName", share["displayOwner"].toString(share["owner"].toString())},
         {"color", hostColour}, {"avatar", m_avatar}});
     for (const auto &value : share["members"].toObject()) {
         auto member = value.toObject();
         names.append(member["name"]);
         member.remove("profileKey");
+        member["profileId"] = historyIdentity(member);
         participants.append(member);
     }
     return {{"enabled", !share.isEmpty()},
         {"internetReady", m_iroh.ready()}, {"owner", share["owner"]}, {"members", names}, {"participants", participants},
         {"annotationIds", 1}};
+}
+bool CollaborationHost::setOwnerDisplayName(const QString &name) {
+    const auto before = m_shares;
+    for (const auto &id : m_shares.keys()) {
+        auto share = m_shares[id].toObject();
+        share["displayOwner"] = name;
+        m_shares[id] = share;
+    }
+    if (m_shares == before) return true;
+    if (!save(nullptr)) { m_shares = before; return false; }
+    emit membershipChanged();
+    return true;
 }
 void CollaborationHost::refreshAvatar() {
     const auto hash = cacheAvatar(m_workspace.root(), avatarBytes(m_workspace.root() + "/profile-avatar-wire"));
@@ -387,6 +404,7 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         const auto profileToken = data["profileToken"].toString();
         static const QRegularExpression profilePattern("^[A-Za-z0-9_-]{43}$");
         const auto profileKey = profilePattern.match(profileToken).hasMatch() ? digest(profileToken.toUtf8()) : QString();
+        const auto displayName = data["displayName"].toString().trimmed().left(50);
         bool profileAvailable = !profileKey.isEmpty();
         for (const auto &value : members)
             if (value.toObject()["profileKey"] == profileKey) profileAvailable = false;
@@ -404,6 +422,9 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             for (const auto &value : state["contributors"].toArray()) names.insert(value.toString().toCaseFolded());
             for (const auto &value : state["annotations"].toArray()) names.insert(value.toObject()["author"].toString().toCaseFolded());
             for (const auto &value : state["decisions"].toArray()) for (const auto &author : value.toObject()["authors"].toArray()) names.insert(author.toString().toCaseFolded());
+            // The coordinator uses unique actor names for legacy agent requests.
+            // The authenticated profile supplies the independent, editable label.
+            if (!former.isEmpty()) name = former["name"].toString(name);
             const auto original = name;
             int suffix = 2;
             // Reuse an authenticated former name when it isn't in current use.
@@ -413,13 +434,14 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
                 if (value.toObject()["name"].toString().toCaseFolded() == name.toCaseFolded()) keepName = false;
             if (!keepName)
                 while (names.contains(name.toCaseFolded())) name = original.left(40) + " (" + QString::number(suffix++) + ")";
-            member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}, {"color", nextColour(members)}};
+            member = {{"id", QUuid::createUuid().toString(QUuid::WithoutBraces)}, {"name", name}, {"displayName", displayName.isEmpty() ? data["name"].toString().trimmed().left(50) : displayName}, {"color", nextColour(members)}};
             if (!former.isEmpty()) {
                 auto previousIds = former["previousIds"].toArray();
                 previousIds.append(former["id"]);
                 // The live conversation retains at most 250 messages.
                 while (previousIds.size() > 250) previousIds.removeFirst();
                 member["previousIds"] = previousIds;
+                member["profileId"] = historyIdentity(former);
                 member["avatar"] = former["avatar"];
                 const auto color = former["color"].toString();
                 bool available = !color.isEmpty() && color != hostColour;
@@ -435,24 +457,43 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             m_shares[id] = share;
             QString error;
             if (!save(&error)) { m_shares = previous; reject("Could not save your membership. Ask the owner to check storage."); return; }
-        } else if (profileAvailable && member["profileKey"].toString().isEmpty()
-                   && !share["formerProfiles"].toObject().contains(profileKey)) {
-            // Existing members adopt continuity on their next authenticated connection.
+        } else {
+            // Existing members can adopt a proof on an authenticated connection.
             const auto previous = m_shares;
-            member["profileKey"] = profileKey;
+            if (profileAvailable && member["profileKey"].toString().isEmpty() && !share["formerProfiles"].toObject().contains(profileKey))
+                member["profileKey"] = profileKey;
+            if (!displayName.isEmpty()) member["displayName"] = displayName;
             members[hash] = member;
             share["members"] = members;
             m_shares[id] = share;
-            if (!save(nullptr)) m_shares = previous;
+            if (m_shares != previous) {
+                if (!save(nullptr)) { m_shares = previous; reject("Could not save your profile. Please retry."); return; }
+                emit membershipChanged();
+            }
         }
         peer.project = id; peer.member = member["id"].toString(); peer.name = member["name"].toString();
         peer.credential = hash; peer.avatars = data["avatars"] == 1; m_peers[socket] = peer;
-        write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}, {"avatars", 1}});
+        write(socket, {{"type", "welcome"}, {"version", 1}, {"memberId", peer.member}, {"name", peer.name}, {"profileNames", 1}, {"avatars", 1}});
         if (joined) emit membershipChanged();
         sendSnapshot(socket);
         return;
     }
     if (data["type"] == "ping") { write(socket, {{"type", "pong"}}); return; }
+    if (data["type"] == "profileName") {
+        const auto name = data["displayName"].toString().trimmed().left(50);
+        auto share = m_shares.value(peer.project).toObject();
+        auto members = share["members"].toObject();
+        auto member = members.value(peer.credential).toObject();
+        if (name.isEmpty() || member.isEmpty() || member["displayName"] == name) return;
+        const auto previous = m_shares;
+        member["displayName"] = name;
+        members[peer.credential] = member;
+        share["members"] = members;
+        m_shares[peer.project] = share;
+        if (!save(nullptr)) { m_shares = previous; write(socket, {{"type","error"},{"message","Could not save the profile name. Please retry."}}); }
+        else emit membershipChanged();
+        return;
+    }
     if (data["type"] == "profileAvatar" && peer.avatars) {
         const auto encoded = data["bytes"].toString();
         if (encoded.size() > maxAvatar * 4 / 3 + 4) return;
@@ -583,6 +624,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     m_editLock = std::make_unique<QLockFile>(path() + "/client.lock");
     if (m_editLock->tryLock(0)) m_outbox = m_connection["outbox"].toArray();
     m_snapshot = readObject(path() + "/snapshot.json");
+    m_ownMemberships = readObject(path() + "/profile-" + m_connection["pin"].toString() + ".json")["memberships"].toArray();
     if (!m_snapshot.isEmpty()) Workspace::writeFile(path() + "/" + Workspace::sourceName(m_snapshot["state"].toObject()), m_snapshot["source"].toString().toUtf8());
     if (m_connection["transport"] == "iroh") {
         m_iroh = std::make_unique<IrohBridge>(m_root);
@@ -616,7 +658,7 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
             const auto candidate = secret();
             if (privateFile(file, {{"token", candidate}})) profileToken = candidate;
         }
-        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"leave", leaving()}, {"avatars", 1}, {"profileToken", profileToken}});
+        write(&m_socket, {{"type", "hello"}, {"version", 1}, {"appFormats", qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1" ? QJsonArray{"qml", "gtk4-v1"} : QJsonArray{"qml"}}, {"project", id()}, {"memberToken", m_connection["memberToken"]}, {"invite", m_connection["invite"]}, {"name", author()}, {"displayName", m_editLock->isLocked() ? author() : QString()}, {"leave", leaving()}, {"avatars", 1}, {"profileToken", profileToken}});
     });
     connect(&m_socket, &QSslSocket::readyRead, this, &SharedProject::read);
     connect(&m_socket, &QSslSocket::disconnected, this, [this] {
@@ -697,7 +739,7 @@ void SharedProject::connectHost() {
         finish(saved.contains("ended") ? "sharingEnded" : "left");
         return;
     }
-    m_buffer.clear(); m_connected = false; m_avatarProtocol = false; m_advertisedAvatar.clear();
+    m_buffer.clear(); m_connected = false; m_nameProtocol = false; m_avatarProtocol = false; m_advertisedAvatar.clear();
     status("Connecting to project host…");
     if (m_iroh) { m_tunnelling = true; m_iroh->tunnel(m_connection["endpoint"].toObject()); }
     else m_socket.connectToHostEncrypted(m_connection["host"].toString(), quint16(m_connection["port"].toInt()));
@@ -719,8 +761,20 @@ void SharedProject::read() {
 void SharedProject::receive(const QJsonObject &data) {
     const auto type = data["type"].toString();
     if (type == "welcome") {
+        m_nameProtocol = data["profileNames"] == 1;
+        if (!m_connection.contains("displayName")) m_connection["displayName"] = author();
         m_connection["name"] = data["name"]; m_connection["memberId"] = data["memberId"]; m_connection.remove("invite");
-        if (!save()) { m_terminal = true; emit error("Could not save your project membership."); m_socket.abort(); }
+        if (!save()) { m_terminal = true; emit error("Could not save your project membership."); m_socket.abort(); return; }
+        // Only record IDs received from this project's certificate-pinned host.
+        const auto file = path() + "/profile-" + m_connection["pin"].toString() + ".json";
+        auto profile = readObject(file);
+        m_ownMemberships = profile["memberships"].toArray();
+        if (m_editLock->isLocked() && !QUuid(participantId()).isNull() && !m_ownMemberships.contains(participantId())) {
+            m_ownMemberships.append(participantId());
+            while (m_ownMemberships.size() > 250) m_ownMemberships.removeFirst();
+            profile["memberships"] = m_ownMemberships;
+            if (!privateFile(file, profile)) emit error("Could not save your profile history on this device.");
+        }
         // Older hosts ignore the leave flag. They may still send a snapshot,
         // but this device has already opted out of the project.
         if (leaving()) { finish("left"); return; }
@@ -775,6 +829,12 @@ void SharedProject::receive(const QJsonObject &data) {
         if (readObject(file)["memberToken"] == m_connection["memberToken"]) QFile::remove(file);
         m_socket.disconnectFromHost(); if (m_iroh) m_iroh->disconnectTunnel();
     }
+}
+void SharedProject::setDisplayName(const QString &name) {
+    if (m_terminal || leaving() || !m_editLock->isLocked()) return;
+    m_connection["displayName"] = name;
+    if (!save()) { emit error("Could not save your profile name on this device."); return; }
+    if (m_nameProtocol && m_socket.isEncrypted()) write(&m_socket, {{"type","profileName"},{"displayName", name}});
 }
 void SharedProject::refreshAvatar() {
     if (!m_avatarProtocol || m_terminal || leaving() || !m_socket.isEncrypted()) return;

@@ -227,8 +227,7 @@ class SettingsView:
         self.syncing=True
         # Existing shared conversations bind the member name at invitation
         # time. Preserve that identity while the guest is connected.
-        owner.name.set_sensitive(not data.get('remote',False))
-        accessible(owner.name,'Username','Leave this shared project before changing your name.' if data.get('remote') else '')
+        accessible(owner.name,'Username')
         if 'name' not in self.debounces and not owner.name.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.name.set_text(data.get('author',''))
         value=owner.project.get('agentName',data.get('defaultAgentName','centaur')) if not data.get('remote') else data.get('defaultAgentName','centaur')
         if 'agent' not in self.debounces and not owner.agent_name_button.get_state_flags() & Gtk.StateFlags.FOCUS_WITHIN: owner.agent_name_button.set_text(value)

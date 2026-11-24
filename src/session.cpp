@@ -362,7 +362,17 @@ void Session::addMessage(QJsonObject &state, const QString &author, const QStrin
     QJsonObject message{{"id", uid()}, {"author", author}, {"text", text}, {"kind", kind},
         {"time", Workspace::now()}, {"revision", state["revision"]}};
     if (!comment.isEmpty()) message["comment"] = comment;
-    if (!participant.isEmpty()) message["participant"] = participant;
+    if (!participant.isEmpty()) {
+        message["participant"] = participant;
+        for (const auto &entry : m_network->sharing(state["id"].toString())["participants"].toArray()) {
+            const auto person = entry.toObject();
+            if (person["id"] == participant) {
+                if (person.contains("displayName")) message["displayAuthor"] = person["displayName"];
+                if (person.contains("profileId")) message["profileId"] = person["profileId"];
+                break;
+            }
+        }
+    }
     if (!conflictId.isEmpty()) message["conflictId"] = conflictId;
     messages.append(message);
     QFile history(m_workspace.projectPath(state["id"].toString()) + "/.centaur/conversation.jsonl");
@@ -401,6 +411,12 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     auto fail = [this, sender, strokeId](const QString &message) {
         reply(sender, {{"type", strokeId.isEmpty() ? "error" : "annotationRejected"}, {"message", message}, {"annotationId", strokeId}});
     };
+    if (type == "ownerDisplayName") {
+        const auto name = command["name"].toString().trimmed().left(50);
+        if ((!sender || m_peers.contains(qobject_cast<QLocalSocket *>(sender))) && m_network && !name.isEmpty()
+                && !m_network->setOwnerDisplayName(name)) fail("Could not save your shared profile name.");
+        return;
+    }
     if (type == "refreshAvatar") {
         if ((!sender || m_peers.contains(qobject_cast<QLocalSocket *>(sender))) && m_network) m_network->refreshAvatar();
         return;
@@ -467,8 +483,10 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     const auto id = command["projectId"].toString();
     auto state = m_workspace.load(id);
     if (state.isEmpty()) { fail("That project is unavailable."); return; }
-    const auto author = command["author"].toString().trimmed().left(50);
     const auto sharing = m_network->sharing(id);
+    const auto localName = command["author"].toString().trimmed().left(50);
+    const auto author = !qobject_cast<QSslSocket *>(sender) && sharing["enabled"].toBool()
+        ? sharing["owner"].toString(localName) : localName;
     const bool shared = sharing["enabled"].toBool();
     const auto participant = qobject_cast<QSslSocket *>(sender) ? command["_memberId"].toString()
         : shared ? QString("host") : "local:" + author;
@@ -622,7 +640,15 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
     } else if (type == "undo") {
         auto annotations = state["annotations"].toArray();
         for (int i = annotations.size() - 1; i >= 0; --i) {
-            if (annotations[i].toObject()["author"] == author && annotations[i].toObject()["revision"] == state["revision"]) {
+            const auto mark = annotations[i].toObject();
+            const auto writer = mark["participant"].toString();
+            bool own = writer == participant || (writer.isEmpty() && !shared && mark["author"] == author);
+            if (participant == "host" && writer == "local:" + author) own = true;
+            for (const auto &value : sharing["participants"].toArray()) {
+                const auto person = value.toObject();
+                if (person["id"] == participant && person["previousIds"].toArray().contains(writer)) own = true;
+            }
+            if (own && mark["revision"] == state["revision"]) {
                 annotations.removeAt(i); break;
             }
         }

@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
         output({{"type", "snapshot"}, {"projects", projects},
             {"project", state}, {"author", controller.author()}, {"remote", controller.remoteProject()},
             {"collaborationRole", controller.collaborationRole()}, {"endedShares", controller.endedShares()},
-            {"participantId", controller.participantId()}, {"drawingColor", controller.drawingColor()},
+            {"participantId", controller.participantId()}, {"ownMemberships", controller.ownMemberships()}, {"drawingColor", controller.drawingColor()},
             {"connected", controller.canContribute()}, {"status", controller.connectionStatus()},
             {"busy", controller.agentBusy()}, {"agentAvailable", controller.agentAvailable()},
             {"updateBlocked", controller.updateBlocked()}, {"updateHeld", controller.updateHeld()},

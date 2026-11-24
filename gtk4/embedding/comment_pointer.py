@@ -33,7 +33,7 @@ class CommentPointer:
         return True
 
 
-def paint_arrow(cr,tail,head,color=(1,98/255,90/255)):
+def paint_arrow(cr,tail,head,color):
     """Paint the line, circular anchor and filled triangle in the same colour."""
     if tail is None or head is None: return
     tx,ty=tail; hx,hy=head

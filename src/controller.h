@@ -48,6 +48,7 @@ public:
     QString author() const;
     QJsonArray projectCollaborators(const QString &id) const;
     QString participantId() const;
+    QJsonArray ownMemberships() const;
     QString drawingColor() const;
     void refreshAvatar();
     bool submitAnnotation(const QJsonObject &annotation, int revision);

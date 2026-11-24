@@ -13,6 +13,7 @@ import tempfile
 import time
 from uuid import uuid4
 from avatars import shared_avatar
+from chat_identity import message_profile
 from datetime import datetime
 import gi
 
@@ -196,8 +197,12 @@ class Centaur(Gtk.Application):
         self.stack = Gtk.Stack(hexpand=True,vexpand=True,hhomogeneous=False,vhomogeneous=False)
         self.stack.set_margin_end(8); self.stack.set_margin_bottom(8); content.append(self.stack)
         root.append(content)
-        self.error_label = margins(label('','error toast',True),24); self.error_label.set_halign(Gtk.Align.CENTER); self.error_label.set_valign(Gtk.Align.END)
-        self.root_overlay.add_overlay(self.error_label); self.error_label.set_visible(False)
+        self.error_toast = margins(box(spacing=8,css='toast'),24)
+        self.error_toast.set_halign(Gtk.Align.CENTER); self.error_toast.set_valign(Gtk.Align.END)
+        self.error_label = label('','error',True); self.error_toast.append(self.error_label)
+        dismiss = button('Dismiss',self.clear_error,tone='plain')
+        self.error_toast.append(dismiss); self.targets['dismiss-error']=dismiss
+        self.root_overlay.add_overlay(self.error_toast); self.error_toast.set_visible(False)
         self.window.set_child(self.root_overlay)
         self.build_projects(); self.build_workspace(); self.build_systems(); self.build_settings()
         self.navigate('projects'); self.set_mode('Interact')
@@ -591,7 +596,13 @@ class Centaur(Gtk.Application):
 
     def draw_comment_pointers(self,area,cr,width,height):
         paint_arrow(cr,*self.shared_comment_points(),self.shared_pointer_color())
-        paint_arrow(cr,*self.comment_points())
+        paint_arrow(cr,*self.comment_points(),self.draft_pointer_color())
+
+    def draft_pointer_color(self):
+        rgba=Gdk.RGBA()
+        if not rgba.parse(self.data.get('drawingColor') or ''):
+            rgba.parse('#FF6157' if self.data.get('remote') else '#138EF5')
+        return rgba.red,rgba.green,rgba.blue
 
     def shared_pointer_color(self):
         pointer=self.project.get('humanPointer') or {}
@@ -602,16 +613,32 @@ class Centaur(Gtk.Application):
         if not color or not rgba.parse(color): rgba.parse('#138EF5' if participant=='host' else '#FF6157')
         return rgba.red,rgba.green,rgba.blue
 
+    def can_undo(self):
+        if self.comment.phase!='idle': return True
+        for mark in self.project.get('annotations',[]):
+            if mark.get('revision')!=self.project.get('revision'): continue
+            if self.message_profile(mark).get('self'): return True
+            if not mark.get('participant') and not self.data.get('remote') and not self.project.get('sharing',{}).get('enabled'):
+                if mark.get('author')==self.data.get('author'): return True
+        return False
+
     def undo(self):
         if self.comment.phase!='idle': self.cancel_comment()
         else: self.service.send('undo')
+
+    def clear_error(self):
+        self.error_label.set_text('')
+        self.error_toast.set_visible(False)
+
+    def show_error(self,text):
+        self.error_label.set_text(text)
+        self.error_toast.set_visible(True)
 
     def receive(self,data):
         if data.get('type')=='annotationRejected':
             self.pending_strokes.pop(data.get('annotationId'),None)
             self.ink.queue_draw()
-            self.error_label.set_text(data.get('message','Could not save the drawing.'))
-            self.error_label.set_visible(True)
+            self.show_error(data.get('message','Could not save the drawing.'))
             return
         if data.get('type') in ('settingsSaved','error'): self.settings.receive(data)
         if data.get('type')=='settingsSaved': return
@@ -626,7 +653,11 @@ class Centaur(Gtk.Application):
                 self.project.pop('agentActivity',None); self.data['busy']=False
                 self.message_key=None; self.refresh_messages(); self.working_mark.set_working(False); self.update_send()
             self.pending_message=None; self.update_send()
-            self.error_label.set_text(data.get('message','Could not complete that action.')); self.error_label.set_visible(True); return
+            reason=data.get('message','Could not complete that action.')
+            if self.active_form and self.active_form is getattr(self,'join_dialog',None):
+                self.join_error_text.set_text(reason); self.join_error.set_visible(True)
+            else: self.show_error(reason)
+            return
         if data.get('type')=='sent': return
         if data.get('type')!='snapshot': return
         old_id=self.project.get('id')
@@ -648,7 +679,7 @@ class Centaur(Gtk.Application):
             if old_id: self.drafts[old_id]=buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)
             buffer.set_text(self.drafts.get(new_id,'')); self.pending_message=None
         pending=self.pending_message
-        if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'].strip()[:12000] and m.get('author')==data.get('author')
+        if pending and any(m.get('id') not in pending['seen'] and m.get('text')==pending['text'].strip()[:12000] and self.message_profile(m).get('self')
                            and (pending.get('comment') is None or m.get('comment')==pending['comment']) for m in self.project.get('messages',[])):
             if buffer.get_text(buffer.get_start_iter(),buffer.get_end_iter(),False)==pending['text']: buffer.set_text('')
             self.pending_message=None
@@ -683,12 +714,12 @@ class Centaur(Gtk.Application):
             self.busy_text.set_text(activity_caption(activity)+(' · '+str(queued)+' queued' if queued else ''))
             remote=data.get('remote',False); button_text(self.invite_button,'Shared' if remote else 'Invite'); self.invite_button.set_sensitive(not remote)
             self.deploy_button.set_sensitive(not remote)
-            self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
+            self.undo_button.set_sensitive(self.can_undo())
             participants=self.project.get('sharing',{}).get('participants',[])
             proposal=self.project.get('proposal') or {}
             conflict=proposal if proposal.get('conflict') else {}
             messages=json.dumps([self.project.get('id'),self.project.get('messages',[]),participants,conflict,
-                                 data.get('participantId'),data.get('author'),data.get('connected'),
+                                 data.get('participantId'),data.get('ownMemberships'),data.get('author'),data.get('connected'),
                                  activity.get('requestId'),activity.get('afterMessage')],sort_keys=True)
             if messages!=self.message_key:
                 self.message_key=messages; self.refresh_messages()
@@ -720,7 +751,7 @@ class Centaur(Gtk.Application):
             self.last_invite=invitation
             self.invitation_dialog(invitation)
         if hasattr(self,'join_dialog') and self.join_dialog.get_visible():
-            self.join_feedback.set_text(data.get('joinStatus','')); self.join_feedback.set_visible(bool(data.get('joinStatus')))
+            self.join_feedback.set_text(data.get('joinStatus','')); self.join_feedback.set_visible(bool(data.get('joining') and data.get('joinStatus')))
             if data.get('remote') and data.get('connected'): self.dismiss_dialog(self.join_dialog)
         if data.get('endedShares',[])!=getattr(self,'ended_shares',None):
             self.refresh_ended_shares(data.get('endedShares',[]))
@@ -829,7 +860,7 @@ class Centaur(Gtk.Application):
             if avatars:
                 card.add_overlay(avatars)
                 self.targets['collaborators-'+project['id']]=avatars
-                accessible(open_button,project['name'],'Collaborators: '+', '.join(p['name'] for p in people))
+                accessible(open_button,project['name'],'Collaborators: '+', '.join(p.get('displayName') or p['name'] for p in people))
             hover=Gtk.EventControllerMotion()
             def enter(controller,x,y,card_button=open_button,strip=avatars):
                 card_button.add_css_class('hovered')
@@ -845,7 +876,7 @@ class Centaur(Gtk.Application):
     def collaborator_avatars(self,people):
         strip=Gtk.Fixed(halign=Gtk.Align.END,valign=Gtk.Align.START,can_target=False,
                         margin_end=16,margin_top=16,visible=False)
-        captions=[(p['name'][0].upper(),self.person_avatar(p)) for p in people[:5]]
+        captions=[((p.get('displayName') or p['name'])[0].upper(),self.person_avatar(p)) for p in people[:5]]
         if len(people)>5:
             captions=captions[:4]+[(f'+{len(people)-4}',None)]
         # Paint back to front so the current user is fully visible at the left.
@@ -869,19 +900,8 @@ class Centaur(Gtk.Application):
         return shared_avatar(self.root,person.get('avatar'))
 
     def message_profile(self,message):
-        author=message.get('author')
-        identity=message.get('participant')
-        if not isinstance(identity,str): identity=None
-        viewer=self.data.get('participantId')
-        host_history=identity=='host' or (identity and identity.startswith('local:'))
-        for participant in self.project.get('sharing',{}).get('participants',[]):
-            key=participant.get('id')
-            if (key==identity or identity in participant.get('previousIds',[]) or
-                (participant.get('name')==author and (not identity or (host_history and key=='host')))):
-                return dict(participant,self=bool(viewer and key==viewer))
-        own=bool(identity and identity==viewer) or (
-            (not identity or host_history) and not self.data.get('remote') and author==self.data.get('author'))
-        return {'self':own}
+        return message_profile(message,self.project.get('sharing',{}).get('participants',[]),
+                               self.data.get('participantId'),self.data.get('ownMemberships',[]),self.data.get('author'))
 
     def open_imported(self,project,adaptation=False):
         info=project.get('import') or {}
@@ -932,8 +952,8 @@ class Centaur(Gtk.Application):
             profile=self.message_profile(message) if message.get('kind')=='human' else {}
             face=self.person_avatar(profile) if profile else None
             conflict=proposal if conflict_id and message.get('conflictId')==conflict_id else None
-            vote_state=(conflict,self.data.get('participantId'),self.data.get('connected')) if conflict else None
-            fingerprint=(self.project.get('id'),avatar_stamp,face,profile.get('self'),vote_state,
+            vote_state=(conflict,self.project.get('sharing',{}).get('participants',[]),self.data.get('participantId'),self.data.get('connected')) if conflict else None
+            fingerprint=(self.project.get('id'),avatar_stamp,face,profile.get('self'),profile.get('displayName'),vote_state,
                          hashlib.sha256(json.dumps(message,sort_keys=True).encode()).digest())
             old=previous_rows.get(key)
             rows.append((key,message,fingerprint,old if old and old[0]==fingerprint else None,profile,face,conflict))
@@ -988,7 +1008,7 @@ class Centaur(Gtk.Application):
     def message_row(self,message,profile,face,conflict):
         item=box(spacing=8,css='chat-card'); column=box(True,2); column.set_hexpand(True); head=box(spacing=8)
         action=mark=None
-        author=message.get('author','')
+        author=profile.get('displayName') or message.get('displayAuthor') or message.get('author','')
         agent=message.get('kind')!='human'
         if profile.get('self'): item.add_css_class('own-message')
         if message.get('conflictId'): item.add_css_class('chat-conflict')
@@ -996,7 +1016,8 @@ class Centaur(Gtk.Application):
             author=author.lstrip('@')
             if author.lower()=='centaur': author='Centaur'
         if agent:
-            avatar=box(css='avatar agent'); mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32); avatar.append(mark); avatar.set_halign(Gtk.Align.START)
+            mark=original('2fe69.svg' if message.get('kind')=='system' else '144b3.svg',32)
+            avatar=mark; avatar.set_halign(Gtk.Align.START)
         else:
             avatar=None
             if face:
@@ -1040,14 +1061,15 @@ class Centaur(Gtk.Application):
     def add_conflict_choices(self,column,proposal):
         voters=proposal.get('voters',{}); votes=proposal.get('votes',{})
         viewer=self.data.get('participantId')
-        waiting=[name for key,name in voters.items() if key not in votes]
+        names={p.get('id'):p.get('displayName') or p.get('name') for p in self.project.get('sharing',{}).get('participants',[])}
+        waiting=[names.get(key) or name for key,name in voters.items() if key not in votes]
         two_roles=len(voters)==2 and 'host' in voters
         options=[('compromise','Agent','agent',proposal.get('message',''))]
         originals=sorted(proposal.get('choices',{}).items(),key=lambda pair:pair[1].get('author')==voters.get('host'))
         for key,request in originals:
             name=request.get('author','')
             role='host' if name==voters.get('host') else 'guest'
-            options.append((key,role.title() if two_roles else name,role if two_roles else key,request.get('text','')))
+            options.append((key,role.title() if two_roles else names.get(request.get('participant'),name),role if two_roles else key,request.get('text','')))
         if two_roles:
             for role in ('guest','host'):
                 if not any(option[2]==role for option in options):
@@ -1088,7 +1110,7 @@ class Centaur(Gtk.Application):
                         cr=snapshot.append_cairo(Graphene.Rect().init(0,0,width,height))
                         cr.rectangle(0,0,width,height); cr.clip()
                         bounds=self.ink.compute_bounds(self.root_overlay)[1]
-                        cr.translate(-bounds.get_x(),-bounds.get_y()); paint_arrow(cr,*self.comment_points()); del cr
+                        cr.translate(-bounds.get_x(),-bounds.get_y()); paint_arrow(cr,*self.comment_points(),self.draft_pointer_color()); del cr
                     node=snapshot.to_node()
                     texture=self.window.get_renderer().render_texture(node,None)
                     target=Path(self.data['sourcePath']).parent/'.centaur'/('context-'+uuid.uuid4().hex+'.png')
@@ -1096,8 +1118,7 @@ class Centaur(Gtk.Application):
                     if not texture.save_to_png(str(target)): raise RuntimeError('PNG export failed')
                     fields.update(image=str(target),imageRevision=self.project['revision'])
                 except Exception as error:
-                    self.error_label.set_text('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
-                    self.error_label.set_visible(True)
+                    self.show_error('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
             self.pending_message={'text':text,'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
             self.send_button.set_sensitive(False)
             if not self.service.send('message',**fields): self.pending_message=None
@@ -1282,11 +1303,17 @@ class Centaur(Gtk.Application):
         invitation,widget=prompt_field('Paste the invite code here'); self.join_code=invitation
         field(content,'Invite code',widget)
         self.join_feedback=label('','small muted',True); self.join_feedback.set_visible(False); content.append(self.join_feedback)
+        self.join_error=box(spacing=8); self.join_error_text=label('','error',True); self.join_error_text.set_hexpand(True)
+        dismiss=button('Dismiss',lambda:self.join_error.set_visible(False),tone='plain')
+        self.join_error.append(self.join_error_text); self.join_error.append(dismiss); self.join_error.set_visible(False)
+        content.append(self.join_error); self.targets['dismiss-join-error']=dismiss
         cancel_button(self,dialog,footer,lambda:self.service.send('cancelJoin'))
         def done():
             buf=invitation.get_buffer(); code=buf.get_text(buf.get_start_iter(),buf.get_end_iter(),False)
             name=self.data.get('author','').strip()
-            if name and code.strip() and not self.data.get('joining'): self.service.send('join',name=name,code=code)
+            if name and code.strip() and not self.data.get('joining'):
+                self.join_error.set_visible(False)
+                self.service.send('join',name=name,code=code)
         self.join_submit=button('Join project',done,tone='dark',width=94); footer.append(self.join_submit)
         invitation.get_buffer().connect('changed',lambda b:self.update_join()); self.update_join()
         self.targets.update({'join-code':invitation,'join-submit':self.join_submit})
@@ -1530,7 +1557,7 @@ class Centaur(Gtk.Application):
         geometry_pair=(comment_geometry,shared_geometry,self.shared_pointer_color())
         if geometry_pair!=self.comment_geometry:
             self.comment_geometry=geometry_pair; self.comment_overlay.queue_draw()
-        self.undo_button.set_sensitive(self.comment.phase!='idle' or any(a.get('author')==self.data.get('author') and a.get('revision')==self.project.get('revision') for a in self.project.get('annotations',[])))
+        self.undo_button.set_sensitive(self.can_undo())
         # Preserve the reference breakpoints and the chat width on window resize.
         compact=self.window.get_width()<760
         self.sidebar.set_size_request(COMPACT_SIDEBAR if compact else SIDEBAR,-1)
@@ -1580,7 +1607,8 @@ class Centaur(Gtk.Application):
                   'focusId':id(self.window.get_focus()) if self.window.get_focus() else None,
                   'form':self.active_form.get_title() if self.active_form and self.active_form.get_visible() else None,'project':self.project,'projects':self.data.get('projects',[]),'status':self.data.get('status'),
                   'previewStatus':self.preview_status,'viewport':self.viewport.describe() if self.viewport else None,
-                  'error':self.error_label.get_text() if self.error_label.get_visible() else '',
+                  'error':(self.join_error_text.get_text() if getattr(self,'join_error',None) and self.join_error.get_mapped()
+                           else self.error_label.get_text() if self.error_toast.get_visible() else ''),
                   'childPid':self.backend.process.pid if self.backend and self.backend.process else None,'mode':self.mode,'targets':{}}
             data['focusedTargets']=[name for name,widget in self.targets.items() if widget.has_focus()]
             draft_buffer=self.editor.get_buffer()
@@ -1637,13 +1665,13 @@ class Centaur(Gtk.Application):
             if 'approval-status' in self.targets:
                 data['approvalStatus']=self.targets['approval-status'].get_text()
             data['commentPointer']={'phase':self.comment.phase,'tail':reported_comment[0],'head':reported_comment[1],
-                                    'reference':self.comment.target,'token':self.comment.token}
+                                    'reference':self.comment.target,'token':self.comment.token,'color':self.draft_pointer_color()}
             adjustment=self.chat_scroll.get_vadjustment()
             data['chatScroll']={'upper':adjustment.get_upper(),'pageSize':adjustment.get_page_size(),
                                 'value':adjustment.get_value(),'scrollable':self.chat_scrollbar.get_sensitive(),
                                 'barOpacity':self.chat_scrollbar.get_opacity()}
             data['chatMessageAppearance']={
-                key:{'image':isinstance(row[2][0],Gtk.Overlay),'own':row[1].has_css_class('own-message'),
+                key:{'author':row[2][1].get_text(),'image':isinstance(row[2][0],Gtk.Overlay),'own':row[1].has_css_class('own-message'),
                      'inConversation':row[1].get_parent()==self.messages}
                 for key,row in getattr(self,'message_widgets',{}).items()}
             data['rosterImages']={

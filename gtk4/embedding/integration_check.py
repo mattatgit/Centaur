@@ -43,6 +43,10 @@ class Checks(list):
 
 
 def main():
+    if len(sys.argv)==3 and sys.argv[1]=='--gnome-chat-avatars':
+        from gnome_chat_check import check
+        check(Path(sys.argv[2]))
+        return 0
     if os.environ.get('CENTAUR_GTK4_REAL_AGENT_SMOKE')=='1':
         from real_agent_check import main as real_agent_main
         return real_agent_main()
@@ -97,7 +101,9 @@ if cfg.get('fixtureProgressGate'):
         root=folder/(name+'-data'); report=folder/(name+'-report')
         if root not in roots: roots.append(root)
         (report/'shell.json').unlink(missing_ok=True)
-        process=subprocess.Popen([str(executable),'--data-dir',str(root),'--report-dir',str(report)],env=env)
+        launch_env=env.copy()
+        if name=='multiplayer-guest': launch_env.pop('CENTAUR_AUTHOR',None)
+        process=subprocess.Popen([str(executable),'--data-dir',str(root),'--report-dir',str(report)],env=launch_env)
         processes.append(process)
         state=lambda:read(report/'shell.json')
         until(lambda:state().get('targets',{}).get('project-menu'), 'GTK shell did not map')

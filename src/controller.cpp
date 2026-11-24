@@ -59,6 +59,9 @@ void Controller::start(bool background) {
         if (!file.open(QIODevice::ReadOnly)) continue;
         auto connection = QJsonDocument::fromJson(file.readAll()).object();
         if (connection["project"] != id || QUuid(id).isNull() || id.size() != 36) continue;
+        // Old GTK clients saved the host-assigned actor alias as the membership name.
+        if (!connection.contains("displayName") && qEnvironmentVariable("CENTAUR_GTK_CLIENT") == "1")
+            connection["displayName"] = m_preferences.value("author", m_author).toString();
         auto *project = new SharedProject(dataRoot(), connection, this); addShared(project); project->start();
     }
     m_session.start(background);
@@ -121,6 +124,9 @@ QString Controller::participantId() const {
     if (remoteProject()) return m_shared.value(m_projectId)->participantId();
     return hostsShare(m_projectId) ? QString("host") : "local:" + m_author;
 }
+QJsonArray Controller::ownMemberships() const {
+    return remoteProject() ? m_shared.value(m_projectId)->ownMemberships() : QJsonArray{};
+}
 QString Controller::drawingColor() const {
     const auto self = participantId();
     for (const auto &value : m_states.value(m_projectId)["sharing"].toObject()["participants"].toArray()) {
@@ -178,6 +184,7 @@ void Controller::joinProject(const QString &code, const QString &name) {
     if (m_shared.contains(id)) { openProject(id); emit joined(); return; }
     if (m_states.contains(id)) { emit this->error("This project is already on this computer."); return; }
     connection["name"] = name.trimmed().left(50);
+    connection["displayName"] = connection["name"];
     auto *project = new SharedProject(dataRoot(), connection, this);
     if (!project->save(&error)) { delete project; emit this->error("Could not save the invitation: " + error); return; }
     m_joinMessage.clear(); m_joiningId = id; addShared(project); project->start();
@@ -225,7 +232,11 @@ void Controller::configureNativeAppTest(const QString &program, const QSize &siz
 }
 void Controller::setAuthor(const QString &author) {
     if (author.trimmed().isEmpty()) return;
-    m_author = author.trimmed().left(50); savePreferences(); emit changed();
+    m_author = author.trimmed().left(50);
+    savePreferences();
+    for (auto *project : m_shared) project->setDisplayName(m_author);
+    m_session.send({{"type","ownerDisplayName"},{"name",m_author}});
+    emit changed();
 }
 
 bool Controller::setAgentDefaults(const QJsonObject &settings) {

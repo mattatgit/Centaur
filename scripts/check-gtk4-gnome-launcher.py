@@ -113,6 +113,8 @@ def main(previous, candidate, version, folder):
             wait(lambda: str(profile/'bin/centaur-gtk4') in command(), 'GNOME kept the store-specific launch command')
             close_window(first_candidate.pid)
             assert first_candidate.wait(timeout=10) == 0
+            subprocess.run([str(candidate/'bin/centaur-gtk4-integration-check'), '--gnome-chat-avatars', str(folder)],
+                           env=dict(env, WAYLAND_DISPLAY='centaur-gnome', GDK_SCALE='1'), check=True, timeout=30)
             relaunched = launch_from_gnome(version)
             close_window(relaunched)
 

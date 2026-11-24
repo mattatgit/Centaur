@@ -32,6 +32,7 @@ public:
     bool stopSharing(const QString &id, QString *error, bool projectRemoved = false);
     void publish(const QJsonObject &snapshot);
     QJsonObject sharing(const QString &id) const;
+    bool setOwnerDisplayName(const QString &name);
     void refreshAvatar();
     static QString suggestedAddress();
     quint16 port() const { return m_server.serverPort(); }
@@ -90,7 +91,9 @@ public:
     bool send(QJsonObject command);
     QString id() const { return m_connection["project"].toString(); }
     QString path() const { return m_root + "/shared/" + id(); }
-    QString author() const { return m_connection["name"].toString(); }
+    QString author() const { return m_connection["displayName"].toString(m_connection["name"].toString()); }
+    void setDisplayName(const QString &name);
+    QJsonArray ownMemberships() const { return m_ownMemberships; }
     QString participantId() const { return m_connection["memberId"].toString(); }
     bool writable() const { return m_connected && !leaving() && m_editLock && m_editLock->isLocked(); }
     bool agentAvailable() const { return m_snapshot["agentAvailable"].toBool(); }
@@ -126,6 +129,8 @@ private:
     std::unique_ptr<IrohBridge> m_iroh;
     bool m_tunnelling = false;
     bool m_avatarProtocol = false;
+    bool m_nameProtocol = false;
+    QJsonArray m_ownMemberships;
     QString m_advertisedAvatar;
     quint64 m_connectSerial = 0;
     QByteArray m_buffer;

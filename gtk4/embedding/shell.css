@@ -90,7 +90,6 @@ separator { min-height: 1px; min-width: 1px; background: #f3f3f3; }
 .version-chip { font-family: Inter; font-size: 10px; font-weight: 400; min-height: 14px; padding: 1px 6px; border-radius: 12px; background: #fafafa; color: #9ea39e; }
 .message, .composer-placeholder { font-family: Inter; font-size: 16px; font-weight: 400; }
 .avatar { border-radius: 8px; background: #ff6157; color: white; font-size: 13px; font-weight: 600; }
-.avatar.agent { background: #171717; }
 .chat-scrollbar { padding: 0 4px; margin: 0; min-width: 8px; background: transparent; }
 .chat-scrollbar > range, .chat-scrollbar trough { min-width: 8px; padding: 0; margin: 0; border: 0; background: transparent; }
 .chat-scrollbar slider { min-width: 8px; padding: 0; margin: 0; border: 0; }
@@ -120,7 +119,7 @@ popover.create-project-menu > contents { min-width: 96px; }
 .composer .tone-plain { padding: 0 8px; }
 .composer-placeholder { color: #9ea39e; }
 .busy { padding: 16px; background: #fafafa; border-radius: 12px; }
-.chat-card.chat-conflict { background: #f3f7e8; }
+.chat-card.chat-conflict { background: #f1faf8; }
 .error { color: #ad3232; }
 .toast { background: white; padding: 16px; border-radius: 16px; box-shadow: 0 8px 24px alpha(black,.12); }
 .modal-shade { background: alpha(black,.18); }

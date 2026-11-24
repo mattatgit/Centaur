@@ -60,14 +60,25 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
     def opened(state):
         return state()['project'].get('id')==pid and (state().get('child') or {}).get('ready')
 
-    def invite_and_join():
+    def invite_and_join(used_code=None):
         before=control.data.get('invitation')
         control.send('invite',address='127.0.0.1')
         code=until(lambda:control.data.get('invitation') if control.data.get('invitation')!=before else None,'Invitation unavailable')
         projects(guest,gw); click(guest,gw,'join')
         until(lambda:guest()['form']=='Join a project','Join dialog missing')
+        if used_code:
+            driver.type(used_code); driver.key('Return')
+            until(lambda:'already been used' in guest()['error'],'Used invitation did not explain rejection')
+            driver.screenshot(gw,evidence/'used-invitation.png')
+            click(guest,gw,'dismiss-join-error')
+            until(lambda:not guest()['error'],'The invitation error did not dismiss')
+            click(guest,gw,'join-submit')
+            until(lambda:'already been used' in guest()['error'],'Second rejection did not appear')
+            click(guest,gw,'join-code'); driver.key('ctrl+a')
         driver.type(code); driver.key('Return')
         until(lambda:opened(guest) and guest()['status']=='Guest connected','Disposable guest could not join')
+        until(lambda:not guest()['error'],'Successful retry left the previous error visible')
+        return code
 
     def reopen_guest():
         nonlocal guest_process,guest,gw
@@ -139,7 +150,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         click(guest,gw,'nav-settings'); click(guest,gw,'settings-name')
         driver.key('ctrl+a'); driver.type('Framework')
         until(lambda:guest()['author']=='Framework','Guest name did not save')
-        invite_and_join()
+        first_invitation=invite_and_join()
         shared_host=(host_root/'profile-avatar-wire').read_bytes()
         assert guest_avatar.read_bytes()==alpha.read_bytes()
         with Image.open(guest_wire) as image:
@@ -183,6 +194,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         draw(host,hw,'#138EF5','host-blue',.33); draw(guest,gw,'#FF6157','guest-red',.52)
         print('PASS: host and guest strokes present before and after acknowledgement',flush=True)
         place_agent_pointer(driver,guest,gw,click)
+        assert tuple(round(c*255) for c in guest()['commentPointer']['color'])==tuple(bytes.fromhex('FF6157'))
+        driver.screenshot(gw,evidence/'pointer-guest-before-send.png')
         message(guest,gw,'Look at this part of the app')
         active=until(lambda:host()['project'].get('humanPointer'),'Human pointer did not sync')
         for state,window,name in ((host,hw,'host'),(guest,gw,'guest')):
@@ -215,6 +228,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             if scroll['upper']-scroll['pageSize']-scroll['value']<12: break
         else: raise AssertionError('Host chat could not return to the latest message')
         place_agent_pointer(driver,host,hw,click)
+        assert tuple(round(c*255) for c in host()['commentPointer']['color'])==tuple(bytes.fromhex('138EF5'))
+        driver.screenshot(hw,evidence/'pointer-host-before-send.png')
         message(host,hw,'The host points here')
         until(lambda:all(state()['sharedPointer']['tail'] and state()['sharedPointer']['color']=='#138EF5'
                          for state in (host,guest)),'Host pointer did not render blue on both machines')
@@ -269,12 +284,15 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         former=next(p['id'] for p in host()['project']['sharing']['participants'] if p['name']=='Framework')
         projects(guest,gw); click(guest,gw,'menu-'+pid); click(guest,gw,'menu-delete-'+pid); click(guest,gw,'delete-confirm')
         until(lambda:not (guest_root/'shared'/pid/'connection.json').exists(),'Guest did not leave before a new invite')
-        invite_and_join()
+        invite_and_join(first_invitation)
         remote_image(guest,guest_root,'Matt',shared_host)
         remote_image(host,host_root,guest()['author'],updated)
         assert guest()['drawingColor']=='#FF6157'
         returned=next(p for p in host()['project']['sharing']['participants'] if p['name']==guest()['author'])
         assert returned['id']!=former and former in returned['previousIds']
+        assert guest()['author']=='Framework' and returned['displayName']=='Framework'
+        assert returned['profileId']==former
+
         message(guest,gw,'New message after redeeming the second invitation')
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
             for text in ('Host profile image','Guest profile image','New message after redeeming the second invitation'):
@@ -285,9 +303,34 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             target(state,'collaborators-'+pid)
             assert state()['rosterImages']['collaborators-'+pid]==2,'Fresh join hover roster lost a photograph'
             driver.screenshot(window,evidence/f'rejoined-roster-{name}.png')
+
+        # A deliberately identical visible name must never transfer authorship.
+        click(guest,gw,'open-'+pid); until(lambda:opened(guest),'Rejoined project did not open')
+        click(guest,gw,'nav-settings'); click(guest,gw,'settings-name')
+        driver.key('ctrl+a'); driver.type('Matt')
+        until(lambda:guest()['author']=='Matt' and
+              any(p.get('displayName')=='Matt' and p.get('id')==returned['id']
+                  for p in control.data['project']['sharing']['participants']),'Guest cannot rename while collaborating')
+        projects(guest,gw); click(guest,gw,'open-'+pid); until(lambda:opened(guest),'Renamed guest did not reopen')
+        projects(host,hw); click(host,hw,'open-'+pid); until(lambda:opened(host),'Host did not reopen')
+        message(guest,gw,'Guest with the same display name')
+        for state,own in ((host,False),(guest,True)):
+            until(lambda:chat_appearance(state,'Guest with the same display name').get('author')=='Matt',
+                  'Chat exposed the internal actor alias')
+            assert chat_appearance(state,'Guest with the same display name')['own']==own
+            assert chat_appearance(state,'Host profile image')['own']!=own
+        projects(guest,gw); click(guest,gw,'menu-'+pid); click(guest,gw,'menu-delete-'+pid); click(guest,gw,'delete-confirm')
+        until(lambda:not (guest_root/'shared'/pid/'connection.json').exists(),'Second departure did not finish')
+        invite_and_join()
+        until(lambda:guest()['author']=='Matt' and chat_appearance(guest,'Guest profile image').get('own'),
+              'Repeated rejoin changed the chosen name or lost a proven former author')
+        assert chat_appearance(guest,'Guest profile image')['image'] and not chat_appearance(guest,'Host profile image')['own']
+        driver.screenshot(gw,evidence/'same-name-rejoin.png')
     finally:
         control.close()
-    return ['remote-original-sized-and-alpha-avatars-update-and-survive-reconnect-and-rejoin',
+    return ['editable-same-name-profiles-preserve-distinct-authorship-through-repeated-rejoins',
+            'used-invitation-dismissal-and-successful-retry','draft-pointers-use-the-assigned-colour',
+            'remote-original-sized-and-alpha-avatars-update-and-survive-reconnect-and-rejoin',
             'optimistic-strokes-render-continuously-on-both-profiles-and-keep-participant-colours',
             'human-message-pointer-tracks-scroll-and-zoom-and-clears-on-the-other-participants-reply',
             'inline-conflict-vote-survives-reconnect-closes-on-stalemate-and-applies-a-new-unanimous-choice-once']
