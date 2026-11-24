@@ -71,6 +71,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         if used_code:
             driver.type(used_code); driver.key('Return')
             until(lambda:'already been used' in guest()['error'],'Used invitation did not explain rejection')
+            assert all(p['id']!=pid for p in guest()['projects']), 'Rejected invitation reopened a departed project'
             driver.screenshot(gw,evidence/'used-invitation.png')
             click(guest,gw,'dismiss-join-error')
             until(lambda:not guest()['error'],'The invitation error did not dismiss')

@@ -623,7 +623,10 @@ SharedProject::SharedProject(QString root, QJsonObject connection, QObject *pare
     if (ended()) { m_terminal = true; m_removed = true; return; }
     m_editLock = std::make_unique<QLockFile>(path() + "/client.lock");
     if (m_editLock->tryLock(0)) m_outbox = m_connection["outbox"].toArray();
-    m_snapshot = readObject(path() + "/snapshot.json");
+    // Only an existing membership may reopen its offline copy. A new
+    // invitation has to receive its own project snapshot after admission.
+    if (!m_connection.contains("invite") && !participantId().isEmpty())
+        m_snapshot = readObject(path() + "/snapshot.json");
     m_ownMemberships = readObject(path() + "/profile-" + m_connection["pin"].toString() + ".json")["memberships"].toArray();
     if (!m_snapshot.isEmpty()) Workspace::writeFile(path() + "/" + Workspace::sourceName(m_snapshot["state"].toObject()), m_snapshot["source"].toString().toUtf8());
     if (m_connection["transport"] == "iroh") {
