@@ -17,7 +17,13 @@ def reference_source(driver,kind,*values):
                            and node.get('name')=='Composer reference source'),None),'External reference window did not appear')
             fixture=node['id']
             driver.ipc(f'[con_id={fixture}] floating enable, resize set 152 72, move position 620 180')
-            until(lambda:driver.rect(fixture)['width']==152,'Reference window did not settle')
+            last=None; since=0
+            def placed():
+                nonlocal last,since
+                rect=driver.rect(fixture)
+                if rect!=last: last=rect; since=time.monotonic()
+                return rect['width']==152 and time.monotonic()-since>=.2
+            until(placed,'Reference window did not settle')
             yield fixture
         finally:
             helper.terminate(); helper.wait(timeout=4)
@@ -28,8 +34,11 @@ def clipboard(driver,kind,value):
     mime='image/png' if kind=='image' else 'text/plain;charset=utf-8'
     data=value.read_bytes() if kind=='image' else value.encode()
     with reference_source(driver,kind,value) as fixture:
-        driver.click(fixture,50,32)
         def owns_selection():
+            # Wayland grants ownership using the focused source's input
+            # serial. Renew that serial if the initial window map raced the
+            # click. The check still requires the exact bytes from wl-paste.
+            driver.click(fixture,76,36)
             result=subprocess.run(['wl-paste','--no-newline','--type',mime],capture_output=True,timeout=3)
             return result.returncode==0 and result.stdout==data
         until(owns_selection,'The external window did not copy the requested bytes')
