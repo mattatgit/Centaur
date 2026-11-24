@@ -183,8 +183,9 @@ void Controller::joinProject(const QString &code, const QString &name) {
     }
     if (m_shared.contains(id)) { openProject(id); emit joined(); return; }
     if (m_states.contains(id)) { emit this->error("This project is already on this computer."); return; }
-    connection["name"] = name.trimmed().left(50);
-    connection["displayName"] = connection["name"];
+    const auto chosenName = name.trimmed().left(50);
+    connection["name"] = chosenName;
+    connection["displayName"] = chosenName;
     auto *project = new SharedProject(dataRoot(), connection, this);
     if (!project->save(&error)) { delete project; emit this->error("Could not save the invitation: " + error); return; }
     m_joinMessage.clear(); m_joiningId = id; addShared(project); project->start();
