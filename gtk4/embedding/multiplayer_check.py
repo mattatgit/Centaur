@@ -217,7 +217,20 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             text=f'Follow-up {n} '+('Keep the pointer anchored as the conversation scrolls. '*7)
             message(guest,gw,text.strip())
         until(lambda:not host()['sharedPointer']['tail'] and host()['project'].get('humanPointer'),'Offscreen pointer tail was still rendered')
-        move_over(driver,hw,target(host,'chat-scroller')); driver.scroll(up=True)
+        scroller=target(host,'chat-scroller')
+        driver.ipc(f'[con_id={hw}] focus')
+        move_over(driver,hw,scroller)
+        # Pictures change the distance to the original message. Scroll until
+        # its actual attachment point is inside the viewport, then check that
+        # the product restores the pointer at that position.
+        for _ in range(100):
+            state=host()
+            y=state['sharedPointer']['messageBounds'][1]+12
+            if scroller[1]<=y<scroller[1]+scroller[3]: break
+            previous=state['chatScroll']['value']
+            driver.seat_command('scroll up' if y<scroller[1] else 'scroll down')
+            until(lambda:abs(host()['chatScroll']['value']-previous)>1,'The chat did not scroll toward the pointer')
+        else: raise AssertionError('The originating message did not enter the chat viewport')
         until(lambda:host()['sharedPointer']['tail'],'Pointer failed to return when its message scrolled into view')
         message(host,hw,'I have seen the pointer')
         until(lambda:all(not state()['project'].get('humanPointer') and not state()['sharedPointer']['tail']
