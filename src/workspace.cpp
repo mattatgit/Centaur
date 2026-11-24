@@ -188,8 +188,12 @@ bool Workspace::resolveEndedShare(const QString &id, bool retain, QString *copyI
             for (const auto &message : original["messages"].toArray()) {
                 for (const auto &value : message.toObject()["attachments"].toArray()) {
                     const auto ref=value.toObject();
-                    if (ref["type"]=="image" && !Attachments::store(path,ref,Attachments::read(m_root+"/shared/"+id,ref))) {
-                        *error="A shared image is unavailable. The saved conversation has been kept for retry.";
+                    if (ref["type"]!="image") continue;
+                    const auto bytes=Attachments::read(cache,ref);
+                    // An offline guest may never have received this image.
+                    // Preserve its message and keep all locally available data.
+                    if (!bytes.isEmpty() && !Attachments::store(path,ref,bytes)) {
+                        *error="Could not copy the saved image. The original shared copy is available for retry.";
                         return false;
                     }
                 }

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 from uuid import uuid4
+from attachment_model import mentions_agent
 from attachment_ui import ComposerInput, artwork, icon_button, available_images, conversation_references
 from avatars import shared_avatar
 from chat_identity import message_profile
@@ -950,7 +951,7 @@ class Centaur(Gtk.Application):
         generation=self.chat_scroll_generation
         self.chat_follow=follow; self.chat_follow_generation=generation
         for key in list(self.targets):
-            if key.startswith('agent-details-'): del self.targets[key]
+            if key.startswith(('agent-details-','inspect-image-')): del self.targets[key]
         activity=self.current_activity()
         self.busy.set_visible(bool(activity))
         try: avatar_stamp=self.settings.avatar_path.stat().st_mtime_ns
@@ -1010,6 +1011,8 @@ class Centaur(Gtk.Application):
             self.targets.update({'chat-avatar':avatar,'chat-name':name,'chat-body':body,'chat-time':stamp})
             if mark: self.targets.update({'chat-agent-avatar':avatar,'chat-agent-mark':mark})
             if action: self.targets['agent-details-'+message['id']]=action
+            for index,view in enumerate(getattr(item,'image_buttons',[])):
+                self.targets['inspect-image-'+key+'-'+str(index)]=view
             if activity and activity.get('afterMessage')==message.get('id'):
                 put_activity(item); inserted=True; previous=self.busy
         if activity and not inserted: put_activity(previous)
@@ -1116,8 +1119,7 @@ class Centaur(Gtk.Application):
         if self.send_button.get_sensitive() and (text.strip() or self.composer_input.refs):
             fields={'text':text,'projectId':self.project['id'],'clientId':str(uuid4()),'attachments':list(self.composer_input.refs)}
             if self.comment.phase=='placed': fields['comment']=self.comment.target
-            agent='@'+self.project.get('agentName','centaur').lower()
-            if agent in text.lower() and self.viewport:
+            if mentions_agent(text,self.project.get('agentName','centaur')) and self.viewport:
                 try:
                     # Capture only the canvas, including aligned annotations;
                     # the conversation and other application windows stay out.

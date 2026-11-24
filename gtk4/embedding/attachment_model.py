@@ -31,6 +31,10 @@ def figma_reference(text):
     return {'type': 'figma', 'url': text, 'name': (name or 'Figma design')[:120]}
 
 
+def mentions_agent(text, name):
+    return bool(name and re.search(r'(?<![\w@])@'+re.escape(name)+r'(?![\w-])',text,re.I))
+
+
 def mention_suffix(text, cursor, names):
     if cursor < len(text) and re.match(r'[\w-]', text[cursor]):
         return ''

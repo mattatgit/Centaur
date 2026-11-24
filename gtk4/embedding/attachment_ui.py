@@ -72,6 +72,7 @@ class ComposerInput:
         self.directory = Path(owner.runtime.name)
         self.drafts = {}
         self.pending = {}
+        self.titles_inflight = 0
         self.metadata_pool = ThreadPoolExecutor(max_workers=2,thread_name_prefix='figma-title')
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='composer-image')
         self.flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False,
@@ -139,18 +140,19 @@ class ComposerInput:
         return False
 
     def pick(self):
-        dialog = Gtk.FileChooserNative.new('Attach images',self.owner.window,Gtk.FileChooserAction.OPEN,'Attach','Cancel')
-        dialog.set_select_multiple(True)
         formats = Gtk.FileFilter(); formats.set_name('PNG, JPEG and WebP images')
         for mime in ('image/png','image/jpeg','image/webp'): formats.add_mime_type(mime)
-        dialog.add_filter(formats)
+        filters=Gio.ListStore.new(Gtk.FileFilter); filters.append(formats)
         project = self.project
-        def selected(chooser, response):
-            if response == Gtk.ResponseType.ACCEPT and self.project == project:
-                self.files(chooser.get_files())
-            chooser.destroy()
-        dialog.connect('response',selected)
-        dialog.show()
+        def selected(chooser, result):
+            try:
+                files=chooser.open_multiple_finish(result)
+            except GLib.Error as error:
+                if not error.matches(Gtk.DialogError.quark(),Gtk.DialogError.DISMISSED):
+                    self.owner.show_error('The image chooser could not open the selection.')
+                return
+            if self.project==project: self.files(files)
+        Gtk.FileDialog(title='Attach images',filters=filters,modal=True).open_multiple(self.owner.window,None,selected)
 
     def drop(self, target, value, x, y):
         self.files(value.get_files())
@@ -256,6 +258,7 @@ class ComposerInput:
             result=json.loads(data).get('results',[])
             return result[0].get('name') if result else None
         def finish(future):
+            self.titles_inflight -= 1
             if self.owner.closing: return False
             try: name=future.result()
             except (OSError,ValueError,IndexError): return False
@@ -264,7 +267,8 @@ class ComposerInput:
                 ref['name']=name[:120]
                 if self.project==project: self.refresh()
             return False
-        if Path('/run/centaur-figma.sock').is_socket():
+        if self.titles_inflight < 2 and Path('/run/centaur-figma.sock').is_socket():
+            self.titles_inflight += 1
             self.metadata_pool.submit(fetch).add_done_callback(lambda future:GLib.idle_add(finish,future))
 
     def add(self, project, ref):
@@ -326,6 +330,7 @@ def available_images(owner, message):
 
 def conversation_references(owner, message, author, card):
     wrapper = box(True,8)
+    wrapper.image_buttons=[]
     folder = Path(owner.data['sourcePath']).parent/'.centaur'/'attachments'
     for ref in message.get('attachments',[]):
         if ref.get('type') == 'figma' and figma_reference(ref.get('url')):
@@ -349,11 +354,13 @@ def conversation_references(owner, message, author, card):
                     view = icon_button('Inspect image uploaded by '+author,visual,inspect,'uploaded-image')
                     view.set_overflow(Gtk.Overflow.HIDDEN)
                     view.set_halign(Gtk.Align.START)
-                    wrapper.append(view)
+                    wrapper.append(view); wrapper.image_buttons.append(view)
                 except GLib.Error:
                     wrapper.append(label('This image could not be read.','muted',True))
             else:
-                wrapper.append(label('Image unavailable on this device. Reconnect to retrieve it.','muted',True))
+                notice = ('Image unavailable on this device. Reconnect to retrieve it.' if owner.data.get('remote')
+                          else 'Image unavailable in this copy. Attach it again to share it.')
+                wrapper.append(label(notice,'muted',True))
             wrapper.append(label(author+' uploaded this image','upload-attribution',True))
     if message.get('text'):
         wrapper.append(card)

@@ -265,7 +265,8 @@ class UpdateControls:
         received=value.get('downloadBytes')
         if isinstance(received,int) and phase in ('downloading','verifying'):
             message=progress_message(received,value.get('totalBytes'))
-            if phase=='verifying': message+=' · Verifying…'
+            if phase=='verifying':
+                message=message+' · Verifying…' if received else 'Verifying the update…'
         if message: self.status.set_text(message)
         if self.process and phase=='ready' and not self.handed_off:
             if self.blocked(): self.status.set_text('Update downloaded. Waiting for the current work to finish…'); return

@@ -109,7 +109,7 @@ void Agent::failRun(const QString &code, const QString &message) {
     if (m_cancelled) return;
     const auto resolving=m_resolving; m_resolving=true;
     m_failureCode=code; observe("failed",true);
-    m_cancelled=true; m_timeout.stop(); stopProcess();
+    m_cancelled=true; m_timeout.stop(); stopProcess(); m_visualDir.reset();
     if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
     emit failed(message);
     emit failureReady(m_runId,message,diagnostics());
@@ -228,6 +228,7 @@ void Agent::cancel() {
         stopProcess(); m_process.waitForFinished(1000);
     }
     if (!m_promptFile.isEmpty()) QFile::remove(m_promptFile);
+    m_visualDir.reset();
 }
 
 QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {

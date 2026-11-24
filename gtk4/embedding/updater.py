@@ -318,13 +318,14 @@ class Transaction:
         runtime.wait_parent(self.request['parentPid'],self.request['parentIdentity'])
         committed=False
         try:
-            self.status('restarting','Restarting Centaur…')
+            self.status('installing','Installing the verified update…')
             if str(self.profile.resolve())!=self.previous: raise UpdateError('The installed profile changed. Reopen the installed app and try again.')
             runtime.stop_host(self.previous,data); self.host_stopped=True
             write_json(state_path()/'recovery.json',{'previous':self.previous,'candidate':manifest['storePath'],
                        'profile':str(self.profile),'dataDir':str(data),'work':str(self.work),'token':token})
             runtime.activate(self.profile,manifest['storePath']); self.switched=True
             (self.work/'ready.json').unlink(missing_ok=True)
+            self.status('restarting','Restarting Centaur…')
             self.child=runtime.launch(manifest['storePath'],data,self.work,token,self.request.get('omp',''))
             runtime.ready(self.child,self.work,manifest['version'].rsplit('+',1)[-1])
             runtime.release_host(manifest['storePath'],data,token)

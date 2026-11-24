@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from hashlib import sha256
 import subprocess
 import sys
+import time
 from check import until
 
 
@@ -63,6 +64,11 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         until(lambda:path.is_file() and sha256(path.read_bytes()).hexdigest()==ref['hash'],'Image content failed verification')
     until(lambda:not host()['draft']['attachments'],'Confirmed message stayed in composer')
     driver.screenshot(gw,evidence/'composer-shared-history.png')
+    click(guest,gw,'inspect-image-'+sent['id']+'-0')
+    until(lambda:guest()['form']=='Uploaded image','Sent image inspector did not open')
+    driver.screenshot(gw,evidence/'composer-inspector.png')
+    driver.key('Escape')
+    until(lambda:not guest()['form'],'Image inspector did not close')
     click(guest,gw,'editor');driver.type('Guest visual reference')
     with clipboard('image',source):
         driver.key('ctrl+v')
@@ -70,4 +76,12 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     click(guest,gw,'remove-reference-0')
     until(lambda:not guest()['draft']['attachments'],'Could not remove image')
     assert guest()['draft']['sha256']==sha256(b'Guest visual reference').hexdigest()
-    click(guest,gw,'editor');driver.key('ctrl+a','BackSpace')
+    click(guest,gw,'attach')
+    chooser=until(lambda:next((node for node in driver.nodes() if node.get('name')=='Attach images'
+                 and node.get('pid')==guest()['pid']),None),'Native multi-image chooser did not open')
+    driver.ipc(f"[con_id={chooser['id']}] focus"); driver.key('ctrl+l'); time.sleep(.25)
+    driver.key('ctrl+a'); driver.type(str(source)); driver.key('Return')
+    until(lambda:guest()['draft']['attachments']==['image'] and guest()['draft']['canSend'],'Selected image did not load')
+    click(guest,gw,'send')
+    until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1
+                     for m in host()['project']['messages']),'Host never received the guest’s selected image')

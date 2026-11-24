@@ -550,7 +550,9 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         const bool importAnswer = !imported.isEmpty() && !imported["previewReady"].toBool()
             && (imported["status"] == "awaitingAnswer" || imported["status"] == "investigating"
                 || imported["status"] == "failed" || imported["status"] == "interrupted");
-        const bool addressed = importAnswer || text.contains("@" + state["agentName"].toString(), Qt::CaseInsensitive);
+        const QRegularExpression mention("(?<![\\w@])@" + QRegularExpression::escape(state["agentName"].toString("centaur")) + "(?![\\w-])",
+            QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+        const bool addressed = importAnswer || mention.match(text).hasMatch();
         if (!addressed && sharing["participants"].toArray().size() >= 2) {
             const auto pointer = state["humanPointer"].toObject();
             if (pointer.isEmpty() || pointer["participant"] != participant) {
