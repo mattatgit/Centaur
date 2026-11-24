@@ -97,16 +97,16 @@ private slots:
             });
         });
         const auto executable=root.filePath("agent");
-        const QByteArray check=R"(count=0
-for arg in "$@"; do
-  case "$arg" in
-    @*.png) test -s "${arg#@}" || exit 4
-            count=$((count+1));;
-    @*.txt) grep -q 'Fixture' "${arg#@}" || exit 5;;
-  esac
-done
-test "$count" = 3 || exit 6
-)";
+        const QByteArray check=
+            "count=0\n"
+            "for arg in \"$@\"; do\n"
+            "  case \"$arg\" in\n"
+            "    @*.png) test -s \"${arg#@}\" || exit 4\n"
+            "            count=$((count+1));;\n"
+            "    @*.txt) grep -q 'Fixture' \"${arg#@}\" || exit 5;;\n"
+            "  esac\n"
+            "done\n"
+            "test \"$count\" = 3 || exit 6\n";
         QVERIFY(writeAgentReply(executable,{{"kind","question"},{"message","Reviewed references"}},check));
         AgentOverride agentEnvironment(executable);
         Agent agent(nullptr,5000,reader.fullServerName());
