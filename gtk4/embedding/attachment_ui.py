@@ -10,7 +10,7 @@ gi.require_version('Gdk','4.0')
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
 from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, figma_reference,
                               image_filename, mention_suffix, prepare_image, stored_image)
-from ui import OriginalSvg, accessible, box, label
+from ui import OriginalSvg, accessible, allocate, box, label
 
 
 def artwork(name, size, rect=None):
@@ -371,24 +371,27 @@ def available_images(owner, message):
     return tuple(bool(folder and stored_image(folder,r)) for r in message.get('attachments',[]) if r.get('type')=='image')
 
 
-class ConversationImage(Gtk.Button):
-    def __init__(self, pixbuf, author, inspect):
-        super().__init__(css_classes=['uploaded-image'],halign=Gtk.Align.START,overflow=Gtk.Overflow.HIDDEN)
-        self.image_width,self.image_height=pixbuf.get_width(),pixbuf.get_height()
-        picture=Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
-        picture.set_can_shrink(True)
-        self.set_child(picture)
-        accessible(self,'Inspect image uploaded by '+author)
-        self.connect('clicked',lambda _:inspect())
+class ConversationImageLayout(Gtk.LayoutManager):
+    """Keep uploaded artwork at its intended size even in a tall, nearly empty chat."""
+    def __init__(self,pixbuf):
+        super().__init__()
+        self.width,self.height=pixbuf.get_width(),pixbuf.get_height()
 
-    def do_get_request_mode(self):
+    def do_get_request_mode(self,widget):
         return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
-    def do_measure(self,orientation,for_size):
-        if orientation==Gtk.Orientation.HORIZONTAL: return 1,self.image_width,-1,-1
-        width=self.image_width if for_size<0 else min(self.image_width,for_size)
-        height=max(1,round(width*self.image_height/self.image_width))
+    def scaled_height(self,width):
+        return max(1,round(width*self.height/self.width))
+
+    def do_measure(self,widget,orientation,for_size):
+        if orientation==Gtk.Orientation.HORIZONTAL: return 1,self.width,-1,-1
+        width=self.width if for_size<0 else min(self.width,for_size)
+        height=self.scaled_height(width)
         return height,height,-1,-1
+
+    def do_allocate(self,widget,width,height,baseline):
+        width=min(width,self.width)
+        allocate(widget.get_first_child(),width,min(height,self.scaled_height(width)))
 
 
 def conversation_references(owner, message, author, card):
@@ -412,8 +415,14 @@ def conversation_references(owner, message, author, card):
                         close = Gtk.Button(label='Close')
                         close.connect('clicked',lambda _:owner.dismiss_dialog(dialog))
                         column.append(close); dialog.present(close)
-                    view=ConversationImage(pixbuf,author,inspect)
-                    wrapper.append(view); wrapper.image_buttons.append(view)
+                    picture=Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(pixbuf))
+                    picture.set_can_shrink(True)
+                    view=icon_button('Inspect image uploaded by '+author,picture,inspect,'uploaded-image')
+                    view.set_overflow(Gtk.Overflow.HIDDEN)
+                    frame=Gtk.Box(valign=Gtk.Align.START)
+                    frame.set_layout_manager(ConversationImageLayout(pixbuf))
+                    frame.append(view)
+                    wrapper.append(frame); wrapper.image_buttons.append(view)
                 except GLib.Error:
                     wrapper.append(label('This image could not be read.','muted',True))
             else:
