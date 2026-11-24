@@ -588,8 +588,34 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             const auto expected = m_workspace.projectPath(id) + "/.centaur/";
             const auto canonical = QFileInfo(filename).canonicalFilePath();
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
+            QJsonArray references = attachments;
+            auto referenceMessage = state["messages"].toArray().last().toObject();
+            if (references.isEmpty()) {
+                static const QRegularExpression visualReference(
+                    QStringLiteral(R"(\b(image|images|photo|screenshot|attachment|reference|figma|mockup|wireframe|picture|uploaded|shared design)\b)"),
+                    QRegularExpression::CaseInsensitiveOption);
+                const auto history = state["messages"].toArray();
+                const bool mentionsVisual = visualReference.match(text).hasMatch();
+                // Resolve against the history at send time so later simultaneous
+                // messages cannot redirect an already queued request.
+                for (qsizetype i = history.size()-2; i >= 0; --i) {
+                    const auto previous = history.at(i).toObject();
+                    const auto items = previous["attachments"].toArray();
+                    if (items.isEmpty()) continue;
+                    QJsonArray named;
+                    for (const auto &value : items) {
+                        const auto ref = value.toObject();
+                        const auto url = ref["url"].toString(), title = ref["name"].toString();
+                        if ((!url.isEmpty() && text.contains(url)) || (title.size()>=3 && text.contains(title,Qt::CaseInsensitive)))
+                            named.append(ref);
+                    }
+                    if (!named.isEmpty()) { referenceMessage=previous; references=named; break; }
+                    if (mentionsVisual && references.isEmpty()) { referenceMessage=previous; references=items; }
+                }
+            }
             const QJsonObject request{{"id", uid()}, {"author", author}, {"participant", participant}, {"text", text},
-                {"attachments",attachments}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
+                {"referenceMessage",referenceMessage["id"]},{"referenceAuthor",referenceMessage["author"]},
+                {"attachments",references}, {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
             queue.append(request);
             state["agentQueue"] = queue;
             auto directions = state["directions"].toObject();
@@ -1043,6 +1069,9 @@ void Session::nextRequest() {
         }
         request["requestAuthor"] = m_agentAuthor; request["requestText"] = m_activeRequest["text"];
         request["requestComment"] = m_activeRequest["comment"];
+        request["visualReferences"] = m_activeRequest["attachments"];
+        request["referenceMessage"] = m_activeRequest["referenceMessage"];
+        request["referenceAuthor"] = m_activeRequest["referenceAuthor"];
         request["appHistory"] = !state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool() ? QJsonArray() : m_workspace.history(id);
         const auto image = m_activeRequest["imageRevision"] == state["revision"] ? m_activeRequest["image"].toString() : QString();
         const bool pendingImport=!state.value("import").toObject().isEmpty() && !state.value("import").toObject()["previewReady"].toBool();

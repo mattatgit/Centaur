@@ -4,6 +4,9 @@
 #include <QTimer>
 #include <QJsonObject>
 #include <QElapsedTimer>
+#include <QLocalSocket>
+#include <QTemporaryDir>
+#include <memory>
 
 // The agent proposes source; only the project coordinator can apply it.
 class Agent : public QObject {
@@ -31,6 +34,11 @@ signals:
     void resultReady(const QString &runId, const QJsonObject &reply);
     void failureReady(const QString &runId, const QString &message, const QJsonObject &details);
 private:
+    void prepareVisuals(const QString &project, QJsonObject state, const QString &source, const QString &canvas);
+    void startPrepared(const QString &projectPath, const QJsonObject &state, const QString &source, const QStringList &images);
+    void closeDesignSocket();
+    QLocalSocket *m_designSocket = nullptr;
+    std::unique_ptr<QTemporaryDir> m_visualDir;
     void readOutput();
     void readLine(const QByteArray &line);
     void readMessage(const QJsonObject &message, bool complete);

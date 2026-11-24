@@ -5,6 +5,8 @@ on:
     branches: [main, 'codex/composer-collaboration']
     paths:
       - 'src/**'
+      - 'integrations/figma/**'
+      - 'packaging/figma-reader.nix'
       - 'gtk4/**'
       - 'templates/**'
       - 'assets/branding/**'
@@ -59,6 +61,7 @@ jobs:
           skipPush: true
       - name: Check Python, bundle contract and workflow
         run: |
+          node --test tests/figma-reader.test.cjs
           python3 -m py_compile gtk4/embedding/*.py scripts/publish-gtk4-update.py
           python3 -m unittest discover -s tests -p 'test_gtk4_*.py'
           nix shell --inputs-from . nixpkgs#actionlint nixpkgs#shellcheck -c bash -c \

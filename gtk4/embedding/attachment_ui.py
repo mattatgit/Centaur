@@ -1,5 +1,7 @@
 """GTK input and rendering for image and Figma conversation references."""
+import json
 import re
+import socket
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
@@ -67,6 +69,7 @@ class ComposerInput:
         self.directory = Path(owner.runtime.name)
         self.drafts = {}
         self.pending = {}
+        self.metadata_pool = ThreadPoolExecutor(max_workers=2,thread_name_prefix='figma-title')
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='composer-image')
         self.flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False,
                                 min_children_per_line=1, max_children_per_line=8,
@@ -229,11 +232,36 @@ class ComposerInput:
         future.add_done_callback(lambda _:GLib.idle_add(finish))
         return True
 
+    def refine_title(self, project, ref):
+        # A denied or unavailable reader leaves the URL-derived title usable.
+        def fetch():
+            with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as client:
+                client.settimeout(5)
+                client.connect('/run/centaur-figma.sock')
+                query={'project':project,'operation':'title','urls':[ref['url']]}
+                client.sendall(json.dumps(query).encode()+b'\n')
+                with client.makefile('rb') as stream: data=stream.readline(1025)
+            if len(data)>1024: return None
+            result=json.loads(data).get('results',[])
+            return result[0].get('name') if result else None
+        def finish(future):
+            if self.owner.closing: return False
+            try: name=future.result()
+            except (OSError,ValueError,IndexError): return False
+            # Never mutate metadata after sending, or replace another chip.
+            if name and not self.owner.pending_message and any(r is ref for r in self.drafts.get(project,[])):
+                ref['name']=name[:120]
+                if self.project==project: self.refresh()
+            return False
+        if Path('/run/centaur-figma.sock').is_socket():
+            self.metadata_pool.submit(fetch).add_done_callback(lambda future:GLib.idle_add(finish,future))
+
     def add(self, project, ref):
         if not self.has_room(project):
             self.owner.show_error('Attach up to eight references per message.')
             return
         self.drafts.setdefault(project,[]).append(ref)
+        if ref['type']=='figma': self.refine_title(project,ref)
         if project == self.project: self.refresh()
 
     def remove(self, index):
@@ -266,6 +294,7 @@ class ComposerInput:
             self.refresh(); self.clean_files()
 
     def close(self):
+        self.metadata_pool.shutdown(wait=False,cancel_futures=True)
         self.pool.shutdown(wait=False,cancel_futures=True)
 
 

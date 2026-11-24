@@ -3,7 +3,7 @@ from datetime import datetime,timezone
 
 PHASES={
     'starting':'Starting agent…', 'waiting':'Waiting for agent response…',
-    'processing':'Agent is preparing a response…', 'responding':'Receiving agent response…',
+    'reading_design':'Reading the referenced Figma design…', 'processing':'Agent is preparing a response…', 'responding':'Receiving agent response…',
     'retrying':'Agent is retrying its response…', 'finishing':'Finishing agent request…',
     'inspecting':'Inspecting project files…', 'searching':'Searching project files…',
     'acquiring':'Copying the selected source…', 'saving':'Saving the prepared change…',

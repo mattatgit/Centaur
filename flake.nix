@@ -96,6 +96,7 @@
         };
       };
     in {
+      nixosModules.figma-reader = import ./packaging/figma-reader.nix;
       packages = eachSystem (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
