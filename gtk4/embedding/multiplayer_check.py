@@ -58,7 +58,9 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         until(lambda:state()['page']=='projects' and not state()['motion']['workspaceRunning'],'Projects did not settle')
 
     def opened(state):
-        return state()['project'].get('id')==pid and (state().get('child') or {}).get('ready')
+        current=state()
+        return (current['page']=='workspace' and not current['motion']['workspaceRunning'] and
+                current['project'].get('id')==pid and (current.get('child') or {}).get('ready'))
 
     def invite_and_join(used_code=None):
         before=control.data.get('invitation')
@@ -305,8 +307,10 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             driver.screenshot(window,evidence/f'rejoined-roster-{name}.png')
 
         # A deliberately identical visible name must never transfer authorship.
-        click(guest,gw,'open-'+pid); until(lambda:opened(guest),'Rejoined project did not open')
-        click(guest,gw,'nav-settings'); click(guest,gw,'settings-name')
+        projects(guest,gw)
+        click(guest,gw,'nav-settings')
+        until(lambda:guest()['page']=='settings','Guest did not open Settings from Projects')
+        click(guest,gw,'settings-name')
         driver.key('ctrl+a'); driver.type('Matt')
         until(lambda:guest()['author']=='Matt' and
               any(p.get('displayName')=='Matt' and p.get('id')==returned['id']
