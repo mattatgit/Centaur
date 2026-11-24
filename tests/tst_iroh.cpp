@@ -4,7 +4,6 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QStandardPaths>
-#include <QTcpServer>
 #include <QScopeGuard>
 
 static QJsonObject objectFile(const QString &path) {
@@ -20,7 +19,7 @@ private slots:
     void initTestCase() {
         Q_INIT_RESOURCE(starter);
         QVERIFY(QFileInfo::exists(QCoreApplication::applicationDirPath() + "/centaur-network"));
-        QTcpServer port; QVERIFY(port.listen(QHostAddress::LocalHost, 0)); qputenv("CENTAUR_PORT", QByteArray::number(port.serverPort()));
+        qputenv("CENTAUR_PORT", "0");
     }
     void concurrentGuestsAgentAndLegacyLanStayInTheSameProject() {
         QTemporaryDir home, first, second, legacy;
@@ -40,7 +39,7 @@ private slots:
         Controller b(second.path()); b.start(); b.joinProject(host.invitationCode(), "Chris"); QTRY_COMPARE_WITH_TIMEOUT(b.projectId(), id, 40000);
         SharedProject extraWindow(first.path(), objectFile(first.path() + "/shared/" + id + "/connection.json"));
         extraWindow.start(); QTRY_VERIFY_WITH_TIMEOUT(extraWindow.connected(), 40000); QVERIFY(!extraWindow.writable());
-        host.invitePeople("127.0.0.1"); QVERIFY(host.invitationCode().startsWith("centaur1:"));
+        host.invitePeople("127.0.0.1"); QTRY_VERIFY(host.invitationCode().startsWith("centaur1:"));
         Controller lan(legacy.path()); lan.start(); lan.joinProject(host.invitationCode(), "Alex"); QTRY_COMPARE(lan.projectId(), id);
         QVERIFY(a.sendMessage("From Iroh A")); QVERIFY(b.sendMessage("From Iroh B")); QVERIFY(lan.sendMessage("From LAN"));
         QTRY_COMPARE(host.project().value("messages").toList().size(), 3);
@@ -128,6 +127,12 @@ private slots:
         const auto id = host->projectId(); host->invitePeople("127.0.0.1");
         QString error; auto connection = SharedProject::parseInvitation(host->invitationCode(), &error); connection["name"] = "Saori";
         SharedProject guest(guestRoot.path(), connection); QVERIFY(guest.save()); guest.start(); QTRY_VERIFY(guest.connected());
+        // Reopen the real port from this invitation on restart. Reserving and
+        // releasing an unrelated port in initTestCase races concurrent clients.
+        const int sharedPort=connection["port"].toInt();
+        QVERIFY(sharedPort>0);
+        qputenv("CENTAUR_PORT",QByteArray::number(sharedPort));
+        const auto restorePort=qScopeGuard([] { qputenv("CENTAUR_PORT","0"); });
         host.reset();
         // Model a v0.2 shares file, before transport flags existed.
         const auto file = home.path() + "/network/shares.json";
