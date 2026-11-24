@@ -166,10 +166,13 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             ident=next((m['id'] for m in current['project']['messages'] if m.get('text')==text),None)
             return current['chatMessageAppearance'].get(ident,{})
         for name,state,window in (('host',host,hw),('guest',guest,gw)):
-            until(lambda:len(state()['chatRows'])>=3 and all(row['avatar'].get('image') for row in state()['chatRows'][:3]),
-                  'Chat rendered initials instead of profile images')
-            assert chat_appearance(state,'Host profile image')['own']==(name=='host')
-            assert chat_appearance(state,'Guest profile image')['own']==(name=='guest')
+            for text,author in (('Project note from before sharing','host'),
+                                ('Host profile image','host'),('Guest profile image','guest')):
+                def rendered_message():
+                    row=chat_appearance(state,text)
+                    return row if row.get('image') else None
+                row=until(rendered_message,'Chat did not render the author’s image for '+text)
+                assert row['own']==(name==author)
             driver.screenshot(window,evidence/f'avatars-chat-{name}.png')
             projects(state,window); move_over(driver,window,target(state,'open-'+pid))
             target(state,'collaborators-'+pid); assert state()['rosterImages']['collaborators-'+pid]==2
