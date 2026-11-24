@@ -9,6 +9,7 @@ from gi.repository import Gdk,GLib,Gtk
 
 def activate(app):
     window=Gtk.ApplicationWindow(application=app,title='Composer reference source',decorated=False)
+    window.set_default_size(152,72)
     mode,*inputs=sys.argv[1:]
     if mode=='drop':
         widget=Gtk.Label(label='Drag images')

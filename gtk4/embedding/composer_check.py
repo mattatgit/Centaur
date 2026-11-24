@@ -16,13 +16,12 @@ def reference_source(driver,kind,*values):
             node=until(lambda:next((node for node in driver.nodes() if node.get('pid')==helper.pid
                            and node.get('name')=='Composer reference source'),None),'External reference window did not appear')
             fixture=node['id']
-            driver.ipc(f'[con_id={fixture}] floating enable, resize set 152 72, move position 620 180')
             last=None; since=0
             def placed():
                 nonlocal last,since
                 rect=driver.rect(fixture)
                 if rect!=last: last=rect; since=time.monotonic()
-                return rect['width']==152 and time.monotonic()-since>=.2
+                return rect['width']>0 and rect['height']>0 and time.monotonic()-since>=.2
             until(placed,'Reference window did not settle')
             yield fixture
         finally:
@@ -38,7 +37,8 @@ def clipboard(driver,kind,value):
             # Wayland grants ownership using the focused source's input
             # serial. Renew that serial if the initial window map raced the
             # click. The check still requires the exact bytes from wl-paste.
-            driver.click(fixture,76,36)
+            rect=driver.rect(fixture)
+            driver.click(fixture,rect['width']//2,rect['height']//2)
             result=subprocess.run(['wl-paste','--no-newline','--type',mime],capture_output=True,timeout=3)
             return result.returncode==0 and result.stdout==data
         until(owns_selection,'The external window did not copy the requested bytes')
@@ -50,9 +50,10 @@ def drop_files(driver, state, window, paths):
     with reference_source(driver,'drop',*paths) as fixture:
         rect=driver.rect(fixture); receiver=driver.rect(window)
         x,y,w,h=target(state,'composer')
-        dx=round(receiver['x']+x+w/2-rect['x']-36)
-        dy=round(receiver['y']+y+h/2-rect['y']-30)
-        driver.drag_path(fixture,36,30,[(18,0),(dx,dy),(dx+1,dy)])
+        start_x,start_y=rect['width']//2,rect['height']//2
+        dx=round(receiver['x']+x+w/2-rect['x']-start_x)
+        dy=round(receiver['y']+y+h/2-rect['y']-start_y)
+        driver.drag_path(fixture,start_x,start_y,[(18,0),(dx,dy),(dx+1,dy)])
         until(lambda:len(state()['draft']['attachments'])==len(paths),
               'The composer did not receive the file drop')
 

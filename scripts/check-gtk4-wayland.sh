@@ -31,6 +31,7 @@ default_border none
 focus_follows_mouse no
 for_window [app_id="org.centaur.Gtk4EmbeddingTest"] floating enable, border none
 for_window [app_id="org.centaur.Gtk4"] floating enable, border none
+for_window [app_id="org.centaur.ComposerFixture"] floating enable, border none, move position 620 180
 CONF
 unset DISPLAY WAYLAND_DISPLAY SWAYSOCK
 export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
