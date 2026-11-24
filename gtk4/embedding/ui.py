@@ -109,9 +109,10 @@ def send_art():
 
 class Raster(Gtk.Widget):
     """An original image in a measured slot, independent of PNG pixel size."""
-    def __init__(self,filename,size,cover=False,padding=0):
+    def __init__(self,filename,size,cover=False,padding=0,texture=None):
         super().__init__()
-        self.filename=str(filename); self.texture=Gdk.Texture.new_from_filename(self.filename); self.size=size; self.cover=cover; self.padding=padding
+        self.filename=str(filename); self.texture=texture if texture is not None else Gdk.Texture.new_from_filename(self.filename)
+        self.size=size; self.cover=cover; self.padding=padding
         self.set_can_target(False)
 
     def do_measure(self,orientation,for_size): return (self.size,self.size,-1,-1)

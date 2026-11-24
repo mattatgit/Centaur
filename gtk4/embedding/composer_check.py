@@ -170,5 +170,8 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     drop_files(driver,guest,gw,[source,second])
     until(lambda:guest()['draft']['attachments']==['image','image'] and guest()['draft']['canSend'],
           'Dropped files did not become two composer images')
+    for index in range(2):
+        bounds=target(guest,'draft-reference-'+str(index))
+        assert tuple(map(round,bounds[2:]))==(72,72),bounds
     driver.screenshot(gw,evidence/'composer-dropped-images.png')
     click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')

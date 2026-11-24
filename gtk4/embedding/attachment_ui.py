@@ -10,7 +10,7 @@ gi.require_version('Gdk','4.0')
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
 from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, figma_reference,
                               image_filename, mention_suffix, prepare_image, stored_image)
-from ui import OriginalSvg, accessible, allocate, box, label
+from ui import OriginalSvg, Raster, accessible, allocate, box, label
 
 
 def artwork(name, size, rect=None):
@@ -52,14 +52,12 @@ def thumbnail(path, remove):
     tile = Gtk.Overlay()
     tile.set_size_request(72,72)
     tile.set_halign(Gtk.Align.START)
+    tile.set_valign(Gtk.Align.START)
     frame = Gtk.Box(css_classes=['image-thumbnail'], overflow=Gtk.Overflow.HIDDEN)
     frame.set_margin_top(8)
     frame.set_margin_end(8)
-    preview = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),64,64,True)
-    pic = Gtk.Picture.new_for_paintable(Gdk.Texture.new_for_pixbuf(preview))
-    pic.set_content_fit(Gtk.ContentFit.COVER)
-    pic.set_can_shrink(True)
-    pic.set_hexpand(True)
+    preview = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),128,128,True)
+    pic = Raster(path,64,cover=True,texture=Gdk.Texture.new_for_pixbuf(preview))
     frame.append(pic)
     tile.set_child(frame)
     close = icon_button('Remove image',artwork('f0a73.svg',16,(3.71,3.71,8.57,8.57)),remove,'image-remove')
@@ -338,7 +336,7 @@ class ComposerInput:
         while self.flow.get_first_child():
             self.flow.remove(self.flow.get_first_child())
         for key in list(self.owner.targets):
-            if key.startswith('remove-reference-'): del self.owner.targets[key]
+            if key.startswith(('remove-reference-','draft-reference-')): del self.owner.targets[key]
         for i,r in enumerate(self.refs):
             remove = lambda i=i:self.remove(i)
             if r['type']=='loading':
@@ -350,6 +348,7 @@ class ComposerInput:
                 child=thumbnail(self.directory/image_filename(r),remove)
             self.flow.insert(child,-1)
             self.owner.targets['remove-reference-'+str(i)]=child.get_last_child()
+            if self.owner.reports: self.owner.targets['draft-reference-'+str(i)]=child
         self.owner.composer.tray.set_visible(bool(self.refs))
         self.owner.composer.queue_resize()
         self.owner.update_send()
