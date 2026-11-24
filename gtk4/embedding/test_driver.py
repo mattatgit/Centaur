@@ -53,12 +53,30 @@ class Driver:
         disable production decorations merely to make UI tests pass.
         """
         from check import until
-        rect=self.raw_rect(window); previous=state().get('nativePointerSerial',0)
+        rect=self.raw_rect(window)
         self.ipc(f'[con_id={window}] focus')
-        self.ipc(f"seat seat0 cursor set {rect['x']+200} {rect['y']+150}")
-        self.seat_command('motion 1 1')
-        until(lambda:state().get('nativePointerSerial',0)>previous,'Native pointer calibration did not arrive')
-        x,y=state()['nativePointer']; self.offsets[window]=(201-x,151-y); self.native[window]=state
+        def sample(x,y):
+            before=state().get('nativePointerSerial',0)
+            self.ipc(f"seat seat0 cursor set {rect['x']+x} {rect['y']+y}")
+            self.seat_command('motion 0 0')
+            def arrived():
+                current=state()
+                if current.get('nativePointerSerial',0)>before:
+                    return current.get('nativePointer')
+            return until(arrived,'Native pointer calibration did not arrive')
+        # Setting the cursor itself generates an event. Adding a relative
+        # one-pixel move used to make the origin depend on which event GTK
+        # reported first. Confirm the measured offset at a second location.
+        previous=None
+        for x,y in [(200,150),(224,174)]*3:
+            actual=sample(x,y)
+            offset=(x-actual[0],y-actual[1])
+            if previous==offset:
+                self.offsets[window]=offset
+                self.native[window]=state
+                return
+            previous=offset
+        raise AssertionError('Two native pointer positions did not agree on the window origin')
 
     def click(self, window, x, y):
         if self.wayland:
