@@ -289,6 +289,55 @@ private slots:
         QTRY_VERIFY(invalid.failed()); QCOMPARE(invalid.joinErrorCode(),QString("invalid"));
         host.stopSharing();
     }
+    void expiredInvitationRemainsRecognisableAfterTheHostIssuesAnother() {
+        QTemporaryDir hostRoot, guestRoot;
+        QString projectId, oldCode;
+        {
+            Controller host(hostRoot.path());
+            host.start();
+            host.createProject("Invitation expiry", "");
+            projectId = host.projectId();
+            host.invitePeople("127.0.0.1");
+            oldCode = host.invitationCode();
+            QVERIFY(!oldCode.isEmpty());
+        }
+
+        // Move the actual invitation past its deadline in this stopped, disposable host.
+        const auto sharesFile = hostRoot.filePath("network/shares.json");
+        auto shares = objectFile(sharesFile);
+        auto project = shares[projectId].toObject();
+        auto invites = project["invites"].toObject();
+        QCOMPARE(invites.size(), 1);
+        invites[invites.keys().first()] = 1;
+        project["invites"] = invites;
+        shares[projectId] = project;
+        QVERIFY(Workspace::writeFile(sharesFile, QJsonDocument(shares).toJson()));
+
+        Controller host(hostRoot.path());
+        host.start();
+        host.openProject(projectId);
+        QString error;
+        auto tryExpired = [&] {
+            QTemporaryDir rejectedRoot;
+            auto connection = SharedProject::parseInvitation(oldCode, &error);
+            connection["name"] = "Guest";
+            SharedProject rejected(rejectedRoot.path(), connection);
+            QVERIFY(rejected.save());
+            rejected.start();
+            QTRY_VERIFY(rejected.failed());
+            QCOMPARE(rejected.joinErrorCode(), QString("expired"));
+            QVERIFY(rejected.state().isEmpty());
+        };
+        tryExpired();
+        host.invitePeople("127.0.0.1");
+        const auto freshCode = host.invitationCode();
+        QVERIFY(!freshCode.isEmpty() && freshCode != oldCode);
+        tryExpired();
+        Controller guest(guestRoot.path());
+        guest.start();
+        guest.joinProject(freshCode, "Guest");
+        QTRY_COMPARE(guest.projectId(), projectId);
+    }
     void pinnedHostIdentityAndReconnectPreserveTheSameMembership() {
         QTemporaryDir hostRoot, guestRoot, wrongRoot;
         auto host = std::make_unique<Controller>(hostRoot.path()); host->start(); host->setAuthor("Matt"); host->createProject("Shared", "");
