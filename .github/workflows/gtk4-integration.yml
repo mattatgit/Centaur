@@ -78,6 +78,15 @@ jobs:
         run: |
           nix build -L --no-update-lock-file .#gtk4-preview -o result-gtk4
           nix build -L --no-update-lock-file .#gtk4-preview.updaterPrevious -o result-updater-previous
+      - name: Read the published manifest for the uncached transfer check
+        if: github.ref != 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ matrix.system == 'aarch64-linux' && 'gtk4-preview' || 'gtk4-preview-x86_64-linux' }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" |
+            jq -e --arg tag "$RELEASE_TAG" 'select(.tag_name == $tag and .draft == false and .prerelease == true) | .body | fromjson' \
+              > "$RUNNER_TEMP/gtk4-published-manifest.json"
       - name: Native embedding, scaling, capture and two-profile GTK4 integration
         env:
           GTK_A11Y: none
@@ -85,6 +94,7 @@ jobs:
           LIBGL_ALWAYS_SOFTWARE: '1'
           CENTAUR_GTK4_PRODUCT: '1'
           CENTAUR_CHECK_SIGNED_TRANSFER: ${{ github.ref != 'refs/heads/main' && '1' || '0' }}
+          CENTAUR_TRANSFER_MANIFEST: ${{ runner.temp }}/gtk4-published-manifest.json
         run: |
           export XDG_RUNTIME_DIR="$RUNNER_TEMP/gtk4-runtime"
           mkdir -m 700 "$XDG_RUNTIME_DIR"

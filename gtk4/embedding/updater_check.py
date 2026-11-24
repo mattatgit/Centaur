@@ -14,7 +14,7 @@ import time
 from check import read,until,target
 from integration_check import Bridge
 from test_driver import Driver
-from updater import Runtime, CACHE, KEY, NIX_FLAGS, RELEASE_TAGS, update_system, check_update
+from updater import Runtime, CACHE, KEY, NIX_FLAGS, RELEASE_TAGS, update_system, validate_manifest
 from download_progress import DownloadProgress, download_plan, path_info
 from PIL import Image
 from build_display import compact_version
@@ -72,10 +72,9 @@ def maintenance(folder,env):
 
 
 def main():
-    if len(sys.argv)==3 and sys.argv[1]=='--signed-transfer':
+    if len(sys.argv)==4 and sys.argv[1]=='--signed-transfer':
         folder=Path(sys.argv[2]).resolve(); folder.mkdir(parents=True,exist_ok=False)
-        manifest=check_update('engineering-check',0)
-        if not manifest: raise ValueError('No signed release available for the transfer check')
+        manifest=validate_manifest(read(Path(sys.argv[3])),update_system())
         download_counter(folder,manifest)
         return 0
     previous=Path(sys.argv[1]).resolve(); manifest=read(Path(sys.argv[2])); folder=Path(sys.argv[3]).resolve()
