@@ -650,8 +650,8 @@ class Centaur(Gtk.Application):
                     self.dismiss_dialog(self.join_dialog)
                 else:
                     kind=data.get('code')
-                    self.join_invalid=kind in ('invalid','expired','version')
-                    reason='This invite code has expired or was already used' if kind=='expired' else data.get('message','Could not join the project. Please retry.')
+                    self.join_invalid=kind in ('invalid','expired','used','version')
+                    reason=data.get('message','Could not join the project. Please retry.')
                     self.join_problem.set(reason,self.join_invalid)
                     self.join_feedback.set_visible(False)
                     self.update_join()

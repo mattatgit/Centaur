@@ -281,6 +281,12 @@ private slots:
         auto used = SharedProject::parseInvitation(invitation, &error); used["name"] = "Intruder";
         SharedProject intruder(intruderRoot.path(), used); QVERIFY(intruder.save()); intruder.start();
         QTRY_VERIFY(intruder.failed()); QVERIFY(intruder.state().isEmpty());
+        QCOMPARE(intruder.joinErrorCode(),QString("used"));
+        QTemporaryDir unknownRoot;
+        auto unknown=SharedProject::parseInvitation(invitation,&error);
+        unknown["invite"]=QString(43,'z'); unknown["name"]="Guest";
+        SharedProject invalid(unknownRoot.path(),unknown); QVERIFY(invalid.save()); invalid.start();
+        QTRY_VERIFY(invalid.failed()); QCOMPARE(invalid.joinErrorCode(),QString("invalid"));
         host.stopSharing();
     }
     void pinnedHostIdentityAndReconnectPreserveTheSameMembership() {

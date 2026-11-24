@@ -236,7 +236,13 @@ QString CollaborationHost::invite(const QString &id, const QString &owner, const
     if (!share.contains("owner")) share["owner"] = owner;
     share[internet ? "iroh" : "lan"] = true;
     auto invites = share["invites"].toObject();
-    for (const auto &hash : invites.keys()) if (invites[hash].toDouble() < now()) invites.remove(hash);
+    auto expired = share["expiredInvites"].toArray();
+    for (const auto &hash : invites.keys()) {
+        if (invites[hash].toDouble() >= now()) continue;
+        invites.remove(hash); expired.append(hash);
+    }
+    while (expired.size() > 256) expired.removeFirst();
+    share["expiredInvites"] = expired;
     const auto token = secret();
     invites[digest(token.toUtf8())] = double(now() + 20 * 60 * 1000);
     share["invites"] = invites;
@@ -412,7 +418,16 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
         if (joined) {
             auto invites = share["invites"].toObject();
             const auto invitationHash = digest(data["invite"].toString().toUtf8());
-            if (invites[invitationHash].toDouble() < now()) { reject("This invitation has expired or has already been used. Ask for a new one.","expired"); return; }
+            if (share["usedInvites"].toArray().contains(invitationHash)) {
+                reject("This invite code has already been used.","used"); return;
+            }
+            if (share["expiredInvites"].toArray().contains(invitationHash) ||
+                (invites.contains(invitationHash) && invites[invitationHash].toDouble() < now())) {
+                reject("This invite code has expired","expired"); return;
+            }
+            if (!invites.contains(invitationHash)) {
+                reject("This invite code is invalid or no longer active.","invalid"); return;
+            }
             auto name = data["name"].toString().trimmed().left(50);
             if (name.isEmpty()) { reject("Enter your name to join."); return; }
             auto formerProfiles = share["formerProfiles"].toObject();
@@ -454,6 +469,11 @@ void CollaborationHost::receive(QSslSocket *socket, QJsonObject data) {
             members[hash] = member; share["members"] = members;
             share["formerProfiles"] = formerProfiles;
             invites.remove(invitationHash); share["invites"] = invites;
+            // Keep bounded fingerprints for feedback. Only active invites
+            // above can admit a guest, and the original codes are never saved.
+            auto used=share["usedInvites"].toArray(); used.append(invitationHash);
+            while (used.size()>256) used.removeFirst();
+            share["usedInvites"]=used;
             const auto previous = m_shares;
             m_shares[id] = share;
             QString error;
