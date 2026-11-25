@@ -230,6 +230,17 @@ def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,re
     assert app.read_bytes()==saved
 
     for role,state,window in [('Guest',guest,gw),('Host',host,hw)]:
+        if role=='Host':
+            # Use different pixels so a stale guest upload cannot pass the
+            # host's explicit-input and history checks by coincidence.
+            host_image=reply.parent/'agent-reference-orange.png'
+            Image.new('RGB',(28,40),'#d84a17').save(host_image)
+            expected=prepare_image(host_image.read_bytes())[0]['hash']
+            attach(host,hw,'image',host_image)
+            explicit,pixels=ask(host,hw,'Describe my new image and the app heading.',question)
+            assert explicit['referenceMessage']!=original
+            original=explicit['referenceMessage']
+            assert len(pixels)==2 and pixels[1]==expected and explicit['visualReferences'][0]['hash']==expected
         for request in ('Describe the previously uploaded image.',
                         'I meant the previous image, not the Figma link.'):
             payload,pixels=ask(state,window,request,question)
