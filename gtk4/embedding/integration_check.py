@@ -73,7 +73,11 @@ def main():
     agent=folder/'agent'
     request_record=folder/'agent-request.txt'
     fixture="import pathlib,sys,json\nrecord=REQUEST_RECORD\nreply=REPLY_FILE\nif 'rpc' in sys.argv:\n connected=True\n catalog=[{'provider':'openai-codex','id':'runtime-one','name':'Runtime catalog one'},{'provider':'openai-codex','id':'runtime-two','name':'Runtime catalog two'}]\n model=catalog[0]\n for line in sys.stdin:\n  command=json.loads(line); kind=command.get('type'); success=True\n  if kind=='get_login_providers': data={'providers':[{'id':name,'name':name,'available':True,'authenticated':connected and name=='openai-codex'} for name in ('openai-codex','anthropic','openrouter','github-copilot','google-gemini-cli')]}\n  elif kind=='get_available_models': data={'models':catalog if connected else []}\n  elif kind=='get_state': data={'model':model}\n  elif kind=='set_model': model=next(m for m in catalog if m['id']==command['modelId']); data=model\n  elif kind=='get_logout_accounts': data={'accounts':[{'provider':'openai-codex','credentialId':17,'label':'Disposable test account','active':True}]}\n  elif kind=='logout': connected=False; data={}\n  else: success=False; data={}\n  print(json.dumps({'type':'response','id':command.get('id'),'command':kind,'success':success,'data':data}),flush=True)\n sys.exit(0)\nfor arg in sys.argv[1:]:\n if arg.startswith('@') and arg.endswith('.txt'): pathlib.Path(record).write_text(pathlib.Path(arg[1:]).read_text())\np=pathlib.Path(reply); answer=p.read_text()\nrequest=json.loads(pathlib.Path(record).read_text().split('PROJECT AND CONVERSATION:\\n',1)[1].split('\\n\\nCURRENT ',1)[0])\nif request.get('importDiagnostics',{}).get('capabilities',{}).get('retryAcquire'): answer=json.dumps({'kind':'retry','message':'The connection was interrupted. I’ll try copying it again.','operation':'acquire'})\nif json.loads(answer).get('fixtureWait'): __import__('time').sleep(120)\nprint(answer)\nif json.loads(answer).get('kind')=='inspect': p.write_text(json.dumps({'kind':'question','message':'I checked the imported source.'}))\n"
-    gated="""cfg=json.loads(answer)
+    gated="""import hashlib
+pixels=[hashlib.sha256(pathlib.Path(arg[1:]).read_bytes()).hexdigest() for arg in sys.argv[1:]
+        if arg.startswith('@') and pathlib.Path(arg).suffix in ('.png','.jpeg')]
+pathlib.Path(record).with_suffix('.images.json').write_text(json.dumps(pixels))
+cfg=json.loads(answer)
 if cfg.get('fixtureProgressGate'):
  gate=pathlib.Path(cfg['fixtureProgressGate']); phase=''
  print(json.dumps({'type':'agent_start'}),flush=True)
@@ -449,7 +453,7 @@ if cfg.get('fixtureProgressGate'):
         driver.screenshot(hw,folder/'gtk4-host.png'); driver.screenshot(gw,folder/'gtk4-guest.png')
         child_pids=[hs()['childPid'],gs()['childPid']]
         summary['checks']+=check_sharing(driver,folder,launch,click,message,Bridge,env,hs,hw,gs,gw,project_id)
-        summary['checks']+=check_multiplayer(driver,folder,launch,click,message,Bridge,env,hs,hw,reply_file,original)
+        summary['checks']+=check_multiplayer(driver,folder,launch,click,message,Bridge,env,hs,hw,reply_file,original,request_record)
         summary['checks']+=check_imports(driver,folder,hs,hw,click,message,roots[0],original,reply_file,request_record)
         summary['checks']+=check_waiting_flows(driver,folder,hs,hw,click,message,roots[0],original,reply_file)
         summary['passed']=True

@@ -40,7 +40,7 @@ def select_avatar(driver,state,window,click,source):
     driver.key('Return')
 
 
-def check_multiplayer(driver, folder, launch, click, message, bridge, env, host, hw, reply, starter):
+def check_multiplayer(driver, folder, launch, click, message, bridge, env, host, hw, reply, starter,request_record):
     evidence=folder/'multiplayer'
     evidence.mkdir()
     host_root,guest_root=folder/'host-data',folder/'multiplayer-guest-data'
@@ -347,9 +347,12 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
               'Repeated rejoin changed the chosen name or lost a proven former author')
         assert chat_appearance(guest,'Guest profile image')['image'] and not chat_appearance(guest,'Host profile image')['own']
         driver.screenshot(gw,evidence/'same-name-rejoin.png')
+        from composer_check import check_agent_references
+        check_agent_references(driver,click,message,host,hw,guest,gw,alpha,reply,request_record,host_root/'projects'/pid/'App.gtk.json')
     finally:
         control.close()
-    return ['editable-same-name-profiles-preserve-distinct-authorship-through-repeated-rejoins',
+    return ['host-and-guest-recall-uploaded-image-and-build-after-figma-failure',
+            'editable-same-name-profiles-preserve-distinct-authorship-through-repeated-rejoins',
             'used-invitation-dismissal-and-successful-retry','draft-pointers-use-the-assigned-colour',
             'remote-original-sized-and-alpha-avatars-update-and-survive-reconnect-and-rejoin',
             'optimistic-strokes-render-continuously-on-both-profiles-and-keep-participant-colours',

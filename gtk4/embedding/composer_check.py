@@ -1,6 +1,7 @@
 """Exercise the actual composer on the two native GTK clients."""
 from contextlib import contextmanager
 from hashlib import sha256
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -176,3 +177,69 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         assert tuple(map(round,bounds[2:]))==(72,72),bounds
     driver.screenshot(gw,evidence/'composer-dropped-images.png')
     click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')
+
+
+def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,record,app):
+    """Exercise the host coordinator and the actual inputs delivered to its provider."""
+    from attachment_model import prepare_image
+    from PIL import Image
+    url='https://www.figma.com/design/Fixture123/Centaur?node-id=7-8'
+
+    def attach(state,window,kind,value):
+        before=len(state()['draft']['attachments'])
+        with clipboard(driver,kind,value):
+            click(state,window,'editor'); driver.key('ctrl+v')
+            until(lambda:len(state()['draft']['attachments'])==before+1,'Reference did not attach')
+
+    def ask(state,window,text,answer):
+        text='@centaur '+text
+        reply.write_text(json.dumps(answer))
+        before={m['id'] for m in host()['project']['messages']}
+        message(state,window,text)
+        def answered():
+            for row in host()['project']['messages']:
+                if row['id'] in before: continue
+                if row.get('agentDiagnostics'): raise AssertionError(text+' failed: '+row['text'])
+                if row.get('kind')=='agent' and row['text']==answer['message']: return True
+        until(answered,'The provider did not answer '+text,timeout=30)
+        payload=json.loads(record.read_text().split('PROJECT AND CONVERSATION:\n',1)[1].split('\n\nCURRENT ',1)[0])
+        assert payload['requestText']==text and payload['canvasAttached']
+        return payload,json.loads(record.with_suffix('.images.json').read_text())
+
+    attach(host,hw,'image',source); attach(host,hw,'text',url)
+    click(host,hw,'send')
+    until(lambda:any(not m['text'] and any(r.get('url')==url for r in m.get('attachments',[]))
+                     for m in guest()['project']['messages']),'Guest did not receive the mixed reference')
+    distinct=reply.parent/'agent-reference-blue.png'
+    Image.new('RGB',(40,28),'#0157ab').save(distinct)
+    expected=prepare_image(distinct.read_bytes())[0]['hash']
+    attach(guest,gw,'image',distinct)
+    question={'kind':'question','message':'Image and canvas received'}
+    explicit,pixels=ask(guest,gw,'Describe the attached image and the current app heading.',question)
+    original=explicit['referenceMessage']
+    assert len(pixels)==2 and pixels[1]==expected and explicit['visualReferences'][0]['hash']==expected
+
+    # The disposable host has no private reader. An explicitly requested
+    # design must fail visibly and leave the saved app byte-for-byte intact.
+    saved=app.read_bytes()
+    attach(host,hw,'text',url)
+    message(host,hw,'@centaur Read the attached Figma frame.')
+    until(lambda:any(m.get('agentDiagnostics',{}).get('code')=='figma_unavailable'
+                     for m in host()['project']['messages']),'Explicit Figma failure was not reported')
+    assert app.read_bytes()==saved
+
+    for role,state,window in [('Guest',guest,gw),('Host',host,hw)]:
+        for request in ('Describe the previously uploaded image.',
+                        'I meant the previous image, not the Figma link.'):
+            payload,pixels=ask(state,window,request,question)
+            assert payload['referenceMessage']==original and [r['hash'] for r in payload['visualReferences']]==[expected]
+            assert len(pixels)==2 and pixels[1]==expected
+        bundle=json.loads(app.read_text())
+        old=host()['child']['title']; new=role+' context verified'
+        assert old in bundle['files']['app.ui']
+        bundle['files']['app.ui']=bundle['files']['app.ui'].replace(old,new)
+        answer={'kind':'proposal','message':'Set the heading for '+role,'conflict':None,'gtk':bundle}
+        payload,pixels=ask(state,window,'Change the app heading to '+new+'.',answer)
+        assert not payload['visualReferences'] and len(pixels)==1
+        until(lambda:all((s().get('child') or {}).get('title')==new for s in (host,guest)),
+              'The heading edit did not reach both embedded apps',timeout=25)
