@@ -36,11 +36,18 @@ static bool isConflict(const QJsonObject &state) { return state["proposal"].toOb
 
 // Unfinished requests are authoritative. Completed questions, decisions and
 // people who merely belong to the project are not outstanding instructions.
-static QJsonArray activeDirections(const QJsonObject &state, const QJsonObject &active) {
+static QJsonArray activeDirections(const QJsonObject &state, const QJsonObject &active, const QJsonObject &sharing) {
     QJsonObject byParticipant;
+    QSet<QString> participants;
+    for (const auto &person : sharing["participants"].toArray())
+        participants.insert(person.toObject()["id"].toString());
     auto add = [&](const QJsonObject &row) {
         const auto participant = row["participant"].toString();
         if (participant.isEmpty() || row["id"].toString().isEmpty() || row["text"].toString().isEmpty()) return;
+        // A note written before sharing, or under a departed membership, is
+        // still visible history. Its identity cannot vote in this session.
+        if (sharing["enabled"].toBool() && !participants.contains(participant)) return;
+        if (!sharing["enabled"].toBool() && !participant.startsWith("local:")) return;
         QJsonObject direction;
         for (const auto *key : {"id", "participant", "author", "displayAuthor", "text", "messageId"})
             if (row.contains(key)) direction[key] = row[key];
@@ -96,7 +103,8 @@ static void removeConflictRequests(QJsonObject &state, const QJsonObject &propos
 
 static const QString splitVoteOutcome = QStringLiteral("Neither side could agree, so no changes have been made to the app.");
 
-static QJsonArray supersededDirections(const QJsonObject &state, const QJsonObject &vote, const QString &sender) {
+static QJsonArray supersededDirections(const QJsonObject &state, const QJsonObject &vote, const QString &sender,
+                                       const QJsonObject &sharing) {
     const auto choices = vote["choices"].toObject();
     QJsonArray directions;
     if (vote["verifiedDirections"].toBool()) {
@@ -117,7 +125,7 @@ static QJsonArray supersededDirections(const QJsonObject &state, const QJsonObje
             }
             if (origin.isEmpty()) continue;
             original["messageId"] = origin;
-            directions = activeDirections(state, original);
+            directions = activeDirections(state, original, sharing);
             break;
         }
     }
@@ -646,7 +654,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         if (addressed || (!shared && isConflict(state))) {
             if (isConflict(state)) {
                 const auto proposal = state["proposal"].toObject();
-                if (addressed) unresolved = supersededDirections(state, proposal, participant);
+                if (addressed) unresolved = supersededDirections(state, proposal, participant, sharing);
                 removeConflictRequests(state, proposal);
                 recordConflictOutcome(state, proposal, "New directions superseded this vote. The app is unchanged.");
             }
@@ -1130,7 +1138,7 @@ void Session::nextRequest() {
         beginActivity(id,m_activeRequest);
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request.remove("directions");
-        m_runDirections = activeDirections(state, m_activeRequest);
+        m_runDirections = activeDirections(state, m_activeRequest, m_network->sharing(id));
         request["activeDirections"] = m_runDirections;
         if (m_activeRequest["arbitrationCorrection"].toBool())
             request["arbitrationCorrection"] = "Your previous compromise referred to a person without a current direction. Discard it. Prepare the original request from the current saved app, using only activeDirections for arbitration.";

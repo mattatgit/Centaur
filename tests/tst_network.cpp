@@ -252,12 +252,17 @@ private slots:
         Controller host(hostRoot.path()); host.start(); host.setAuthor("Matt");
         host.createProject("Private", ""); const auto privateId = host.projectId();
         host.createProject("Shared", ""); const auto id = host.projectId();
+        host.sendMessage("A note before this project was shared");
         host.invitePeople("127.0.0.1"); const auto invitation = host.invitationCode();
         Controller guest(guestRoot.path()); guest.start(); guest.joinProject(invitation, "Saori");
         QTRY_COMPARE(guest.projectId(), id);
         guest.sendMessage("Green please"); host.sendMessage("Blue please");
         guest.sendMessage("@centaur reconcile our choices");
         QTRY_VERIFY_WITH_TIMEOUT(!host.project().value("proposal").toMap().isEmpty(), 10000);
+        const auto vote=host.project().value("proposal").toMap();
+        QCOMPARE(vote.value("voters").toMap().size(),2);
+        QVERIFY(!vote.value("voters").toMap().contains("local:Matt"));
+        QCOMPARE(vote.value("choices").toMap().size(),2);
         const auto connection = objectFile(guestRoot.path() + "/shared/" + id + "/connection.json");
         Probe probe(connection); QTRY_VERIFY(probe.has("welcome"));
         const auto next = connection["sequence"].toInt() + 1;
