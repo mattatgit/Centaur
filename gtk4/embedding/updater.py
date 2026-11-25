@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 import uuid
-from cache_transfer import measured_cache
+from cache_transfer import measured_cache, RelayUnavailable
 from download_progress import DownloadProgress, download_plan, path_info, progress_message
 
 CACHE = 'https://mattatgit-centaur.cachix.org'
@@ -160,30 +160,52 @@ class Runtime:
         except subprocess.TimeoutExpired: raise UpdateError('The download took too long. Your installed version is preserved; try again later.') from None
         except OSError: raise UpdateError('Could not download the update. Your installed version is preserved.') from None
 
-    def transfer(self,cache,path,tracker, destination=None):
-        # The cache wrapper measures the actual bytes. Keep subprocess logging
-        # separate so internal-json cannot double count the same transfer.
-        class Diagnostics:
-            def feed(self,line): pass
-            def tick(self): pass
-            def flush(self): pass
-        with measured_cache(cache,tracker) as source:
+    def transfer(self,cache,path,tracker, destination=None,status=None,missing=None):
+        deadline=time.monotonic()+600
+        def copy(source,progress,paths=None):
             args=['nix',*NIX_FLAGS,'--log-format','internal-json','copy','--from',source]
             if destination: args.extend(['--to',str(destination)])
-            self.copy_with_progress(args+['--extra-trusted-public-keys',KEY,path],Diagnostics())
+            args+=['--extra-trusted-public-keys',KEY]
+            args+=['--no-recursive',*paths] if paths is not None else [path]
+            self.copy_with_progress(args,progress,timeout=max(.01,deadline-time.monotonic()))
+        try:
+            with measured_cache(cache,tracker,status) as (source,poll):
+                class Diagnostics:
+                    def feed(self,line): pass
+                    def tick(self): poll()
+                    def flush(self): pass
+                try:
+                    copy(source,Diagnostics(),missing)
+                except UpdateError:
+                    poll()  # Nix can exit as the relay reports the failure.
+                    raise
+        except RelayUnavailable as error:
+            with (self.work/'helper.log').open('a') as log:
+                print('Switching to direct signed-cache download:',error,file=log)
+            if status: status('Connecting directly to the signed download cache…')
+            copy(cache,tracker)
+        except ValueError as error:
+            raise UpdateError('The download cache supplied invalid file details. Your installed version is preserved.') from error
 
-    def download(self,manifest,progress=None,verifying=None):
+    def download(self,manifest,progress=None,verifying=None,status=None):
         path=manifest['storePath']
         plan=None
+        missing=None
+        if status: status('Checking which update files this device needs…')
         try:
             remote=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--store',CACHE,'--recursive','--json',path],timeout=60)))
             local=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--offline','--option','substituters','','--json','--stdin'],
                              input='\n'.join(remote)+'\n',returncodes=(0,1),timeout=20)))
-            if set(remote)!=set(local): raise ValueError('Incomplete local metadata')
+            if path not in remote or set(remote)!=set(local): raise ValueError('Incomplete local metadata')
             plan=download_plan(CACHE,remote,local)
+            # A measured cache has a fresh loopback address on every run.
+            # Asking it to traverse hundreds of already checked paths repeats
+            # that entire metadata download before Nix transfers one archive.
+            missing=[p for p in remote if local[p] is None]
         except (UpdateError,ValueError,KeyError,TypeError): pass
         tracker=DownloadProgress(CACHE,plan,progress or (lambda done,total:None))
-        self.transfer(CACHE,path,tracker)
+        if missing is None or missing:
+            self.transfer(CACHE,path,tracker,status=status,missing=missing)
         if verifying: verifying()
         self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
         # Existing dependencies may only have nixos.org signatures locally.
@@ -275,6 +297,11 @@ class Transaction:
         self.downloaded=(done,total)
         self.status('downloading',progress_message(done,total),downloadBytes=done,totalBytes=total)
 
+    def download_status(self,message):
+        done,total=self.downloaded or (0,None)
+        if done: message+=' · '+progress_message(done,total)
+        self.status('downloading',message,downloadStage=True,downloadBytes=done,totalBytes=total)
+
     def preflight(self):
         if not self.profile.is_symlink(): raise UpdateError('Use the dedicated GTK4 installation before updating in Settings.')
         self.previous=str(self.profile.resolve(strict=True))
@@ -301,6 +328,7 @@ class Transaction:
         self.status('downloading','Preparing the download…')
         runtime.root_previous(self.previous)
         runtime.download(manifest,progress=self.download_progress,
+                         status=self.download_status,
                          verifying=lambda:self.status('verifying','Download complete. Verifying the update…'))
         if str(self.profile.resolve())!=self.previous: raise UpdateError('The installed profile changed during download. Nothing was replaced.')
         write_json(self.work/'resume.json',approval.get('resume',{}))

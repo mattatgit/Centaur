@@ -60,8 +60,12 @@ def prepare_image(raw):
         raise ValueError('Choose an image smaller than 16 MB.')
     try:
         with Image.open(BytesIO(raw), formats=('PNG', 'JPEG', 'WEBP')) as src:
-            if src.width * src.height > 16000000 or max(src.size) > 8192 or getattr(src, 'n_frames', 1) != 1:
-                raise ValueError('Choose a static image up to 16 megapixels and 8192 pixels wide or high.')
+            if src.format == 'MPO':
+                src.seek(0)  # Decode only the primary photograph.
+            elif getattr(src, 'n_frames', 1) != 1:
+                raise ValueError('This image has multiple frames. Export a single frame as PNG or JPEG.')
+            if src.width * src.height > 16000000 or max(src.size) > 8192:
+                raise ValueError('Choose an image up to 16 megapixels and 8192 pixels wide or high.')
             image = ImageOps.exif_transpose(src)
             alpha = image.has_transparency_data if hasattr(image, 'has_transparency_data') else ('A' in image.getbands() or 'transparency' in image.info)
             fmt = 'png' if alpha or src.format == 'PNG' else 'jpeg'

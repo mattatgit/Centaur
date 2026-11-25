@@ -36,6 +36,14 @@ the status changes to **Download complete. Verifying the update…** before the
 existing signature/content checks and safe restart. Verification never counts
 as additional downloaded bytes.
 
+When Nix can identify the complete set of missing paths, the local download
+helper requests just those files. Settings and the chat footer report the file
+checks before archive bytes arrive. If the helper encounters a connection
+failure or receives no archive bytes for 45 seconds, the updater makes one
+direct attempt against the same Cachix feed within the original ten-minute
+transfer limit. Both routes require the pinned signature verification for
+the full package before activation.
+
 The helper belongs to the version that starts an update. Consequently the
 download that first installs this counter still uses the previous version's
 status; subsequent downloads use the live counter. This does not change the

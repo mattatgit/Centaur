@@ -287,7 +287,18 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         assert (host_root/'projects'/pid/'App.gtk.json').read_bytes()==start_bytes
         driver.screenshot(gw,evidence/'conflict-stalemate.png')
 
-        conflict_requests('@centaur Use the Host Choice heading again','@centaur Use the Framework Choice heading again',2)
+        previous=conflict_requests('@centaur Use the Host Choice heading again','@centaur Use the Framework Choice heading again',2)
+        click(host,hw,'approval-host')
+        until(lambda:len(host()['project']['proposal']['votes'])==1,'First vote was not recorded')
+        message(guest,gw,'@centaur Use the updated Framework Choice heading')
+        def fresh_vote():
+            current=host()['project'].get('proposal') or {}
+            return current if current.get('conflict') and current['id']!=previous['id'] else None
+        current=until(fresh_vote,'A revised disagreement did not open a new vote')
+        assert not current['votes'] and len(current['choices'])==2
+        assert {c['text'] for c in current['choices'].values()}=={
+            '@centaur Use the Host Choice heading again','@centaur Use the updated Framework Choice heading'}
+        assert host()['project']['revision']==guest()['project']['revision']==revision
         resolved=json.loads(json.dumps(starter))
         resolved['files']['app.ui']=resolved['files']['app.ui'].replace('Family board','Host Choice')
         reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Choice heading','conflict':None,'gtk':resolved}))

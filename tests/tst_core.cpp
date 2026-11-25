@@ -1245,6 +1245,43 @@ private slots:
         QCOMPARE(workspace.source(id), initial);
         QCOMPARE(workspace.load(id)["revision"].toInt(), 1);
     }
+    void ordinaryEditSupersedesLegacyRosterOnlyVoteAndDiscardsRepeatedCompromise() {
+        QTemporaryDir dir;
+        Workspace workspace(dir.path());
+        QString error;
+        const auto id = workspace.createProject("Existing collaboration", "", &error);
+        const auto before = workspace.source(id);
+        auto state = workspace.load(id);
+        const QJsonObject conflict{{"reason","Old disagreement"},{"authors",QJsonArray{"Matt","Saori"}}};
+        const QJsonObject past{{"summary","Host Wins"},{"conflict",conflict},{"revision",1}};
+        const QJsonObject earlierQuestion{{"id","q"},{"author","Matt"},{"participant","local:Matt"},
+            {"text","@centaur Describe the image"},{"kind","human"},{"revision",1}};
+        const QJsonObject guestEdit{{"id","g"},{"author","Saori"},{"participant","local:Saori"},
+            {"text","@centaur Change the heading to Framework check"},{"kind","human"},{"revision",1}};
+        state["decisions"] = QJsonArray{past};
+        state["messages"] = QJsonArray{earlierQuestion,QJsonObject{{"kind","agent"},{"text","The image is blue."}},
+            guestEdit,QJsonObject{{"id","card"},{"kind","agent"},{"conflictId","old"}}};
+        state["epoch"] = 2;
+        state["proposal"] = QJsonObject{{"id","old"},{"epoch",2},{"conflict",conflict},{"inlineConflict",true},
+            {"requestedBy","Saori"},{"choices",QJsonObject{{"q",earlierQuestion},{"g",guestEdit}}},
+            {"voters",QJsonObject{{"local:Matt","Matt"},{"local:Saori","Saori"}}},{"votes",QJsonObject{}}};
+        QVERIFY(workspace.save(id,state));
+        const auto fake=dir.path()+"/agent";
+        QVERIFY(writeAgentReply(fake,{{"kind","proposal"},{"message","Historical compromise"},{"conflict",conflict},
+            {"qml","import QtQuick\nRectangle {color:'red'}"}},"echo run >> calls\n"));
+        AgentOverride agent(fake);
+        Session session(dir.path()); session.start();
+        session.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","@centaur Change the heading to VM check"}});
+        QTRY_VERIFY_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString().contains("couldn't identify"),5000);
+        state=workspace.load(id);
+        QCOMPARE(state["decisions"].toArray(),QJsonArray{past});
+        QVERIFY(state["proposal"].toObject().isEmpty());
+        QCOMPARE(workspace.source(id),before);
+        QVERIFY(state["messages"].toArray()[3].toObject()["conflictOutcome"].toString().contains("superseded"));
+        QFile calls(workspace.projectPath(id)+"/calls");
+        QVERIFY(calls.open(QIODevice::ReadOnly));
+        QCOMPARE(calls.readAll(),QByteArray("run\nrun\n"));
+    }
     void newDirectionsRetryAnInFlightAgentReply() {
         QTemporaryDir dir;
         const auto fake = dir.path() + "/slow-agent";

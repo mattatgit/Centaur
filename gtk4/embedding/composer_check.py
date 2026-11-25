@@ -168,7 +168,14 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
                for m in host()['project']['messages']),'The chosen file did not reach the other participant'
     from PIL import Image
     second=evidence/'drop-input.jpg'
-    Image.new('RGB',(320,180),'#138ef5').save(second)
+    primary=Image.new('RGB',(1024,1365),'#138ef5')
+    alternate=Image.new('RGB',primary.size,'red')
+    primary.save(second,format='MPO',save_all=True,append_images=[alternate])
+    from io import BytesIO
+    ref,encoded=prepare_image(second.read_bytes())
+    with Image.open(BytesIO(encoded)) as shared:
+        assert ref['format']=='jpeg' and shared.size==primary.size and shared.getpixel((0,0))[2]>225
+        assert getattr(shared,'n_frames',1)==1
     drop_files(driver,guest,gw,[source,second])
     until(lambda:guest()['draft']['attachments']==['image','image'] and guest()['draft']['canSend'],
           'Dropped files did not become two composer images')

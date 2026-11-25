@@ -1,5 +1,15 @@
 # Current state
 
+## Composer polish queued after owner testing on 966074c
+
+The owner verified image recall on the ARM64 VM and x86-64 Framework in Sharing Test, including a follow-up that explicitly excluded Figma. Explicit private-reader access was untested.
+
+- Measure the interval from Send to visible feedback on image messages. Show a pending state immediately and distinguish upload from agent processing.
+- Use the lighter remove-button treatment when hovering a thumbnail and the darker treatment directly over the X.
+- Set image-preview spacing to 16 px and check mixed image and Figma chip wrapping as the composer narrows.
+- Refine keyboard focus outlines while keeping the focused control readily identifiable.
+- Review a secondary location for **Request details** on agent errors while keeping diagnostics available.
+
 ## V2 polish follow-up — 19 November 2026
 
 Signed preview **`0.4.0-preview+ff58f74`** comes from

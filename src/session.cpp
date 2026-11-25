@@ -34,6 +34,43 @@ static QString proposalSource(const QJsonObject &proposal) {
 }
 static bool isConflict(const QJsonObject &state) { return state["proposal"].toObject()["conflict"].isObject(); }
 
+// Unfinished requests are authoritative. Completed questions, decisions and
+// people who merely belong to the project are not outstanding instructions.
+static QJsonArray activeDirections(const QJsonObject &state, const QJsonObject &active) {
+    QJsonObject byParticipant;
+    auto add = [&](const QJsonObject &row) {
+        const auto participant = row["participant"].toString();
+        if (participant.isEmpty() || row["id"].toString().isEmpty() || row["text"].toString().isEmpty()) return;
+        QJsonObject direction;
+        for (const auto *key : {"id", "participant", "author", "displayAuthor", "text", "messageId"})
+            if (row.contains(key)) direction[key] = row[key];
+        byParticipant[participant] = direction;
+    };
+    for (const auto &direction : active["unresolvedDirections"].toArray()) add(direction.toObject());
+    const auto history = state["messages"].toArray();
+    const QRegularExpression mention("(?<![\\w@])@" + QRegularExpression::escape(state["agentName"].toString("centaur")) + "(?![\\w-])",
+        QRegularExpression::CaseInsensitiveOption | QRegularExpression::UseUnicodePropertiesOption);
+    // People can discuss opposing changes and then ask Centaur to mediate.
+    // Only include the uninterrupted discussion leading into this request.
+    for (qsizetype i = active.contains("unresolvedDirections") ? 0 : history.size(); i-- > 0;) {
+        if (history.at(i).toObject()["id"] != active["messageId"]) continue;
+        qsizetype first = i;
+        while (first > 0) {
+            const auto row = history.at(first-1).toObject();
+            if (row["kind"] != "human" || row["revision"] != state["revision"] ||
+                mention.match(row["text"].toString()).hasMatch()) break;
+            --first;
+        }
+        for (; first < i; ++first) add(history.at(first).toObject());
+        break;
+    }
+    add(active);
+    for (const auto &entry : state["agentQueue"].toArray()) add(entry.toObject());
+    QJsonArray directions;
+    for (const auto &direction : byParticipant) directions.append(direction);
+    return directions;
+}
+
 static void recordConflictOutcome(QJsonObject &state, const QJsonObject &proposal, const QString &outcome) {
     if (!proposal["conflict"].isObject()) return;
     auto messages = state["messages"].toArray();
@@ -59,15 +96,51 @@ static void removeConflictRequests(QJsonObject &state, const QJsonObject &propos
 
 static const QString splitVoteOutcome = QStringLiteral("Neither side could agree, so no changes have been made to the app.");
 
+static QJsonArray supersededDirections(const QJsonObject &state, const QJsonObject &vote, const QString &sender) {
+    const auto choices = vote["choices"].toObject();
+    QJsonArray directions;
+    if (vote["verifiedDirections"].toBool()) {
+        for (const auto &choice : choices) directions.append(choice);
+    } else {
+        // Older cards accepted roster names as evidence. Reconstruct what
+        // was actually pending when the card opened, before removing its queue.
+        const auto history = state["messages"].toArray();
+        for (const auto &choice : choices) {
+            auto original = choice.toObject();
+            if (original["author"] != vote["requestedBy"]) continue;
+            QString origin;
+            for (const auto &entry : history) {
+                const auto row = entry.toObject();
+                if (row["conflictId"] == vote["id"]) break;
+                if (row["kind"] == "human" && row["participant"] == original["participant"] &&
+                    row["text"] == original["text"] && row["revision"] == state["revision"]) origin = row["id"].toString();
+            }
+            if (origin.isEmpty()) continue;
+            original["messageId"] = origin;
+            directions = activeDirections(state, original);
+            break;
+        }
+    }
+    const auto voters = vote["voters"].toObject();
+    QJsonArray remaining;
+    int matched = 0;
+    for (const auto &value : directions) {
+        const auto direction = value.toObject();
+        const auto id = direction["participant"].toString();
+        if (!voters.contains(id) || voters[id] != direction["author"]) continue;
+        ++matched;
+        if (id != sender) remaining.append(direction);
+    }
+    return matched >= 2 && matched == voters.size() ? remaining : QJsonArray();
+}
+
 static bool endSplitVote(QJsonObject &state, const QJsonObject &proposal) {
     QSet<QString> options;
     const auto votes = proposal["votes"].toObject();
     for (const auto &value : votes) options.insert(value.toString());
     if (options.size() < 2) return false;
     removeConflictRequests(state, proposal);
-    auto directions = state["directions"].toObject();
-    for (const auto &voter : proposal["voters"].toObject().keys()) directions.remove(voter);
-    state["directions"] = directions;
+    state.remove("directions");
     state["epoch"] = state["epoch"].toInt() + 1;
     state["proposal"] = QJsonObject();
     recordConflictOutcome(state, proposal, splitVoteOutcome);
@@ -568,9 +641,12 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
                 }
             }
         }
+        const bool supersedingVote = isConflict(state);
+        QJsonArray unresolved;
         if (addressed || (!shared && isConflict(state))) {
             if (isConflict(state)) {
                 const auto proposal = state["proposal"].toObject();
+                if (addressed) unresolved = supersededDirections(state, proposal, participant);
                 removeConflictRequests(state, proposal);
                 recordConflictOutcome(state, proposal, "New directions superseded this vote. The app is unchanged.");
             }
@@ -593,16 +669,14 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             if (canonical.startsWith(expected) && canonical.endsWith(".png") && command["imageRevision"] == state["revision"]) image = canonical;
             const auto messages = state["messages"].toArray();
             const auto context = Attachments::agentContext(messages, messages.size()-1, state["agentName"].toString("centaur"));
-            const QJsonObject request{{"id", uid()}, {"author", author}, {"participant", participant}, {"text", text},
+            QJsonObject request{{"id", uid()}, {"author", author}, {"displayAuthor",displayName}, {"participant", participant}, {"text", text},
                 {"messageId",messages.last().toObject()["id"]}, {"referenceMessage",context["referenceMessage"]},
                 {"referenceAuthor",context["referenceAuthor"]}, {"attachments",context["attachments"]},
                 {"image", image}, {"imageRevision", state["revision"]}, {"comment", comment}, {"import", importAnswer}};
+            if (supersedingVote) request["unresolvedDirections"] = unresolved;
             queue.append(request);
             state["agentQueue"] = queue;
-            auto directions = state["directions"].toObject();
-            directions[participant] = QJsonObject{{"id", request["id"]}, {"participant", participant},
-                {"author", author}, {"displayAuthor", displayName}, {"text", text}, {"revision", state["revision"]}};
-            state["directions"] = directions;
+            state.remove("directions"); // Obsolete per-author cache on older projects.
         }
         if (!persist(id, state)) return;
         nextRequest();
@@ -840,28 +914,23 @@ void Session::finishAgent(const QJsonObject &agentReply) {
             if (conflict.isObject()) {
                 authors = conflict.toObject()["authors"].toArray();
                 QJsonObject voters, choices;
-                const auto directions = state["directions"].toObject();
-                const auto messages = state["messages"].toArray();
-                const auto roster = m_network->sharing(id)["participants"].toArray();
-                for (const auto &value : authors) {
-                    const auto name = value.toString();
-                    QString participant;
-                    // Current requests and authenticated membership bind votes
-                    // to people even when a display name changes on one device.
-                    for (const auto &person : roster)
-                        if (person.toObject()["name"] == name) participant = person.toObject()["id"].toString();
-                    for (qsizetype i = messages.size(); participant.isEmpty() && i > 0; --i) {
-                        const auto message = messages.at(i - 1).toObject();
-                        if (message["kind"] == "human" && message["author"] == name) participant = message["participant"].toString();
-                    }
-                    if (!participant.isEmpty() && !voters.contains(participant)) {
-                        voters[participant] = name;
-                        const auto direction = directions.value(participant).toObject();
-                        if (direction["revision"] == state["revision"]) choices[direction["id"].toString()] = direction;
-                    }
+                for (const auto &value : m_runDirections) {
+                    const auto direction = value.toObject();
+                    if (!authors.contains(direction["author"])) continue;
+                    voters[direction["participant"].toString()] = direction["author"];
+                    choices[direction["id"].toString()] = direction;
                 }
-                if (voters.size() != authors.size() || voters.size() < 2) {
-                    addMessage(state, state["agentName"].toString(), "I couldn't identify the people involved in that conflict. Please clarify whose requests differ and ask me again.", "system");
+                QSet<QString> identified;
+                for (const auto &name : voters) identified.insert(name.toString());
+                if (identified.size() != authors.size() || voters.size() != authors.size() || voters.size() < 2) {
+                    // A model's compromise is never an approved ordinary edit.
+                    // Discard the candidate and regenerate from the original brief.
+                    if (!m_activeRequest["arbitrationCorrection"].toBool()) {
+                        m_activeRequest["arbitrationCorrection"] = true;
+                        retryRequest(state);
+                    } else {
+                        addMessage(state, state["agentName"].toString(), "I couldn't identify two current incompatible requests. The app is unchanged. Please clarify the change and try again.", "system");
+                    }
                     persist(id, state);
                     publish(id);
                     return;
@@ -869,6 +938,7 @@ void Session::finishAgent(const QJsonObject &agentReply) {
                 proposal["voters"] = voters;
                 proposal["choices"] = choices;
                 proposal["votes"] = QJsonObject();
+                proposal["verifiedDirections"] = true;
             }
             proposal["id"] = uid(); proposal["epoch"] = m_agentEpoch;
             proposal["requestedBy"] = requester;
@@ -1060,6 +1130,10 @@ void Session::nextRequest() {
         beginActivity(id,m_activeRequest);
         auto request = state; request.remove("networkAcks"); request.remove("agentQueue"); request.remove("activeRequest");
         request.remove("directions");
+        m_runDirections = activeDirections(state, m_activeRequest);
+        request["activeDirections"] = m_runDirections;
+        if (m_activeRequest["arbitrationCorrection"].toBool())
+            request["arbitrationCorrection"] = "Your previous compromise referred to a person without a current direction. Discard it. Prepare the original request from the current saved app, using only activeDirections for arbitration.";
         if (m_activeRequest.contains("resolution")) {
             request["approvedResolution"] = m_activeRequest["text"];
             request.remove("proposal");

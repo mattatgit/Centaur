@@ -263,7 +263,7 @@ class UpdateControls:
         value=read_json(self.work/'status.json'); phase=value.get('phase')
         message=value.get('message')
         received=value.get('downloadBytes')
-        if isinstance(received,int) and phase in ('downloading','verifying'):
+        if isinstance(received,int) and phase in ('downloading','verifying') and not value.get('downloadStage'):
             message=progress_message(received,value.get('totalBytes'))
             if phase=='verifying':
                 message=message+' · Verifying…' if received else 'Verifying the update…'

@@ -35,10 +35,19 @@ def check_progress(driver,folder,path,info,local_source=None):
                        *['Sig: '+signature for signature in info['signatures']],
                        *(['CA: '+info['ca']] if info.get('ca') else [])])+'\n'
     class Handler(http.server.BaseHTTPRequestHandler):
+        reject_relay=False
+        relay_failed=False
+        direct_fetched=False
         def log_message(self,*args): pass
         def do_HEAD(self): self.serve(False)
         def do_GET(self): self.serve(True)
         def serve(self,body):
+            if self.reject_relay and self.path.endswith('.narinfo') and self.headers.get('User-Agent')=='Centaur GTK4 updater':
+                Handler.relay_failed=True
+                self.send_error(502)
+                return
+            if self.reject_relay and body and self.path=='/nar/progress.nar':
+                Handler.direct_fetched=True
             data={'/nix-cache-info':b'StoreDir: /nix/store\nWantMassQuery: 0\nPriority: 40\n',
                   '/'+Path(path).name.split('-',1)[0]+'.narinfo':narinfo.encode(),
                   '/nar/progress.nar':payload}.get(self.path)
@@ -61,7 +70,7 @@ def check_progress(driver,folder,path,info,local_source=None):
     tracker=DownloadProgress(cache,plan,transaction.download_progress)
     errors=[]
     def copy():
-        try: runtime.transfer(cache,path,tracker,folder/'empty-store')
+        try: runtime.transfer(cache,path,tracker,folder/'empty-store',missing=[path])
         except Exception as error: errors.append(error)
     worker=threading.Thread(target=copy,daemon=True)
     Gtk.init()
@@ -110,6 +119,19 @@ def check_progress(driver,folder,path,info,local_source=None):
         assert controls.status.get_text().endswith(' · Verifying…') and 'Downloaded ' in controls.footer_status.get_text()
         assert controls.footer_labels.get_visible_child().get_text()=='Updating…'
         (folder/'visible-progress.json').write_text(json.dumps(samples,indent=2))
+        # Use a second empty store so a cache hit cannot pass the recovery test.
+        Handler.reject_relay=True
+        notices=[]
+        def notice(message):
+            notices.append(message)
+            transaction.download_status(message)
+            controls.tick(); pump()
+            assert controls.status.get_text()==controls.footer_status.get_text()==message
+        tracker=DownloadProgress(cache,plan,transaction.download_progress)
+        direct=folder/'direct-store'
+        runtime.transfer(cache,path,tracker,direct,status=notice)
+        assert Handler.relay_failed and Handler.direct_fetched and any('directly' in n for n in notices)
+        runtime.nix('store','verify','--store',str(direct),'--sigs-needed','1','--option','trusted-public-keys',KEY,path)
     finally:
         window.destroy(); pump(); server.shutdown(); server.server_close(); serving.join(timeout=2)
 

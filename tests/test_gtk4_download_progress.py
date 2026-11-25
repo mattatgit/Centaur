@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 BASE=Path(__file__).resolve().parents[1]/'gtk4/embedding'
 sys.path.insert(0,str(BASE))
@@ -18,6 +19,21 @@ def event(action,id=1,**fields): return '@nix '+json.dumps(dict(action=action,id
 
 
 class DownloadProgressTests(unittest.TestCase):
+    def test_copy_only_missing_paths_and_verify_entire_root(self):
+        root='/nix/store/'+'a'*32+'-app'
+        dep='/nix/store/'+'b'*32+'-installed'
+        remote={root:{'downloadSize':200,'url':'nar/app'},dep:{'downloadSize':300,'url':'nar/dep'}}
+        for local,expected in (({root:None,dep:{}},[root]),(remote,[]),({},None)):
+            runtime=updater.Runtime('/unused')
+            with self.subTest(local=local), patch.object(runtime,'run',side_effect=[
+                    json.dumps(remote),json.dumps(local),'version']), patch.object(runtime,'transfer') as transfer, \
+                    patch.object(runtime,'nix') as nix, patch.object(updater.os,'access',return_value=True):
+                runtime.download({'storePath':root,'version':'version'})
+                if expected==[]: transfer.assert_not_called()
+                else: self.assertEqual(transfer.call_args.kwargs['missing'],expected)
+                nix.assert_any_call('store','verify','--recursive','--sigs-needed','1',
+                                    '--option','trusted-public-keys',updater.KEY,'--option','substituters','',root)
+
     def test_plan_excludes_present_paths_and_uses_compressed_not_nar_size(self):
         a='/nix/store/'+'a'*32+'-one'; b='/nix/store/'+'b'*32+'-two'
         remote={a:{'downloadSize':123400000,'narSize':999999999,'url':'nar/one.nar.zst'},

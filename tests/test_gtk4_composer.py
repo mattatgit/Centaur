@@ -8,6 +8,24 @@ from attachment_model import figma_reference, image_filename, mentions_agent, me
 
 
 class ComposerModelTests(unittest.TestCase):
+    def test_mpo_shares_only_primary_photo_and_explains_other_multiframe_files(self):
+        try: from PIL import Image
+        except ImportError: self.skipTest('Pillow required for codec test')
+        Image.init()
+        if 'MPO' not in Image.SAVE_ALL: self.skipTest('MPO fixture encoder is unavailable')
+        primary=Image.new('RGB',(1024,1365),'red')
+        second=Image.new('RGB',(1024,1365),'blue')
+        photo=io.BytesIO()
+        primary.save(photo,format='MPO',save_all=True,append_images=[second])
+        ref,data=prepare_image(photo.getvalue())
+        with Image.open(io.BytesIO(data)) as image:
+            self.assertEqual((ref['format'],image.format,image.size),('jpeg','JPEG',primary.size))
+            self.assertFalse(getattr(image,'is_animated',False))
+            self.assertGreater(image.getpixel((0,0))[0],240)
+        animation=io.BytesIO()
+        primary.save(animation,format='PNG',save_all=True,append_images=[second])
+        with self.assertRaisesRegex(ValueError,'multiple frames'):
+            prepare_image(animation.getvalue())
     def test_mentions_are_cursor_relative_and_case_insensitive(self):
         self.assertTrue(mentions_agent('Hello @ATLAS!', 'Atlas'))
         self.assertFalse(mentions_agent('mail@atlas.example and @atlas-two', 'Atlas'))

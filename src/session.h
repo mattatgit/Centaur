@@ -58,6 +58,7 @@ private:
     void queueImport(QJsonObject &state, const QString &text, const QString &author);
     QHash<QString, QProcess *> m_imports;
     QJsonObject m_activeRequest;
+    QJsonArray m_runDirections;
     QHash<QString,QJsonObject> m_activities;
     QHash<QString,QByteArray> m_activitySources;
     QString m_expectedAgentRun;
