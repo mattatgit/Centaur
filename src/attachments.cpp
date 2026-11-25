@@ -153,3 +153,70 @@ QJsonObject Attachments::referencedImage(const QJsonObject &state,const QString 
         }
     return {};
 }
+
+QJsonObject Attachments::agentContext(const QJsonArray &messages, qsizetype messageIndex, const QString &agentName) {
+    const auto message = messages.at(messageIndex).toObject();
+    auto context = [](const QJsonObject &origin, const QJsonArray &refs) {
+        return QJsonObject{{"attachments", refs}, {"referenceMessage", origin["id"]}, {"referenceAuthor", origin["author"]}};
+    };
+    const auto attached = message["attachments"].toArray();
+    if (!attached.isEmpty()) return context(message, attached);
+
+    // An address and a shared file can have the same name ("@centaur" and
+    // "Centaur"). Neither a mention nor a file title authorizes a design read.
+    const auto insensitive = QRegularExpression::CaseInsensitiveOption;
+    const QRegularExpression address("(?<![\\w@])@" + QRegularExpression::escape(agentName) + "(?![\\w-])", insensitive);
+    auto words = message["text"].toString().remove(address).simplified();
+    words.remove(QRegularExpression("^[:,\\s]+"));
+    static const QRegularExpression designRequest(QStringLiteral(
+        R"(^(?:please\s+)?(?:(?:can|could|would)\s+you\s+)?(?:please\s+)?)"
+        R"((?:read|inspect|describe|review|use|match|follow|open|look\s+at|refer\s+to|compare\s+with|what(?:'s|\s+is|\s+does)|how\s+does)\s+)"
+        R"((?:(?:in|on|the|this|that|my|our|last|earlier|previous|previously|shared|attached|linked)\s+)*figma\s+(?:design|frame|node|mockup|file|link|prototype)\b)"),
+        insensitive);
+    static const QRegularExpression urlToken(R"(https://(?:www\.)?figma\.com/(?:design|file)/[^\s<>"\x60]+)", insensitive);
+    // Pasted links normally arrive as chips. Also support a specific shared
+    // URL in a plain-text request, without matching a prefix of another node.
+    static const QRegularExpression urlRequest(QStringLiteral(
+        R"(^(?:please\s+)?(?:(?:read|inspect|describe|review|use|open|look\s+at)\s+)?[<\x60]?https://(?:www\.)?figma\.com/(?:design|file)/)"), insensitive);
+    const auto design = designRequest.match(words);
+    const bool namesDesign = design.hasMatch();
+    const bool wantsDesign = namesDesign || urlRequest.match(words).hasMatch();
+    static const QRegularExpression imageRequest(QStringLiteral(
+        R"(\b(?:the|this|that|those|these|my|your|our|previous|last|earlier|shared|attached|uploaded)\s+)"
+        R"((?:(?:previously|previous|earlier|last|shared|attached|uploaded|reference)\s+)*(?:images?|photos?|screenshots?|pictures?|attachments?|uploads?|references?)\b)"
+        R"(|\b(?:images?|photos?|screenshots?|pictures?|attachments?)\s+(?:from\s+earlier|(?:I|we|you)\s+(?:sent|shared|attached|uploaded))\b)"),
+        insensitive);
+    if (!wantsDesign && !imageRequest.match(words).hasMatch()) return context(message, {});
+
+    QStringList urls;
+    QString designName;
+    if (wantsDesign) {
+        auto matches = urlToken.globalMatch(words);
+        while (matches.hasNext()) {
+            auto url = matches.next().captured();
+            while (!url.isEmpty() && QStringLiteral(".,;!)]}").contains(url.back())) url.chop(1);
+            urls.append(url);
+        }
+        if (!namesDesign && urls.isEmpty()) return context(message, {});
+        if (namesDesign) {
+            static const QRegularExpression namedFile(
+                R"(^\s*(?:(?:called|named)\s+["“']?([^"”'?.!]+)|["“]([^"”]+)["”]))", insensitive);
+            const auto name = namedFile.match(words.mid(design.capturedEnd()));
+            if (name.hasMatch()) designName = (name.captured(1) + name.captured(2)).trimmed();
+        }
+    }
+    const QString type = wantsDesign ? QStringLiteral("figma") : QStringLiteral("image");
+    for (qsizetype i = messageIndex; i-- > 0;) {
+        const auto prior = messages.at(i).toObject();
+        QJsonArray selected;
+        for (const auto &value : prior["attachments"].toArray()) {
+            const auto ref = value.toObject();
+            if (ref["type"] != type) continue;
+            if (!urls.isEmpty() && !urls.contains(ref["url"].toString())) continue;
+            if (!designName.isEmpty() && designName.compare(ref["name"].toString(), Qt::CaseInsensitive) != 0) continue;
+            selected.append(ref);
+        }
+        if (!selected.isEmpty()) return context(prior, selected);
+    }
+    return context(message, {});
+}

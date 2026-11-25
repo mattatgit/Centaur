@@ -348,7 +348,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         assert chat_appearance(guest,'Guest profile image')['image'] and not chat_appearance(guest,'Host profile image')['own']
         driver.screenshot(gw,evidence/'same-name-rejoin.png')
         from composer_check import check_agent_references
-        check_agent_references(driver,click,message,host,hw,guest,gw,alpha,reply,request_record,host_root/'projects'/pid/'App.gtk.json')
+        check_agent_references(driver,click,message,host,hw,guest,gw,alpha,reply,request_record,
+                               host_root/'projects'/pid/'App.gtk.json',guest_root/'shared'/pid/'App.gtk.json')
     finally:
         control.close()
     return ['host-and-guest-recall-uploaded-image-and-build-after-figma-failure',

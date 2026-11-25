@@ -12,4 +12,6 @@ bool store(const QString &project, const QJsonObject &item, const QByteArray &by
 bool prepare(const QString &project, const QJsonValue &items, QJsonArray &clean, QString &error,
              const QJsonObject *incoming = nullptr, QJsonObject *outgoing = nullptr, const QString &draftDir = {});
 QJsonObject referencedImage(const QJsonObject &state, const QString &hash);
+// Resolve within the project's history as it stood when this message was sent.
+QJsonObject agentContext(const QJsonArray &messages, qsizetype messageIndex, const QString &agentName);
 }

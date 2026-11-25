@@ -72,6 +72,65 @@ private:
 class CoreTests : public QObject {
     Q_OBJECT
 private slots:
+    void agentContextUsesOnlyRequestedProjectReferences() {
+        const QJsonObject image{{"type","image"},{"hash","old"}}, newerImage{{"type","image"},{"hash","new"}};
+        const QString url="https://www.figma.com/design/Fixture/Centaur?node-id=1-2";
+        const QJsonObject chip{{"type","figma"},{"url",url},{"name","Centaur"}};
+        auto entry=[](const QString &id,const QJsonArray &items) {
+            return QJsonObject{{"id",id},{"author","Matt"},{"kind","human"},{"attachments",items}};
+        };
+        const auto mixed=entry("mixed",{image,chip}), recent=entry("recent",{newerImage}), designOnly=entry("link",{chip});
+        auto ask=[&](QJsonArray history,const QString &text,const QJsonArray &items=QJsonArray()) {
+            auto message=entry("now",items); message["text"]=text;
+            history.append(message);
+            const auto index=history.size()-1;
+            history.append(entry("posted later",{chip,newerImage}));
+            return Attachments::agentContext(history,index,"centaur");
+        };
+        QCOMPARE(ask({mixed,recent,designOnly},"@Centaur Describe the previously uploaded image.")["attachments"].toArray(),QJsonArray{newerImage});
+        QCOMPARE(ask({mixed,designOnly},"The earlier picture, not the Figma link. @centaur")["attachments"].toArray(),QJsonArray{image});
+        QCOMPARE(ask({mixed},"@centaur use that attachment")["attachments"].toArray(),QJsonArray{image});
+        QCOMPARE(ask({mixed,recent},"@centaur Inspect the shared Figma frame.")["attachments"].toArray(),QJsonArray{chip});
+        QJsonObject otherChip=chip; otherChip["name"]="Other"; otherChip["url"]=url+"0";
+        QCOMPARE(ask({mixed,entry("other",{otherChip})},"@centaur Read the Figma file named Centaur.")["attachments"].toArray(),QJsonArray{chip});
+        QCOMPARE(ask({mixed},"@centaur Read "+url)["attachments"].toArray(),QJsonArray{chip});
+        QCOMPARE(ask({mixed},"@centaur Read "+url+"0")["attachments"].toArray(),QJsonArray{});
+        for (const char *edit : {"@centaur Change the heading to Centaur.",
+                                    "@centaur Add a button labelled Figma.",
+                                    "@centaur Ignore the Figma design and change the heading.",
+                                    "@centaur Don't read the Figma link. Change the heading.",
+                                    "@centaur Open https://example.com/help"}) {
+            QCOMPARE(ask({mixed,recent,designOnly},edit)["attachments"].toArray(),QJsonArray{});
+        }
+        QCOMPARE(ask({designOnly},"@centaur What was in the earlier photo?")["attachments"].toArray(),QJsonArray{});
+        QCOMPARE(ask({recent},"@centaur Use the shared Figma frame")["attachments"].toArray(),QJsonArray{});
+        QCOMPARE(ask({mixed},"@centaur Inspect these.",{newerImage,chip})["attachments"].toArray(),(QJsonArray{newerImage,chip}));
+        QCOMPARE(ask({mixed,recent},"@centaur Describe the image.")["referenceMessage"].toString(),QString("recent"));
+    }
+
+    void oldInferredFigmaDependencyDoesNotSurviveQueueRecovery() {
+        QTemporaryDir root;
+        Workspace workspace(root.path()); QString error;
+        const auto id=workspace.createProject("Recovery","",&error);
+        const auto source=workspace.source(id);
+        const QJsonObject chip{{"type","figma"},{"url","https://www.figma.com/design/Fixture/Centaur"},{"name","Centaur"}};
+        const QString edit="@centaur Change the heading";
+        auto state=workspace.load(id);
+        state["messages"]=QJsonArray{
+            QJsonObject{{"id","shared"},{"kind","human"},{"author","Matt"},{"participant","host"},{"attachments",QJsonArray{chip}}},
+            QJsonObject{{"id","edit"},{"kind","human"},{"author","Matt"},{"participant","host"},{"text",edit}}};
+        state["activeRequest"]=QJsonObject{{"id","old-request"},{"author","Matt"},{"participant","host"},{"text",edit},
+            {"referenceMessage","shared"},{"referenceAuthor","Matt"},{"attachments",QJsonArray{chip}}};
+        QVERIFY(workspace.save(id,state));
+        const auto executable=root.filePath("agent");
+        QVERIFY(writeAgentReply(executable,{{"kind","question"},{"message","Recovered the ordinary request"}}));
+        AgentOverride agentEnvironment(executable);
+        Session host(root.path()); host.start();
+        QTRY_COMPARE_WITH_TIMEOUT(workspace.load(id)["messages"].toArray().last().toObject()["text"].toString(),
+                                  QString("Recovered the ordinary request"),6000);
+        QCOMPARE(workspace.load(id)["messages"].toArray().first().toObject()["attachments"].toArray(),QJsonArray{chip});
+        QCOMPARE(workspace.source(id),source);
+    }
     void hostAgentReceivesCanvasImageAndReadOnlyDesign() {
         QTemporaryDir root;
         Workspace workspace(root.path()); QString error;

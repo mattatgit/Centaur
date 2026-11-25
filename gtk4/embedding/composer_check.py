@@ -179,10 +179,11 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')
 
 
-def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,record,app):
+def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,record,app,guest_app):
     """Exercise the host coordinator and the actual inputs delivered to its provider."""
     from attachment_model import prepare_image
     from PIL import Image
+    from xml.etree import ElementTree
     url='https://www.figma.com/design/Fixture123/Centaur?node-id=7-8'
 
     def attach(state,window,kind,value):
@@ -236,10 +237,17 @@ def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,re
             assert len(pixels)==2 and pixels[1]==expected
         bundle=json.loads(app.read_text())
         old=host()['child']['title']; new=role+' context verified'
-        assert old in bundle['files']['app.ui']
-        bundle['files']['app.ui']=bundle['files']['app.ui'].replace(old,new)
+        layout=ElementTree.fromstring(bundle['files']['app.ui'])
+        title=layout.find(".//object[@class='GtkWindow']/property[@name='title']")
+        heading=layout.find(".//object[@class='GtkLabel']/property[@name='label']")
+        assert title.text==old and heading.text!=new
+        title.text=heading.text=new
+        bundle['files']['app.ui']=ElementTree.tostring(layout,encoding='unicode')
         answer={'kind':'proposal','message':'Set the heading for '+role,'conflict':None,'gtk':bundle}
         payload,pixels=ask(state,window,'Change the app heading to '+new+'.',answer)
         assert not payload['visualReferences'] and len(pixels)==1
         until(lambda:all((s().get('child') or {}).get('title')==new for s in (host,guest)),
               'The heading edit did not reach both embedded apps',timeout=25)
+        for saved_app in (app,guest_app):
+            layout=ElementTree.fromstring(json.loads(saved_app.read_text())['files']['app.ui'])
+            assert layout.find(".//object[@class='GtkLabel']/property[@name='label']").text==new
