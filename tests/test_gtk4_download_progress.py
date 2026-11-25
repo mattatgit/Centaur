@@ -19,6 +19,30 @@ def event(action,id=1,**fields): return '@nix '+json.dumps(dict(action=action,id
 
 
 class DownloadProgressTests(unittest.TestCase):
+    def test_silent_relay_uses_one_direct_attempt_with_remaining_deadline(self):
+        from types import SimpleNamespace
+        now=[100.]
+        tracker=DownloadProgress(CACHE,None,lambda *_:None)
+        sources=[]
+        def simulate(args,progress,timeout):
+            source=args[args.index('--from')+1]
+            sources.append(source)
+            if len(sources)==1:
+                self.assertTrue(source.startswith('http://127.0.0.1:'))
+                now[0]+=46
+                progress.tick()
+            self.assertEqual((source,timeout),(CACHE,554))
+            self.assertIn(updater.KEY,args)
+            raise updater.UpdateError('Direct download unavailable')
+        clock=SimpleNamespace(monotonic=lambda:now[0])
+        with tempfile.TemporaryDirectory() as directory:
+            runtime=updater.Runtime(directory)
+            with patch.object(updater,'time',clock),patch('cache_transfer.time',clock), \
+                    patch.object(runtime,'copy_with_progress',side_effect=simulate), \
+                    self.assertRaisesRegex(updater.UpdateError,'Direct download unavailable'):
+                runtime.transfer(CACHE,'/unused',tracker)
+        self.assertEqual(len(sources),2)
+
     def test_copy_only_missing_paths_and_verify_entire_root(self):
         root='/nix/store/'+'a'*32+'-app'
         dep='/nix/store/'+'b'*32+'-installed'

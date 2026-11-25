@@ -41,6 +41,7 @@ def select_avatar(driver,state,window,click,source):
 
 
 def check_multiplayer(driver, folder, launch, click, message, bridge, env, host, hw, reply, starter,request_record):
+    from xml.etree import ElementTree
     evidence=folder/'multiplayer'
     evidence.mkdir()
     host_root,guest_root=folder/'host-data',folder/'multiplayer-guest-data'
@@ -287,7 +288,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         assert (host_root/'projects'/pid/'App.gtk.json').read_bytes()==start_bytes
         driver.screenshot(gw,evidence/'conflict-stalemate.png')
 
-        previous=conflict_requests('@centaur Use the Host Choice heading again','@centaur Use the Framework Choice heading again',2)
+        previous=conflict_requests('@centaur Use the Host Wins heading','@centaur Use the Framework Choice heading again',2)
         click(host,hw,'approval-host')
         until(lambda:len(host()['project']['proposal']['votes'])==1,'First vote was not recorded')
         message(guest,gw,'@centaur Use the updated Framework Choice heading')
@@ -297,18 +298,24 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         current=until(fresh_vote,'A revised disagreement did not open a new vote')
         assert not current['votes'] and len(current['choices'])==2
         assert {c['text'] for c in current['choices'].values()}=={
-            '@centaur Use the Host Choice heading again','@centaur Use the updated Framework Choice heading'}
+            '@centaur Use the Host Wins heading','@centaur Use the updated Framework Choice heading'}
         assert host()['project']['revision']==guest()['project']['revision']==revision
-        resolved=json.loads(json.dumps(starter))
-        resolved['files']['app.ui']=resolved['files']['app.ui'].replace('Family board','Host Choice')
-        reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Choice heading','conflict':None,'gtk':resolved}))
+        def heading_bundle(bundle,heading):
+            edited=json.loads(json.dumps(bundle))
+            layout=ElementTree.fromstring(edited['files']['app.ui'])
+            layout.find(".//object[@class='GtkWindow']/property[@name='title']").text=heading
+            layout.find(".//object[@class='GtkLabel']/property[@name='label']").text=heading
+            edited['files']['app.ui']=ElementTree.tostring(layout,encoding='unicode')
+            return edited
+        resolved=heading_bundle(starter,'Host Wins')
+        reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Wins heading','conflict':None,'gtk':resolved}))
         click(host,hw,'approval-host')
         until(lambda:all(s().get('approvalStatus')=='1 of 2 agreed — waiting for Framework'
                          and s()['project']['proposal']['id']==current['id'] for s in (host,guest)),
               'Both clients did not receive the first vote on the revised disagreement')
         assert host()['project']['revision']==revision
         click(guest,gw,'approval-host')
-        until(lambda:all((state().get('child') or {}).get('title')=='Host Choice' for state in (host,guest)),
+        until(lambda:all((state().get('child') or {}).get('title')=='Host Wins' for state in (host,guest)),
               'A new unanimous vote did not apply the chosen original request',timeout=25)
         assert host()['project']['revision']==guest()['project']['revision']==revision+1
         driver.screenshot(gw,evidence/'conflict-agreed.png')
@@ -317,8 +324,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         # model compromise first, exactly as in the previous owner session.
         reopen_guest()
         for state,window,title in ((guest,gw,'Framework check'),(host,hw,'VM check')):
-            updated_bundle=json.loads(json.dumps(resolved))
-            updated_bundle['files']['app.ui']=updated_bundle['files']['app.ui'].replace('Host Choice',title)
+            updated_bundle=heading_bundle(resolved,title)
             reply.write_text(json.dumps({
                 'fixtureHistoricalConflict':{'kind':'proposal','message':'Keep the earlier compromise',
                     'conflict':proposal['conflict'],'gtk':starter},
@@ -334,6 +340,9 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             for root,area in ((host_root,'projects'),(guest_root,'shared')):
                 saved=json.loads((root/area/pid/'App.gtk.json').read_text())
                 assert saved['files']['app.ui']==updated_bundle['files']['app.ui']
+                layout=ElementTree.fromstring(saved['files']['app.ui'])
+                assert layout.find(".//object[@class='GtkLabel']/property[@name='label']").text==title
+            driver.screenshot(window,evidence/('heading-'+title.split()[0].lower()+'.png'))
 
         former=next(p['id'] for p in host()['project']['sharing']['participants'] if p['name']=='Framework')
         projects(guest,gw); click(guest,gw,'menu-'+pid); click(guest,gw,'menu-delete-'+pid); click(guest,gw,'delete-confirm')
