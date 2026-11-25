@@ -387,11 +387,14 @@ if cfg.get('fixtureProgressGate'):
         summary['checks'].append('invalid-css-leaves-current-source-and-both-previews-intact')
         compromise=json.loads(json.dumps(changed)); compromise['files']['app.ui']=compromise['files']['app.ui'].replace('Family Planner','Together Planner')
         proposal(compromise,{'reason':'Matt and Guest have incompatible title requirements','authors':['Matt','Guest']})
-        message(hs,hw,'@centaur Resolve our conflicting title requirements')
+        message(gs,gw,'Please keep the app title Guest Planner.')
+        until(lambda:any(m.get('text')=='Please keep the app title Guest Planner.' for m in hs()['project']['messages']),
+              'The host did not receive the guest title requirement')
+        message(hs,hw,'@centaur Use Host Planner as the app title. Please resolve our two title requests.')
         until(lambda:hs()['project'].get('proposal',{}).get('conflict'),'Conflict was not offered for agreement')
         assert hs()['project']['revision']==revision
         click(hs,hw,'approval-agent')
-        until(lambda:'Matt' in hs()['project']['proposal'].get('accepted',[]),'Host agreement was not recorded')
+        until(lambda:all('Matt' in s()['project']['proposal'].get('accepted',[]) for s in (hs,gs)),'Host agreement was not recorded on both clients')
         assert hs()['project']['revision']==revision
         click(gs,gw,'approval-agent')
         until(lambda:(hs().get('child') or {}).get('title')=='Together Planner' and (gs().get('child') or {}).get('title')=='Together Planner','Agreed GTK change was not applied',timeout=20)

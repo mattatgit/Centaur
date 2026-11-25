@@ -303,7 +303,9 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         resolved['files']['app.ui']=resolved['files']['app.ui'].replace('Family board','Host Choice')
         reply.write_text(json.dumps({'kind':'proposal','message':'Use the Host Choice heading','conflict':None,'gtk':resolved}))
         click(host,hw,'approval-host')
-        until(lambda:host().get('approvalStatus')=='1 of 2 agreed — waiting for Framework','Original choice did not enter voting')
+        until(lambda:all(s().get('approvalStatus')=='1 of 2 agreed — waiting for Framework'
+                         and s()['project']['proposal']['id']==current['id'] for s in (host,guest)),
+              'Both clients did not receive the first vote on the revised disagreement')
         assert host()['project']['revision']==revision
         click(guest,gw,'approval-host')
         until(lambda:all((state().get('child') or {}).get('title')=='Host Choice' for state in (host,guest)),
