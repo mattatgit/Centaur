@@ -9,7 +9,7 @@ from gi.repository import GLib, Gtk, Pango
 from ui import ASSETS,box,button,button_text,label,accessible,picture
 from v2_ui import UpdateIcon
 from updater import (check_update,process_identity,profile_path,read_json,state_path,write_json)
-from download_progress import progress_message
+from download_progress import status_message
 from build_display import compact_version
 
 
@@ -261,12 +261,7 @@ class UpdateControls:
                 self.starting=False; owner.root_overlay.get_child().set_sensitive(True)
         if not self.work: return
         value=read_json(self.work/'status.json'); phase=value.get('phase')
-        message=value.get('message')
-        received=value.get('downloadBytes')
-        if isinstance(received,int) and phase in ('downloading','verifying') and not value.get('downloadStage'):
-            message=progress_message(received,value.get('totalBytes'))
-            if phase=='verifying':
-                message=message+' · Verifying…' if received else 'Verifying the update…'
+        message=status_message(value,time.monotonic())
         if message: self.status.set_text(message)
         if self.process and phase=='ready' and not self.handed_off:
             if self.blocked(): self.status.set_text('Update downloaded. Waiting for the current work to finish…'); return

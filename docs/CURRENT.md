@@ -2,7 +2,7 @@
 
 ## Composer polish queued after owner testing on 966074c
 
-The owner verified image recall on the ARM64 VM and x86-64 Framework in Sharing Test, including a follow-up that explicitly excluded Figma. Explicit private-reader access was untested.
+The owner verified recall of an image originally attached to an agent request on the ARM64 VM and x86-64 Framework. On `003173c`, an MPO flower photograph shared in ordinary chat displayed on both machines, but both follow-up requests using “photograph” sent only the app canvas to the agent. The visual refinements below remain queued for a dedicated pass. Explicit private-reader access and an owner update starting from `003173c` are still untested.
 
 - Measure the interval from Send to visible feedback on image messages. Show a pending state immediately and distinguish upload from agent processing.
 - Use the lighter remove-button treatment when hovering a thumbnail and the darker treatment directly over the X.

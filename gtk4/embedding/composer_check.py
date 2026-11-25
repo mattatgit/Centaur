@@ -269,3 +269,33 @@ def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,re
         for saved_app in (app,guest_app):
             layout=ElementTree.fromstring(json.loads(saved_app.read_text())['files']['app.ui'])
             assert layout.find(".//object[@class='GtkLabel']/property[@name='label']").text==new
+
+    cross_request='Describe a distinctive detail in the most recently uploaded photograph.'
+    own_request='Describe the white flower with the yellow centre in the photograph I just uploaded.'
+    for role,sender,sw,other,ow in [('host',host,hw,guest,gw),('guest',guest,gw,host,hw)]:
+        for index,fmt in enumerate(('PNG','JPEG','MPO')):
+            photo=reply.parent/(role+'-chat-'+fmt+('.png' if fmt=='PNG' else '.jpeg'))
+            primary=Image.new('RGB',(36+index,27),'#533c70' if role=='host' else '#677a24')
+            if fmt=='MPO':
+                primary.save(photo,format=fmt,save_all=True,append_images=[Image.new('RGB',primary.size,'white')])
+            else:
+                primary.save(photo,format=fmt)
+            expected=prepare_image(photo.read_bytes())[0]
+            drop_files(driver,sender,sw,[photo])
+            until(lambda:sender()['draft']['attachments']==['image'] and sender()['draft']['canSend'],
+                  'Human photo did not finish preparing')
+            caption='A picture from the garden' if fmt=='JPEG' else ''
+            if caption:
+                click(sender,sw,'editor'); driver.type(caption)
+            click(sender,sw,'send')
+            def shared_row(state):
+                return next((m for m in state()['project']['messages'] if m.get('kind')=='human'
+                             and m.get('text')==caption and m.get('attachments')==[expected]),None)
+            origin=until(lambda:shared_row(other),'The other participant did not receive the human photo')
+            assert until(lambda:shared_row(sender),'Sender did not see their photo')['id']==origin['id']
+            for reader,window,request in [(other,ow,cross_request)]+([(sender,sw,own_request)] if fmt=='MPO' else []):
+                payload,pixels=ask(reader,window,request,question)
+                assert (payload['referenceMessage'],payload['referenceAuthor'])==(origin['id'],origin['author'])
+                assert [r['hash'] for r in payload['visualReferences']]==[expected['hash']]
+                assert len(pixels)==2 and pixels[1]==expected['hash'] and pixels[0]!=pixels[1]
+            print(f'PASS: {role} human {fmt} upload recalled across participants with original shared pixels',flush=True)

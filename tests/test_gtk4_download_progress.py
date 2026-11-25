@@ -1,15 +1,18 @@
 """Real streamed subprocess output and Nix compressed-byte accounting."""
 import importlib.util
+import http.server
 import json
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.request
 from unittest.mock import patch
 
 BASE=Path(__file__).resolve().parents[1]/'gtk4/embedding'
 sys.path.insert(0,str(BASE))
-from download_progress import DownloadProgress, download_plan, path_info, progress_message
+from download_progress import DownloadProgress, download_plan, path_info, progress_message, status_message
 spec=importlib.util.spec_from_file_location('progress_updater',BASE/'updater.py')
 updater=importlib.util.module_from_spec(spec); spec.loader.exec_module(updater)
 
@@ -19,6 +22,40 @@ def event(action,id=1,**fields): return '@nix '+json.dumps(dict(action=action,id
 
 
 class DownloadProgressTests(unittest.TestCase):
+    def test_incomplete_metadata_is_a_transport_failure_and_malformed_metadata_is_terminal(self):
+        class Origin(http.server.BaseHTTPRequestHandler):
+            truncate=True
+            def log_message(self,*args): pass
+            def do_GET(self):
+                data=b'Invalid cache record'
+                self.send_response(200)
+                self.send_header('Content-Length',str(len(data)+int(self.truncate)))
+                self.end_headers()
+                self.wfile.write(data)
+        with http.server.ThreadingHTTPServer(('127.0.0.1',0),Origin) as upstream:
+            serving=threading.Thread(target=upstream.serve_forever,daemon=True); serving.start()
+            try:
+                cache=f'http://127.0.0.1:{upstream.server_port}'
+                tracker=DownloadProgress(cache,None,lambda *_:None)
+                for truncated,kind,reason in ((True,updater.RelayUnavailable,'metadata connection failed'),
+                                              (False,ValueError,'invalid cache metadata')):
+                    Origin.truncate=truncated
+                    with self.subTest(reason=reason),updater.measured_cache(cache,tracker) as (url,poll):
+                        with self.assertRaises(urllib.error.HTTPError) as reply:
+                            urllib.request.urlopen(url+'/'+'a'*32+'.narinfo',timeout=5)
+                        self.assertEqual(reply.exception.code,502)
+                        reply.exception.close()
+                        with self.assertRaisesRegex(kind,reason): poll()
+            finally:
+                upstream.shutdown(); serving.join()
+
+    def test_metadata_elapsed_does_not_claim_downloaded_bytes(self):
+        stage={'phase':'downloading','downloadBytes':0,'downloadStage':True,'stageStarted':100,
+               'message':'Checking 12 update files against this device…'}
+        self.assertEqual(status_message(stage,103),stage['message'])
+        self.assertEqual(status_message(stage,113),stage['message']+' · 13s elapsed')
+        self.assertEqual(status_message(dict(stage,downloadStage=False,downloadBytes=4000000),115),'Downloaded 4.0 MB')
+
     def test_silent_relay_uses_one_direct_attempt_with_remaining_deadline(self):
         from types import SimpleNamespace
         now=[100.]
@@ -52,7 +89,11 @@ class DownloadProgressTests(unittest.TestCase):
             with self.subTest(local=local), patch.object(runtime,'run',side_effect=[
                     json.dumps(remote),json.dumps(local),'version']), patch.object(runtime,'transfer') as transfer, \
                     patch.object(runtime,'nix') as nix, patch.object(updater.os,'access',return_value=True):
-                runtime.download({'storePath':root,'version':'version'})
+                notices=[]
+                runtime.download({'storePath':root,'version':'version'},status=notices.append)
+                self.assertIn('Reading the update file list from the signed cache…',notices)
+                self.assertIn('Checking 2 update files against this device…',notices)
+                if expected==[root]: self.assertIn('Reading download details for 1 missing file…',notices)
                 if expected==[]: transfer.assert_not_called()
                 else: self.assertEqual(transfer.call_args.kwargs['missing'],expected)
                 nix.assert_any_call('store','verify','--recursive','--sigs-needed','1',

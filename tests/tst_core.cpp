@@ -90,6 +90,17 @@ private slots:
         QCOMPARE(ask({mixed,recent,designOnly},"@Centaur Describe the previously uploaded image.")["attachments"].toArray(),QJsonArray{newerImage});
         QCOMPARE(ask({mixed,designOnly},"The earlier picture, not the Figma link. @centaur")["attachments"].toArray(),QJsonArray{image});
         QCOMPARE(ask({mixed},"@centaur use that attachment")["attachments"].toArray(),QJsonArray{image});
+        auto humanUpload=recent;
+        humanUpload["author"]="Guest";
+        humanUpload["text"]="A flower from the garden";
+        for (const auto *prompt : {"@centaur Describe a distinctive detail in the most recently uploaded photograph.",
+                                   "@centaur Describe the white flower with the yellow centre in the photograph I just uploaded.",
+                                   "@centaur Describe a photograph we just posted."}) {
+            const auto result=ask({mixed,humanUpload,designOnly},prompt);
+            QCOMPARE(result["referenceMessage"].toString(),QString("recent"));
+            QCOMPARE(result["referenceAuthor"].toString(),QString("Guest"));
+            QCOMPARE(result["attachments"].toArray(),QJsonArray{newerImage});
+        }
         QCOMPARE(ask({mixed,recent},"@centaur Inspect the shared Figma frame.")["attachments"].toArray(),QJsonArray{chip});
         QJsonObject otherChip=chip; otherChip["name"]="Other"; otherChip["url"]=url+"0";
         QCOMPARE(ask({mixed,entry("other",{otherChip})},"@centaur Read the Figma file named Centaur.")["attachments"].toArray(),QJsonArray{chip});
@@ -97,6 +108,7 @@ private slots:
         QCOMPARE(ask({mixed},"@centaur Read "+url+"0")["attachments"].toArray(),QJsonArray{});
         for (const char *edit : {"@centaur Change the heading to Centaur.",
                                     "@centaur Add a button labelled Figma.",
+                                    "@centaur Add a photograph button to the toolbar.",
                                     "@centaur Ignore the Figma design and change the heading.",
                                     "@centaur Don't read the Figma link. Change the heading.",
                                     "@centaur Open https://example.com/help"}) {

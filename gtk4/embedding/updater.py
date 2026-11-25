@@ -185,15 +185,18 @@ class Runtime:
             if status: status('Connecting directly to the signed download cache…')
             copy(cache,tracker)
         except ValueError as error:
+            with (self.work/'helper.log').open('a') as log:
+                print('Invalid signed-cache download details.',file=log)
             raise UpdateError('The download cache supplied invalid file details. Your installed version is preserved.') from error
 
     def download(self,manifest,progress=None,verifying=None,status=None):
         path=manifest['storePath']
         plan=None
         missing=None
-        if status: status('Checking which update files this device needs…')
+        if status: status('Reading the update file list from the signed cache…')
         try:
             remote=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--store',CACHE,'--recursive','--json',path],timeout=60)))
+            if status: status(f'Checking {len(remote)} update files against this device…')
             local=path_info(json.loads(self.run(['nix',*NIX_FLAGS,'path-info','--offline','--option','substituters','','--json','--stdin'],
                              input='\n'.join(remote)+'\n',returncodes=(0,1),timeout=20)))
             if path not in remote or set(remote)!=set(local): raise ValueError('Incomplete local metadata')
@@ -205,6 +208,9 @@ class Runtime:
         except (UpdateError,ValueError,KeyError,TypeError): pass
         tracker=DownloadProgress(CACHE,plan,progress or (lambda done,total:None))
         if missing is None or missing:
+            if status:
+                status('Checking file details before download…' if missing is None else
+                       f'Reading download details for {len(missing)} missing '+('file…' if len(missing)==1 else 'files…'))
             self.transfer(CACHE,path,tracker,status=status,missing=missing)
         if verifying: verifying()
         self.nix('build','--offline','--out-link',str(self.work/'candidate'),path)
@@ -300,7 +306,7 @@ class Transaction:
     def download_status(self,message):
         done,total=self.downloaded or (0,None)
         if done: message+=' · '+progress_message(done,total)
-        self.status('downloading',message,downloadStage=True,downloadBytes=done,totalBytes=total)
+        self.status('downloading',message,downloadStage=True,stageStarted=time.monotonic(),downloadBytes=done,totalBytes=total)
 
     def preflight(self):
         if not self.profile.is_symlink(): raise UpdateError('Use the dedicated GTK4 installation before updating in Settings.')
@@ -325,7 +331,7 @@ class Transaction:
 
     def apply(self,manifest,approval):
         data=self.preflight(); runtime=self.runtime; token=uuid.uuid4().hex
-        self.status('downloading','Preparing the download…')
+        self.download_status('Keeping the current version available for recovery…')
         runtime.root_previous(self.previous)
         runtime.download(manifest,progress=self.download_progress,
                          status=self.download_status,

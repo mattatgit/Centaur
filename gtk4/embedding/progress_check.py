@@ -91,6 +91,14 @@ def check_progress(driver,folder,path,info,local_source=None):
     try:
         until(pump,'Progress fixture did not map')
         handle=until(lambda:next((n['id'] for n in driver.nodes() if n.get('app_id')=='org.centaur.Gtk4' and n.get('pid')==os.getpid()),None),'Progress fixture has no native window')
+        transaction.download_status('Reading the update file list from the signed cache…')
+        def elapsed_status():
+            pump(); controls.tick()
+            caption=controls.status.get_text()
+            assert controls.footer_status.get_text()==caption
+            return caption if 'elapsed' in caption else None
+        preparing=until(elapsed_status,'Quiet preparation did not show elapsed time in both views')
+        assert preparing.startswith('Reading the update file list') and ' MB' not in preparing
         worker.start(); deadline=time.monotonic()+35
         while time.monotonic()<deadline:
             pump(); controls.tick(); value=read(folder/'status.json')
@@ -131,6 +139,7 @@ def check_progress(driver,folder,path,info,local_source=None):
         direct=folder/'direct-store'
         runtime.transfer(cache,path,tracker,direct,status=notice)
         assert Handler.relay_failed and Handler.direct_fetched and any('directly' in n for n in notices)
+        assert 'Upstream cache returned HTTP 502 for metadata.' in (folder/'helper.log').read_text()
         runtime.nix('store','verify','--store',str(direct),'--sigs-needed','1','--option','trusted-public-keys',KEY,path)
     finally:
         window.destroy(); pump(); server.shutdown(); server.server_close(); serving.join(timeout=2)

@@ -151,7 +151,7 @@ bool Controller::updateBlocked() const {
 QString Controller::connectionStatus() const {
     if (remoteProject()) {
         const auto *shared = m_shared.value(m_projectId);
-        return shared->connected() ? "Guest connected" : shared->status();
+        return shared->writable() ? "Guest connected" : shared->status();
     }
     return m_session.connected() ? "Host online" : "Host unavailable";
 }

@@ -361,6 +361,30 @@ private slots:
         Workspace workspace(hostRoot.path()); QTRY_COMPARE(workspace.load(id)["messages"].toArray().size(), 1);
         QCOMPARE(workspace.load(id)["messages"].toArray().first().toObject()["author"].toString(), QString("Saori"));
     }
+    void reopenedGuestCanWriteAfterPreviousWindowClosesDuringSnapshotTraffic() {
+        QTemporaryDir hostRoot, guestRoot;
+        Controller host(hostRoot.path()); host.start(); host.createProject("Reopened guest", "");
+        const auto id=host.projectId(); host.invitePeople("127.0.0.1");
+        QString error;
+        auto connection=SharedProject::parseInvitation(host.invitationCode(),&error);
+        connection["name"]="Guest";
+        auto original=std::make_unique<SharedProject>(guestRoot.path(),connection);
+        QVERIFY(original->save()); original->start(); QTRY_VERIFY(original->writable());
+        SharedProject reopened(guestRoot.path(),objectFile(original->path()+"/connection.json"));
+        reopened.start(); QTRY_VERIFY(reopened.connected()); QVERIFY(!reopened.writable());
+        // Project updates can arrive more frequently than the guest's lock check.
+        QTimer updates;
+        int sequence=0;
+        connect(&updates,&QTimer::timeout,&host,[&]{host.renameProject(id,QString("Project %1").arg(++sequence));});
+        updates.start(300);
+        original.reset();
+        QTRY_VERIFY_WITH_TIMEOUT(reopened.writable(),7500);
+        updates.stop();
+        QVERIFY(reopened.send({{"type","message"},{"text","First post after reopening"}}));
+        Workspace saved(hostRoot.path());
+        QTRY_COMPARE(saved.load(id)["messages"].toArray().size(),1);
+        QCOMPARE(saved.load(id)["messages"].toArray().first().toObject()["text"].toString(),QString("First post after reopening"));
+    }
     void lostAcknowledgementReplaysWithoutDuplicatingTheMessage() {
         QTemporaryDir hostRoot, guestRoot;
         Controller host(hostRoot.path()); host.start(); host.setAuthor("Matt"); host.createProject("Replay", "");

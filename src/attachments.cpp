@@ -182,10 +182,10 @@ QJsonObject Attachments::agentContext(const QJsonArray &messages, qsizetype mess
     const bool namesDesign = design.hasMatch();
     const bool wantsDesign = namesDesign || urlRequest.match(words).hasMatch();
     static const QRegularExpression imageRequest(QStringLiteral(
-        R"(\b(?:the|this|that|those|these|my|your|our|previous|last|earlier|shared|attached|uploaded)\s+)"
-        R"((?:(?:previously|previous|earlier|last|shared|attached|uploaded|reference)\s+)*(?:images?|photos?|screenshots?|pictures?|attachments?|uploads?|references?)\b)"
-        R"(|\b(?:images?|photos?|screenshots?|pictures?|attachments?)\s+(?:from\s+earlier|(?:I|we|you)\s+(?:sent|shared|attached|uploaded))\b)"),
-        insensitive);
+        R"(\b(?:the|this|that|those|these|my|your|our|previous|latest|last|earlier|recently|shared|attached|uploaded)\s+)"
+        R"((?:(?:most\s+recently|recently|previously|previous|earlier|latest|last|shared|attached|uploaded|reference)\s+)*(?:%1|uploads?|references?)\b)"
+        R"(|\b%1\s+(?:from\s+earlier|(?:(?:that|which)\s+)?(?:I|we|you|they)\s+(?:(?:just|recently)\s+)?(?:sent|posted|shared|attached|uploaded))\b)")
+        .arg(QStringLiteral(R"((?:images?|photo(?:graph)?s?|screenshots?|pictures?|attachments?))")), insensitive);
     if (!wantsDesign && !imageRequest.match(words).hasMatch()) return context(message, {});
 
     QStringList urls;

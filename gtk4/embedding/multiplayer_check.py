@@ -82,12 +82,28 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         until(lambda:not guest()['error'],'Successful retry left the previous error visible')
         return code
 
-    def reopen_guest():
+    def reopen_guest(check_quiet_draft=False):
         nonlocal guest_process,guest,gw
         guest_process.send_signal(signal.SIGTERM)
         assert guest_process.wait(timeout=5)==0
-        guest_process,guest,gw=launch('multiplayer-guest')
-        click(guest,gw,'open-'+pid)
+        def reopen():
+            nonlocal guest_process,guest,gw
+            guest_process,guest,gw=launch('multiplayer-guest')
+            click(guest,gw,'open-'+pid)
+        if check_quiet_draft:
+            draft='First guest post after reopening'
+            with hold_coordinator():
+                reopen()
+                until(lambda:opened(guest),'Guest could not open the cached project')
+                click(guest,gw,'editor'); driver.type(draft)
+                until(lambda:guest()['draft']['bytes']==len(draft),'Reopened project lost the offline draft')
+                assert not guest()['draft']['canSend']
+            until(lambda:guest()['draft']['canSend'],'Authenticated reconnect did not enable the existing draft')
+            click(guest,gw,'send')
+            until(lambda:all(sum(m.get('text')==draft for m in s()['project']['messages'])==1 for s in (host,guest)),
+                  'First guest message did not arrive exactly once on both machines')
+        else:
+            reopen()
         until(lambda:opened(guest) and guest()['status']=='Guest connected','Guest did not reconnect to saved membership')
 
     def remote_image(state,root,author,expected):
@@ -194,7 +210,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
             remote_image(host,host_root,'Framework',updated)
         finally:
             guest_control.close()
-        reopen_guest()
+        reopen_guest(check_quiet_draft=True)
         remote_image(host,host_root,'Framework',updated); remote_image(guest,guest_root,'Matt',shared_host)
         print('PASS: remote avatar transfer, active replacement and reconnect',flush=True)
 
@@ -397,6 +413,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
     finally:
         control.close()
     return ['completed-conflict-followed-by-independent-guest-and-host-edits',
+            'reopened-guest-draft-enables-on-verified-reconnect-without-a-host-message',
+            'ordinary-chat-png-jpeg-and-mpo-provider-bytes-recalled-across-both-participants',
             'host-and-guest-recall-uploaded-image-and-build-after-figma-failure',
             'editable-same-name-profiles-preserve-distinct-authorship-through-repeated-rejoins',
             'used-invitation-dismissal-and-successful-retry','draft-pointers-use-the-assigned-colour',

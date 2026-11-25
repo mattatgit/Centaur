@@ -6,6 +6,7 @@ and archive hashes. The URL field in a narinfo is a transport location.
 """
 import contextlib
 import hashlib
+import http.client
 import http.server
 import re
 import secrets
@@ -39,7 +40,7 @@ def measured_cache(cache, progress, status=None):
         nonlocal reported, last_notice
         with lock:
             if invalid_record:
-                raise ValueError('The cache supplied an invalid download record.')
+                raise ValueError('The local helper rejected invalid cache metadata.')
             if failure:
                 raise RelayUnavailable(failure)
             if saw_payload:
@@ -73,6 +74,7 @@ def measured_cache(cache, progress, status=None):
                 self.send_error(404)
                 return
             source = archive or urljoin(cache + '/',key)
+            resource = 'archive' if archive else 'metadata'
             response_started = False
             try:
                 request = urllib.request.Request(source,headers={'Accept-Encoding':'identity','User-Agent':'Centaur GTK4 updater'},method='HEAD' if archive and not body else 'GET')
@@ -86,15 +88,19 @@ def measured_cache(cache, progress, status=None):
                         if body:
                             count = 0
                             while data := response.read(65536):
-                                self.wfile.write(data)
+                                try: self.wfile.write(data)
+                                except (BrokenPipeError, ConnectionResetError): return
                                 count += len(data)
                                 with lock:
                                     if closed: return
                                     saw_payload = True
                                     progress.record(archive,count)
+                            if response.length:
+                                raise EOFError
                     else:
                         data = response.read(262145)
                         if len(data)>262144: raise ValueError('Oversize cache record')
+                        if response.length: raise EOFError
                         if key.endswith('.narinfo'):
                             match = re.search(rb'^URL: ([^\r\n]+)\r?$',data,re.M)
                             if not match: raise ValueError('Missing archive')
@@ -110,17 +116,15 @@ def measured_cache(cache, progress, status=None):
                         self.send_response(200)
                         self.send_header('Content-Length',str(len(data)))
                         self.end_headers(); response_started=True
-                        if body: self.wfile.write(data)
+                        if body:
+                            try: self.wfile.write(data)
+                            except (BrokenPipeError, ConnectionResetError): return
             except urllib.error.HTTPError as error:
                 if error.code in (408, 429, 500, 502, 503, 504):
-                    with lock: failure = f'Cache returned HTTP {error.code} through the local helper.'
+                    with lock: failure = f'Upstream cache returned HTTP {error.code} for {resource}.'
                 if not response_started: self.send_error(error.code)
-            except (BrokenPipeError, ConnectionResetError) as error:
-                if not response_started:
-                    with lock: failure = f'Cache connection failed ({type(error).__name__}).'
-                    self.send_error(502)
-            except OSError as error:
-                with lock: failure = f'Cache connection failed ({type(getattr(error,"reason",error)).__name__}).'
+            except (http.client.HTTPException, EOFError, OSError) as error:
+                with lock: failure = f'Cache {resource} connection failed ({type(getattr(error,"reason",error)).__name__}).'
                 if not response_started: self.send_error(502)
             except (ValueError,UnicodeError):
                 with lock: invalid_record = True

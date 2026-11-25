@@ -36,6 +36,22 @@ def progress_message(done,total):
     return f'Downloaded {done/1_000_000:.1f} of {total/1_000_000:.1f} MB'
 
 
+def status_message(value,now):
+    message=value.get('message')
+    if value.get('phase') not in ('downloading','verifying'): return message
+    if value.get('downloadStage'):
+        started=value.get('stageStarted')
+        if message and isinstance(started,(int,float)) and now-started>=5:
+            return f'{message} · {int(now-started)}s elapsed'
+        return message
+    received=value.get('downloadBytes')
+    if not isinstance(received,int): return message
+    message=progress_message(received,value.get('totalBytes'))
+    if value['phase']=='verifying':
+        return message+' · Verifying…' if received else 'Verifying the update…'
+    return message
+
+
 class DownloadProgress:
     @staticmethod
     def url_key(url):

@@ -867,9 +867,13 @@ void SharedProject::receive(const QJsonObject &data) {
             emit error("Could not save the shared app on this device."); m_socket.abort(); return;
         }
         m_snapshot = data; m_connected = true; m_delay = 1000;
+        // Check for the previous window releasing the writer lock even in a
+        // project that publishes snapshots more often than the heartbeat.
+        if (!m_heartbeat.isActive()) m_heartbeat.start();
+        status(writable() ? "Connected · shared project" : "Open in another window · view only");
+        flush();
         if (m_checkedAttachments.size()>2048) m_checkedAttachments.clear();
         fetchNextAttachment();
-        status(writable() ? "Connected · shared project" : "Open in another window · view only"); m_heartbeat.start(); flush();
     } else if (type == "ack") {
         if (!m_outbox.isEmpty() && m_outbox.first().toObject()["sequence"] == data["sequence"]) {
             const auto done = m_outbox.takeAt(0).toObject();
