@@ -300,6 +300,28 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         assert host()['project']['revision']==guest()['project']['revision']==revision+1
         driver.screenshot(gw,evidence/'conflict-agreed.png')
 
+        # Start with the saved, unanimously resolved heading. Supply a stale
+        # model compromise first, exactly as in the previous owner session.
+        reopen_guest()
+        for state,window,title in ((guest,gw,'Framework check'),(host,hw,'VM check')):
+            updated_bundle=json.loads(json.dumps(resolved))
+            updated_bundle['files']['app.ui']=updated_bundle['files']['app.ui'].replace('Host Choice',title)
+            reply.write_text(json.dumps({
+                'fixtureHistoricalConflict':{'kind':'proposal','message':'Keep the earlier compromise',
+                    'conflict':proposal['conflict'],'gtk':starter},
+                'fixtureCorrectedEdit':{'kind':'proposal','message':'Updated heading','conflict':None,'gtk':updated_bundle}}))
+            before=host()['project']['revision']
+            message(state,window,'@centaur Change the app heading to “'+title+'”.')
+            def applied():
+                for client in (host,guest):
+                    assert not client()['project'].get('proposal',{}).get('conflict'), 'Historical disagreement opened a new vote'
+                return all((s().get('child') or {}).get('title')==title for s in (host,guest))
+            until(applied,'Independent heading edit did not reach both apps',timeout=25)
+            assert host()['project']['revision']==guest()['project']['revision']==before+1
+            for root,area in ((host_root,'projects'),(guest_root,'shared')):
+                saved=json.loads((root/area/pid/'App.gtk.json').read_text())
+                assert saved['files']['app.ui']==updated_bundle['files']['app.ui']
+
         former=next(p['id'] for p in host()['project']['sharing']['participants'] if p['name']=='Framework')
         projects(guest,gw); click(guest,gw,'menu-'+pid); click(guest,gw,'menu-delete-'+pid); click(guest,gw,'delete-confirm')
         until(lambda:not (guest_root/'shared'/pid/'connection.json').exists(),'Guest did not leave before a new invite')
@@ -352,7 +374,8 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
                                host_root/'projects'/pid/'App.gtk.json',guest_root/'shared'/pid/'App.gtk.json')
     finally:
         control.close()
-    return ['host-and-guest-recall-uploaded-image-and-build-after-figma-failure',
+    return ['completed-conflict-followed-by-independent-guest-and-host-edits',
+            'host-and-guest-recall-uploaded-image-and-build-after-figma-failure',
             'editable-same-name-profiles-preserve-distinct-authorship-through-repeated-rejoins',
             'used-invitation-dismissal-and-successful-retry','draft-pointers-use-the-assigned-colour',
             'remote-original-sized-and-alpha-avatars-update-and-survive-reconnect-and-rejoin',

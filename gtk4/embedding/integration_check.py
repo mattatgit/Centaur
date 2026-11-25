@@ -78,6 +78,14 @@ pixels=[hashlib.sha256(pathlib.Path(arg[1:]).read_bytes()).hexdigest() for arg i
         if arg.startswith('@') and pathlib.Path(arg).suffix in ('.png','.jpeg')]
 pathlib.Path(record).with_suffix('.images.json').write_text(json.dumps(pixels))
 cfg=json.loads(answer)
+if 'fixtureHistoricalConflict' in cfg:
+ context=json.loads(pathlib.Path(record).read_text().split('PROJECT AND CONVERSATION:\\n',1)[1].split('\\n\\nCURRENT ',1)[0])
+ assert any(d.get('conflict') for d in context['decisions'])
+ if context.get('arbitrationCorrection'):
+  assert [d['text'] for d in context['activeDirections']]==[context['requestText']]
+  answer=json.dumps(cfg['fixtureCorrectedEdit'])
+ else:
+  answer=json.dumps(cfg['fixtureHistoricalConflict'])
 if cfg.get('fixtureProgressGate'):
  gate=pathlib.Path(cfg['fixtureProgressGate']); phase=''
  print(json.dumps({'type':'agent_start'}),flush=True)
