@@ -311,7 +311,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
                     'conflict':proposal['conflict'],'gtk':starter},
                 'fixtureCorrectedEdit':{'kind':'proposal','message':'Updated heading','conflict':None,'gtk':updated_bundle}}))
             before=host()['project']['revision']
-            message(state,window,'@centaur Change the app heading to “'+title+'”.')
+            message(state,window,'@centaur Change the app heading to "'+title+'".')
             def applied():
                 for client in (host,guest):
                     assert not client()['project'].get('proposal',{}).get('conflict'), 'Historical disagreement opened a new vote'
