@@ -931,6 +931,7 @@ private slots:
         QTest::newRow("total deadline") << "timeout" << "recovery_deadline" << 1;
         QTest::newRow("native syntax check") << "native" << "committed" << 1;
         QTest::newRow("clarification") << "question" << "clarification" << 1;
+        QTest::newRow("conflict cannot disappear during repair") << "droppedVote" << "recovery_exhausted" << 2;
         QTest::newRow("whole replacement refused") << "replacement" << "recovery_scope" << 1;
     }
     void recoveryIsAtomicBoundedAndCancellable() {
@@ -949,6 +950,7 @@ private slots:
         };
         auto bad=patch;
         bad["edits"]=QJsonArray{QJsonObject{{"file",scenario=="outside" ? "../private" : "app.py"},{"find","not in this app"},{"replace","example"}}};
+        if (scenario=="droppedVote") bad["conflict"]=QJsonObject{{"reason","Opposing directions"},{"authors",QJsonArray{"Matt","Saori"}}};
         QVERIFY(writeReply("first",scenario=="native" ? patch : bad));
         QJsonObject second=patch;
         if (scenario=="replacement") second={{"kind","proposal"},{"message","replace"},{"conflict",QJsonValue::Null},{"gtk",initial}};

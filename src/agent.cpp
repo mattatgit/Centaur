@@ -66,7 +66,7 @@ Agent::Agent(QObject *parent, int deadlineMs, QString designSocket) : QObject(pa
                 return;
             }
             QString error;
-            const auto reply = parseReply(m_structuredOutput ? m_replyOutput : m_textOutput, &error, &m_issue);
+            const auto reply = parseReply(m_structuredOutput ? m_replyOutput : m_textOutput, &error, &m_issue, &m_reportedConflict);
             if (reply.isEmpty()) { m_failureCode="agent_response_invalid"; observe("failed",true); emit failed(error); emit failureReady(m_runId,error,diagnostics()); }
             else { observe("complete",true); emit completed(reply); emit resultReady(m_runId,reply); }
         });
@@ -231,7 +231,7 @@ void Agent::cancel() {
     m_visualDir.reset();
 }
 
-QJsonObject Agent::parseReply(const QByteArray &text, QString *error, EditIssue *issue) {
+QJsonObject Agent::parseReply(const QByteArray &text, QString *error, EditIssue *issue, QJsonValue *conflict) {
     if (issue) *issue = {};
     const auto reject = [&](QString category, QString hint, int operation = 0, bool correctable = true) -> QJsonObject {
         if (issue) *issue = {category, "response", hint, operation, correctable};
@@ -248,6 +248,7 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error, EditIssue 
     const auto doc = QJsonDocument::fromJson(json, &parseError);
     const auto object = doc.object();
     const auto kind = object["kind"].toString();
+    if (conflict && (kind=="patch" || kind=="proposal")) *conflict=object.value("conflict");
     if (parseError.error != QJsonParseError::NoError || !doc.isObject()
         || (kind != "question" && kind != "proposal" && kind != "restore" && kind != "inspect" && kind != "retry" && kind != "artifact" && kind != "patch") || object["message"].toString().trimmed().isEmpty()
         || (kind == "proposal" && object["qml"].toString().trimmed().isEmpty() && !object["gtk"].isObject())) {
@@ -428,7 +429,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
     if (busy()) { emit failed("The agent is already working on this project."); return; }
     m_cancelled=false; m_started=false; m_agentEnded=false; m_clock.start();
     m_runId=runId.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : runId;
-    m_issue={}; m_phase.clear(); m_lastActivePhase.clear(); m_failureCode.clear(); m_lastEvent.clear(); m_providerOutcome.clear();
+    m_issue={}; m_reportedConflict=QJsonValue::Undefined; m_phase.clear(); m_lastActivePhase.clear(); m_failureCode.clear(); m_lastEvent.clear(); m_providerOutcome.clear();
     m_lastEventMs=m_lastProviderMs=-1; m_lastPublishedMs=-1000;
     m_stdoutBytes=m_stderrBytes=m_promptBytes=m_responseTextBytes=0; m_eventCount=m_deltaCount=m_retryCount=0;
     m_textUpdates=m_thinkingUpdates=m_turnCount=m_nativeToolStarts=0;

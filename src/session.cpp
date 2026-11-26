@@ -32,6 +32,16 @@ static QString runner(bool gtk = false) {
 static QString proposalSource(const QJsonObject &proposal) {
     return proposal["gtk"].isObject() ? QString::fromUtf8(QJsonDocument(proposal["gtk"].toObject()).toJson(QJsonDocument::Compact)) : proposal["qml"].toString();
 }
+static void attachDiagnostics(QJsonObject &state, const QJsonObject &details, const QString &conflictId = {}) {
+    auto rows=state["messages"].toArray();
+    for (qsizetype i=rows.size(); i>0; --i) {
+        auto row=rows[i-1].toObject();
+        if (!conflictId.isEmpty() && row["conflictId"]!=conflictId) continue;
+        row["agentDiagnostics"]=details; rows[i-1]=row; state["messages"]=rows;
+        return;
+    }
+}
+
 static bool isConflict(const QJsonObject &state) { return state["proposal"].toObject()["conflict"].isObject(); }
 
 // Unfinished requests are authoritative. Completed questions, decisions and
@@ -202,6 +212,10 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs, int 
     });
     connect(&m_validator, &QProcess::errorOccurred, this, [this](QProcess::ProcessError error) {
         if (error != QProcess::FailedToStart) return;
+        if (m_corrections && m_recoveryProject==m_validatingProject) {
+            m_agentProject=m_validatingProject; m_validatingProject.clear();
+            agentError("I couldn't start the app check.","checker_unavailable"); return;
+        }
         auto state = m_workspace.load(m_validatingProject);
         recordConflictOutcome(state, state["proposal"].toObject(), "The agreed change could not be checked. The app is unchanged.");
         state["proposal"] = QJsonObject();
@@ -304,8 +318,11 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs, int 
                 details["sourceUnchanged"]=base.toLatin1()==appDigest(id).toHex();
                 details["revisionConsistent"]=baseMatched;
                 if (id==m_recoveryProject) details["requestElapsedMs"]=m_requestClock.elapsed();
-                auto rows=state["messages"].toArray();
-                if (!rows.isEmpty()) { auto row=rows.last().toObject(); row["agentDiagnostics"]=details; rows[rows.size()-1]=row; state["messages"]=rows; }
+                else {
+                    const auto start=QDateTime::fromString(details["startedAt"].toString(),Qt::ISODateWithMs);
+                    if (start.isValid()) details["requestElapsedMs"]=qMax<qint64>(0,start.msecsTo(QDateTime::currentDateTimeUtc()));
+                }
+                attachDiagnostics(state,details,candidate["inlineConflict"].toBool() && committedHere ? candidate["id"].toString() : QString());
             }
             endActivity(id);
             persist(id, state);
@@ -890,10 +907,7 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto imported=state["import"].toObject();
         if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="interrupted"; state["import"]=imported; }
         addMessage(state, state["agentName"].toString(), displayName + " stopped the agent. Pending requests were cleared.", "system");
-        if (!cancelled.isEmpty()) {
-            auto rows=state["messages"].toArray(); auto row=rows.last().toObject();
-            row["agentDiagnostics"]=cancelled; rows[rows.size()-1]=row; state["messages"]=rows;
-        }
+        if (!cancelled.isEmpty()) attachDiagnostics(state,cancelled);
         persist(id, state);
         QTimer::singleShot(0, this, &Session::nextRequest);
     }
@@ -910,6 +924,15 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     if (m_corrections && !sameRecoveryBase(id,state)) {
         agentError("The project changed while I was working. I stopped to preserve the newer work.", "recovery_superseded");
         return;
+    }
+    if (m_corrections && m_correctionNeedsVote && reply["kind"]=="patch") {
+        QSet<QString> authors;
+        for (const auto &author:reply["conflict"].toObject()["authors"].toArray()) authors.insert(author.toString());
+        if (!reply["conflict"].isObject() || !authors.contains(m_requiredAuthors)) {
+            validationFailed({"conflict_dropped","response","Keep every previously affected collaborator in the conflict classification.",0,true},
+                "I couldn't verify everyone's agreement.","recovery_conflict");
+            return;
+        }
     }
     if (m_corrections && reply["kind"]!="patch" && reply["kind"]!="question") {
         validationFailed({"unexpected_response","response","Return a focused patch or a genuine clarification question.",0,false},
@@ -1051,9 +1074,8 @@ void Session::finishAgent(const QJsonObject &agentReply) {
         if (resolution.isEmpty() && !(m_corrections && automatic)) addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent", {}, {}, conflictId);
     }
     if (m_corrections && reply["kind"]=="question" && resolution.isEmpty()) {
-        auto rows=state["messages"].toArray(); auto row=rows.last().toObject();
         auto details=recoveryDetails(id,state,"clarification"); details["code"]="clarification";
-        row["agentDiagnostics"]=details; rows[rows.size()-1]=row; state["messages"]=rows;
+        attachDiagnostics(state,details);
     }
     if (automatic) state["activeRequest"] = m_activeRequest;
     if (persist(id, state) && automatic) applyProposal(id, state);
@@ -1071,6 +1093,7 @@ QJsonObject Session::recoveryDetails(const QString &id, const QJsonObject &state
     if (id!=m_recoveryProject || m_validationTrace.isEmpty()) return {};
     auto details=m_agent.diagnostics();
     details["requestId"]=m_activities.value(id)["requestId"];
+    details["startedAt"]=m_activities.value(id)["startedAt"];
     details["validationFailures"]=m_validationTrace;
     details["correctiveAttempts"]=m_corrections;
     details["requestElapsedMs"]=m_requestClock.elapsed();
@@ -1087,6 +1110,15 @@ void Session::validationFailed(const EditIssue &issue, const QString &fallback, 
     const auto id=m_agentProject;
     if (id!=m_recoveryProject || issue.category.isEmpty()) { agentError(fallback,code); return; }
     auto state=m_workspace.load(id);
+    // A repair cannot retract an earlier conflict or drop one of its authors.
+    // Participation and the actual directions are still verified by finishAgent.
+    const auto conflict=m_agent.reportedConflict();
+    if (!conflict.isNull() && !conflict.isUndefined()) {
+        m_correctionNeedsVote=true;
+        for (const auto &author:conflict.toObject()["authors"].toArray())
+            if (author.isString() && author.toString().size()<=50 && m_requiredAuthors.size()<32)
+                m_requiredAuthors.insert(author.toString());
+    }
     QJsonObject record{{"category",issue.category},{"stage",issue.stage},{"operation",issue.operation}};
     m_validationTrace.append(record);
     if (!issue.correctable) { agentError("I couldn't safely apply this change.",code); return; }
@@ -1099,6 +1131,10 @@ void Session::validationFailed(const EditIssue &issue, const QString &fallback, 
     ++m_corrections;
     m_recoveryLimit.start(remaining);
     record["instruction"]=issue.hint;
+    if (m_correctionNeedsVote) {
+        record["requiresConflict"]=true;
+        record["requiredAuthors"]=QJsonArray::fromStringList(m_requiredAuthors.values());
+    }
     m_requestContext["editCorrection"]=record;
     m_activeRequest["recovering"]=true;
     state["activeRequest"]=m_activeRequest;
@@ -1133,7 +1169,7 @@ void Session::agentError(const QString &message, const QString &code) {
     auto details=m_agent.diagnostics();
     const auto recovered=recoveryDetails(id,state,code.isEmpty() ? "interrupted" : code);
     if (!recovered.isEmpty()) details=recovered;
-    if (!code.isEmpty()) { details["code"]=code; details["layer"]="centaur.coordinator"; }
+    if (!code.isEmpty()) { details["code"]=code; details["layer"]=code=="agent_response_invalid" ? "centaur.agent" : "centaur.coordinator"; }
     details["requestId"]=m_activities.value(id)["requestId"];
     const auto started=QDateTime::fromString(m_activities.value(id)["startedAt"].toString(),Qt::ISODateWithMs);
     if (started.isValid()) details["requestElapsedMs"]=qMax<qint64>(0,started.msecsTo(QDateTime::currentDateTimeUtc()));
@@ -1146,8 +1182,7 @@ void Session::agentError(const QString &message, const QString &code) {
     auto imported=state.value("import").toObject();
     if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="awaitingAnswer"; state["import"]=imported; }
     addMessage(state, state["agentName"].toString(), message+(verified && before==after ? " Your saved app is unchanged." : ""), "system");
-    auto messages=state["messages"].toArray(); auto last=messages.last().toObject(); last["agentDiagnostics"]=details;
-    messages[messages.size()-1]=last; state["messages"]=messages;
+    attachDiagnostics(state,details);
     endActivity(id);
     persist(id, state);
     publish(id);
@@ -1160,7 +1195,10 @@ void Session::applyProposal(const QString &id, QJsonObject state) {
     const auto candidate = path + (gtk ? "/.centaur/candidate.gtk.json" : "/.centaur/candidate.qml");
     QString error;
     if (!Workspace::writeFile(candidate, proposalSource(state["proposal"].toObject()).toUtf8(), &error)) {
-        emit this->error(error); return;
+        if (m_corrections && m_recoveryProject==id) {
+            m_agentProject=id; agentError("I couldn't save the temporary copy for checking.","staging_unavailable");
+        } else emit this->error(error);
+        return;
     }
     m_validatingProject = id;
     m_validatingProposal=state["proposal"].toObject();
@@ -1327,7 +1365,7 @@ void Session::nextRequest() {
         m_agent.setModel(preferences.value("agent/model").toString());
         const QString source=pendingImport ? QString() : m_workspace.source(id);
         if (!source.isEmpty() && state["appFormat"]=="gtk4-v1" && !state["creationPending"].toBool()) {
-            m_requestClock.start(); m_recoveryProject=id; m_corrections=0; m_validationTrace={};
+            m_requestClock.start(); m_requiredAuthors.clear(); m_correctionNeedsVote=false; m_recoveryProject=id; m_corrections=0; m_validationTrace={};
             m_requestContext=request; m_requestImage=image; m_requestRevision=state["revision"].toInt();
             m_requestDigest=QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256);
         }

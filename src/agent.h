@@ -28,7 +28,8 @@ public:
              const QString &imagePath = {}, const QString &runId = {});
     void cancel();
     void setModel(const QString &model) { m_selectedModel = model; }
-    static QJsonObject parseReply(const QByteArray &text, QString *error, EditIssue *issue = nullptr);
+    static QJsonObject parseReply(const QByteArray &text, QString *error, EditIssue *issue = nullptr, QJsonValue *conflict = nullptr);
+    QJsonValue reportedConflict() const { return m_reportedConflict; }
     EditIssue validationIssue() const { return m_issue; }
     static QJsonObject prepareContext(QJsonObject state);
     static QJsonObject resolvePatch(const QJsonObject &patch, const QString &source, QString *error, EditIssue *issue = nullptr);
@@ -55,6 +56,7 @@ private:
     void stopProcess();
     void failRun(const QString &code, const QString &message);
     EditIssue m_issue;
+    QJsonValue m_reportedConflict;
     QProcess m_process;
     QTimer m_timeout;
     bool m_cancelled = false;

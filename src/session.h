@@ -69,6 +69,8 @@ private:
     QByteArray m_requestDigest;
     QJsonObject m_requestContext;
     QJsonArray m_validationTrace;
+    QSet<QString> m_requiredAuthors;
+    bool m_correctionNeedsVote = false;
     int m_requestRevision = 0, m_corrections = 0;
     QElapsedTimer m_requestClock;
     QTimer m_recoveryLimit;
