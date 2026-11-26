@@ -12,6 +12,7 @@ from check import until, read, target
 from test_driver import Driver
 from ink_check import check_ink, assert_capture,place_agent_pointer
 from window_controls_check import check_window_controls
+from corner_check import check_corners
 from import_check import check_imports
 from polish_check import check_provider_hovers,check_working_pixels
 from activity_check import check_activity
@@ -142,6 +143,8 @@ if cfg.get('fixtureProgressGate'):
     def proposal(bundle,conflict=None):
         reply_file.write_text(json.dumps({'kind':'proposal','message':'Update the native app','conflict':conflict,'gtk':bundle}))
     try:
+        check_corners(driver,folder/'window-corners')
+        summary['checks'].append('embedded-square-and-rounded-window-silhouettes-on-white-at-two-zooms')
         check_window_controls(driver,folder/'window-controls')
         summary['checks'].append('native-decorated-close-button-geometry-pointer-states-and-window-management')
         host,hs,hw=launch('host')

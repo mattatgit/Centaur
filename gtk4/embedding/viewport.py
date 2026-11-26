@@ -4,7 +4,7 @@ import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gsk', '4.0')
 gi.require_version('Graphene', '1.0')
-from gi.repository import Gdk, Graphene, Gsk, Gtk
+from gi.repository import Graphene, Gsk, Gtk
 from viewport_model import ViewportModel
 
 
@@ -45,13 +45,6 @@ class PreviewViewport(Gtk.Widget):
 
     def do_snapshot(self, snapshot):
         if self.child is not None:
-            g = self.describe()
-            rect = Graphene.Rect().init(g['app_x'], g['app_y'], self.model.app_width*g['scale'], self.model.app_height*g['scale'])
-            outline = Gsk.RoundedRect()
-            outline.init_from_rect(rect, 0)
-            # Shadow only the app bounds, not the compositor's modal-dimming
-            # surface, which can extend across the whole logical stage.
-            snapshot.append_outset_shadow(outline, Gdk.RGBA(red=0,green=0,blue=0,alpha=0.12), 0, 2, 0, 6)
             self.snapshot_child(self.child, snapshot)
 
     def set_zoom(self, mode):

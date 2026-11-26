@@ -9,7 +9,7 @@ let
     cp -r ${../assets/fonts/inter} ${../assets/fonts/inter-tight} "$out/share/fonts/"
   '';
   casilda = pkgs.casilda.overrideAttrs (old: {
-    version = "1.6.0-centaur3";
+    version = "1.6.0-centaur4";
     src = pkgs.fetchzip {
       url = "https://gitlab.gnome.org/jpu/casilda/-/archive/1.6.0/casilda-1.6.0.tar.gz";
       hash = "sha256-1Iq0RKte56gg69MRlEhfu5aWc+Vl7HgopS7RGIrf59w=";
@@ -22,6 +22,8 @@ let
         (builtins.readFile ./patches/casilda-key-event-state.patch))
       (builtins.toFile "casilda-pointer-grab.patch"
         (builtins.readFile ./patches/casilda-pointer-grab.patch))
+      (builtins.toFile "casilda-window-shadow.patch"
+        (builtins.readFile ./patches/casilda-window-shadow.patch))
     ];
   });
 in pkgs.stdenvNoCC.mkDerivation {

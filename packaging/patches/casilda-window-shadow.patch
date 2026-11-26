@@ -1,0 +1,20 @@
+--- a/src/casilda-compositor.c
++++ b/src/casilda-compositor.c
+@@ -681,7 +681,17 @@
+ 
+   debug_snapshot_toplevel_border (data->snapshot, toplevel, 1, 0, 0);
+ 
++  /* Follow the client buffer's alpha. Popups and transient windows are
++   * composed separately, so they do not enlarge the main window shadow. */
++  gboolean main_window = toplevel->xdg_toplevel->parent == NULL;
++  const GskShadow shadow = { .color = { 0, 0, 0, 0.12f }, .dy = 2, .radius = 6 };
++  if (main_window)
++    gtk_snapshot_push_shadow (data->snapshot, &shadow, 1);
++
+   snapshot_surface (surface, data, toplevel->x - tbox.x, toplevel->y - tbox.y);
++
++  if (main_window)
++    gtk_snapshot_pop (data->snapshot);
+ 
+   /* Recurse toplevel popups */
+   for (GList *l = toplevel->popups; l; l = g_list_next (l))
