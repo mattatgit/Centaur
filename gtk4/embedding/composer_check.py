@@ -207,10 +207,22 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     for prev,current in zip(refs,refs[1:]):
         assert current[1]>=prev[1]+prev[3] or current[0]>=prev[0]+prev[2],refs
     driver.screenshot(gw,evidence/'composer-wrapped-images-and-links.png')
+    move_over(driver,gw,target(guest,'attachment-tray'))
+    driver.scroll(up=False)
+    def last_chip_visible():
+        targets=guest()['targets']
+        _,top,_,height=targets['attachment-tray']
+        _,y,_,h=targets['remove-reference-3']
+        return top<=y and y+h<=top+height+1
+    until(last_chip_visible,'Could not scroll to the final wrapped chip')
+    click(guest,gw,'remove-reference-3')
+    until(lambda:len(guest()['draft']['attachments'])==3,'Could not remove the last chip')
     driver.resize(gw,*old_size)
     until(lambda:guest()['windowSize']==old_size,'Could not restore the guest window')
-    click(guest,gw,'remove-reference-3'); click(guest,gw,'remove-reference-2')
-    click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')
+    move_over(driver,gw,target(guest,'attachment-tray')); driver.scroll(up=True)
+    for remaining in (2,1,0):
+        click(guest,gw,'remove-reference-0')
+        until(lambda:len(guest()['draft']['attachments'])==remaining,'The visible attachment was not removed')
 
 
 def check_agent_references(driver,click,message,host,hw,guest,gw,source,reply,record,app,guest_app):
