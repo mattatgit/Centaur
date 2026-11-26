@@ -6,7 +6,7 @@ import time
 
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gdk, GLib, Gtk
+from gi.repository import Gdk, Gio, GLib, Gtk
 from PIL import Image
 
 from backend import AppSpec, CasildaBackend
@@ -15,12 +15,11 @@ from check import read, until
 from viewport import PreviewViewport
 
 
-def capture(driver, folder, source):
-    Gtk.init()
+def capture(driver, application, folder, source):
     folder.mkdir()
     bundle = load_bundle(source)
     w, h = bundle['width'], bundle['height']
-    window = Gtk.Window(title='Centaur preview corner check', decorated=False, default_width=w+80, default_height=h+80)
+    window = Gtk.ApplicationWindow(application=application, decorated=False, default_width=w+80, default_height=h+80)
     provider = Gtk.CssProvider()
     provider.load_from_path(str(Path(__file__).with_name('shell.css')))
     display = Gdk.Display.get_default()
@@ -37,20 +36,11 @@ def capture(driver, folder, source):
 
     def allocated():
         pump()
-        return (viewport.get_width(), viewport.get_height()) == (w+80, h+80) and (
-            backend.widget.get_width(), backend.widget.get_height()) == (w+192, h+192)
+        return backend.widget.get_width() == w+192 and backend.widget.get_height() == h+192
 
     try:
         window.present()
 
-        def mapped_window():
-            pump()
-            return next((node['id'] for node in driver.nodes()
-                         if node.get('pid') == os.getpid() and node.get('name') == window.get_title()), None)
-
-        handle = until(mapped_window, 'Host window failed to map')
-        driver.ipc(f'[con_id={handle}] floating enable, border none')
-        driver.resize(handle, w+80, h+80)
         until(allocated, 'Preview stage did not allocate')
         backend.start(AppSpec((os.environ['CENTAUR_GTK_RUNNER'], str(source)), w, h), folder, report)
 
@@ -60,6 +50,8 @@ def capture(driver, folder, source):
             return (client.get('width'), client.get('height')) == (w, h)
 
         until(ready, 'Separate app failed to map at its saved dimensions')
+        handle = driver.find_window(application.get_application_id(), os.getpid())
+        assert viewport.get_width() >= w+32 and viewport.get_height() >= h+32, 'Canvas cannot show all four corners'
         results = {}
         for mode in ('100%', '75%'):
             viewport.set_zoom(mode)
@@ -95,6 +87,9 @@ def capture(driver, folder, source):
 
 
 def check_corners(driver, folder):
+    Gtk.init()
+    application = Gtk.Application(application_id='org.centaur.Gtk4EmbeddingTest', flags=Gio.ApplicationFlags.NON_UNIQUE)
+    application.register()
     folder.mkdir()
     source = folder/'App.gtk.json'
     ui = """<interface><object class="GtkWindow" id="window">
@@ -107,7 +102,7 @@ def check_corners(driver, folder):
             'files': {'app.py': "def create_window(builder): return builder.get_object('window')", 'app.ui': ui,
                       'style.css': f'window.editor-window {{background: white; border-radius: {radius}px;}}'
                                    'scrolledwindow, textview, textview text {background: white;}'}}))
-        result = capture(driver, folder/f'radius-{radius}', source)
+        result = capture(driver, application, folder/f'radius-{radius}', source)
         for mode, pixels in result.items():
             assert pixels['interior'] >= 252 and pixels['canvas'] >= 252, (radius, mode, pixels)
             assert pixels['leftShadow'] <= 250, ('Missing window shadow', radius, mode, pixels)
