@@ -8,6 +8,13 @@
 #include <QTemporaryDir>
 #include <memory>
 
+// Only host-authored fields may leave the validation boundary.
+struct EditIssue {
+    QString category, stage, hint;
+    int operation = 0; // 1-based edit within the response, or 0 for the envelope.
+    bool correctable = false;
+};
+
 // The agent proposes source; only the project coordinator can apply it.
 class Agent : public QObject {
     Q_OBJECT
@@ -21,9 +28,10 @@ public:
              const QString &imagePath = {}, const QString &runId = {});
     void cancel();
     void setModel(const QString &model) { m_selectedModel = model; }
-    static QJsonObject parseReply(const QByteArray &text, QString *error);
+    static QJsonObject parseReply(const QByteArray &text, QString *error, EditIssue *issue = nullptr);
+    EditIssue validationIssue() const { return m_issue; }
     static QJsonObject prepareContext(QJsonObject state);
-    static QJsonObject resolvePatch(const QJsonObject &patch, const QString &source, QString *error);
+    static QJsonObject resolvePatch(const QJsonObject &patch, const QString &source, QString *error, EditIssue *issue = nullptr);
     QJsonObject diagnostics() const;
 signals:
     void idle();
@@ -46,6 +54,7 @@ private:
     void observe(const QString &phase, bool force = false);
     void stopProcess();
     void failRun(const QString &code, const QString &message);
+    EditIssue m_issue;
     QProcess m_process;
     QTimer m_timeout;
     bool m_cancelled = false;

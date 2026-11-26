@@ -12,6 +12,7 @@ PHASES={
     'diagnostics':'Reviewing recorded diagnostics…', 'source_facts':'Reviewing recorded source facts…',
     'reading_microphone_icon':'Reading the microphone artwork…',
     'receiving_edit':'Receiving a focused app change…',
+    'correcting':"Checking the code and trying again…",
     'failed':'Resolving agent request…',
 }
 
@@ -38,7 +39,7 @@ def details_text(details):
                       ('model','Model'),('requestId','Request'),('runId','Agent run')]:
         value=details.get(key)
         if isinstance(value,str) and value:lines.append(title+': '+value[:357])
-    for key,title in [('elapsedMs','Agent response elapsed'),('requestElapsedMs','Whole request elapsed'),('deadlineMs','Per-response limit'),
+    for key,title in [('elapsedMs','Agent response elapsed'),('requestElapsedMs','Whole request elapsed'),('deadlineMs','Per-response limit'),('requestLimitMs','Recovery time limit'),
                       ('lastEventMs','Last event'),('lastProviderActivityMs','Last provider activity')]:
         value=details.get(key)
         if isinstance(value,(int,float)) and value>=0:lines.append(title+': '+str(round(value/1000,1))+'s')
@@ -48,7 +49,17 @@ def details_text(details):
                       ('stdoutBytes','JSON event-stream bytes'),('stderrBytes','Error-channel bytes'),('promptBytes','Request bytes')]:
         value=details.get(key)
         if isinstance(value,(int,float)) and value>=0:lines.append(title+': '+str(int(value)))
-    if details.get('sourceComparisonAvailable'):
+    if 'correctiveAttempts' in details:
+        lines.append('Corrective attempts: '+str(details['correctiveAttempts']))
+        lines.append('Recovery outcome: '+str(details.get('recoveryOutcome','unknown')))
+        lines.append('Original revision and directions: '+('matched' if details.get('revisionConsistent') else 'changed'))
+        for failure in details.get('validationFailures', [])[:3]:
+            operation=failure.get('operation',0)
+            lines.append('Validation: '+failure['stage']+' / '+failure['category']+
+                         (' (edit '+str(operation)+')' if operation else ''))
+    if details.get('recoveryOutcome') == 'committed':
+        lines.append('Saved app source: corrected change committed')
+    elif details.get('sourceComparisonAvailable'):
         lines.append('Saved app source: '+('verified unchanged' if details.get('sourceUnchanged') else 'changed during this request'))
     else:lines.append('Saved app source: unchanged state could not be verified')
     lines.append('A quiet process does not establish a stall or a lost connection. Last activity identifies only what Centaur observed.')

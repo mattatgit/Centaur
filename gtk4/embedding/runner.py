@@ -4,11 +4,12 @@ import json
 import os
 from pathlib import Path
 import sys
+import xml.etree.ElementTree as ET
 import gi
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gio, GLib, Gtk
-from bundle import load_bundle, construct
+from bundle import load_bundle, construct, StyleError, BuilderError
 
 
 def main():
@@ -18,12 +19,26 @@ def main():
     parser.add_argument('--width', type=int)
     parser.add_argument('--height', type=int)
     args = parser.parse_args()
-    bundle = load_bundle(args.source)
     if args.check:
+        # Only classify failures from static parsing, before any app code is run.
+        try:
+            bundle = load_bundle(args.source)
+        except SyntaxError:
+            return 21
+        except ET.ParseError:
+            return 22
+        except ValueError:
+            return 23
         Gtk.init()
-        window = construct(bundle)
+        try:
+            window = construct(bundle)
+        except StyleError:
+            return 24
+        except BuilderError:
+            return 25
         window.destroy()
         return 0
+    bundle = load_bundle(args.source)
     app = Gtk.Application(application_id='org.centaur.GeneratedApp', flags=Gio.ApplicationFlags.NON_UNIQUE)
     def activate(application):
         try:

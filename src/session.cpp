@@ -155,7 +155,7 @@ static bool endSplitVote(QJsonObject &state, const QJsonObject &proposal) {
     return true;
 }
 
-Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QObject(parent), m_workspace(root), m_agent(nullptr,agentDeadlineMs) {
+Session::Session(const QString &root, QObject *parent, int agentDeadlineMs, int recoveryLimitMs) : QObject(parent), m_recoveryBudgetMs(qBound(1,recoveryLimitMs,240000)), m_workspace(root), m_agent(nullptr,agentDeadlineMs) {
     m_updateToken = qEnvironmentVariable("CENTAUR_UPDATE_STARTING");
     m_socketName = "centaur-" + QString::fromLatin1(QCryptographicHash::hash(
         QFileInfo(root).absoluteFilePath().toUtf8(), QCryptographicHash::Sha256).toHex().left(24));
@@ -169,15 +169,28 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
     connect(&m_reconnect, &QTimer::timeout, this, [this] {
         if (m_client.state() == QLocalSocket::UnconnectedState) m_client.connectToServer(m_socketName);
     });
+    m_recoveryLimit.setSingleShot(true);
+    m_recoveryLimit.setTimerType(Qt::PreciseTimer);
+    connect(&m_recoveryLimit, &QTimer::timeout, this, [this] {
+        const auto id=m_recoveryProject;
+        if (id.isEmpty()) return;
+        if (m_validatingProject==id) { m_validatingProject.clear(); m_validator.kill(); }
+        m_agent.cancel();
+        m_agentProject=id;
+        agentError("I couldn't complete this change in time.", "recovery_deadline");
+    });
     connect(&m_agent, &Agent::resultReady, this, [this](const QString &run,const QJsonObject &reply) {
         if (run==m_expectedAgentRun && !m_agentProject.isEmpty()) finishAgent(reply);
     });
     connect(&m_agent, &Agent::failureReady, this, [this](const QString &run,const QString &message,const QJsonObject &) {
-        if (run==m_expectedAgentRun && !m_agentProject.isEmpty()) agentError(message);
+        if (run!=m_expectedAgentRun || m_agentProject.isEmpty()) return;
+        const auto issue=m_agent.validationIssue();
+        if (issue.category.isEmpty()) agentError(message);
+        else validationFailed(issue, message, "agent_response_invalid");
     });
     connect(&m_agent, &Agent::progress, this, [this](const QJsonObject &event) {
         if (m_agentProject.isEmpty() || event["runId"]!=m_expectedAgentRun) return;
-        advanceActivity(m_agentProject,event["phase"].toString(),event);
+        advanceActivity(m_agentProject,m_corrections ? "correcting" : event["phase"].toString(),event);
     });
     connect(&m_agent, &Agent::idle, this, [this] { publish(); QTimer::singleShot(0, this, &Session::nextRequest); });
     connect(&m_agent, &Agent::modelReported, this, [this](const QString &model) {
@@ -205,17 +218,41 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
             const auto id = m_validatingProject;
             if (id.isEmpty()) { QTimer::singleShot(0, this, &Session::nextRequest); return; }
             m_validatingProject.clear();
-            endActivity(id);
             auto state = m_workspace.load(id);
             QString error;
             state.remove("activeRequest");
-            if (state["epoch"].toInt() != m_validatingEpoch) {
+            const auto candidate=m_validatingProposal;
+            m_validatingProposal={};
+            const auto base=candidate["recoveryBase"].toString();
+            bool committedHere=false;
+            const bool recovered=!base.isEmpty();
+            const bool baseMatched=recovered && base.toLatin1()==appDigest(id).toHex()
+                && state["epoch"]==candidate["epoch"] && state["proposal"].toObject()["id"]==candidate["id"];
+            if (recovered && (!baseMatched
+                || (m_recoveryLimit.isActive() && m_requestClock.elapsed()>=m_recoveryBudgetMs))) {
+                addMessage(state,state["agentName"].toString(),"I stopped before saving the change. The request expired or the project changed.","system");
+                recordConflictOutcome(state,candidate,"The proposed change was stopped before saving.");
+                if (state["proposal"].toObject()["id"]==candidate["id"]) state["proposal"]=QJsonObject();
+            } else if (state["epoch"].toInt() != m_validatingEpoch) {
                 retryRequest(state);
                 addMessage(state, state["agentName"].toString(), "New directions arrived during the app check. I’m updating the request.", "system");
                 state["proposal"] = QJsonObject();
+            } else if (candidate["focused"].toBool() && !candidate["conflict"].isObject() && id==m_recoveryProject
+                       && status==QProcess::NormalExit && code>=21 && code<=25) {
+                static const QStringList categories{"python_syntax","builder_xml","bundle_schema","gtk_css","gtk_builder"};
+                static const QStringList hints{"Check Python syntax in app.py.","Check the GtkBuilder XML in app.ui.",
+                    "Check the GTK bundle and create_window entry point.","Check GTK CSS syntax and supported properties in style.css.",
+                    "Check widget types, properties and object references in app.ui."};
+                state["proposal"]=QJsonObject(); state["activeRequest"]=m_activeRequest;
+                if (!persist(id,state)) { endActivity(id); publish(id); return; }
+                m_agentProject=id; m_agentAuthor=m_activeRequest["author"].toString();
+                validationFailed({categories[code-21],"native_check",hints[code-21],0,true},
+                                 "The change did not pass its app check.","native_check_failed");
+                return;
             } else if (code != 0 || status != QProcess::NormalExit) {
                 // QML diagnostics are local source errors, not provider credentials.
-                auto detail = QString::fromUtf8(m_validator.readAllStandardError()).right(1500);
+                auto stderrBytes=m_validator.readAllStandardError();
+                auto detail = state["appFormat"]=="gtk4-v1" ? QString() : QString::fromUtf8(stderrBytes).right(1500);
                 detail.replace(m_workspace.projectPath(id), "[project]");
                 addMessage(state, state["agentName"].toString(), "The proposed app did not pass its native check. Your current app is still running.\n" + detail, "system");
                 recordConflictOutcome(state, state["proposal"].toObject(), "The agreed change failed its app check. The app is unchanged.");
@@ -229,6 +266,7 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     recordConflictOutcome(state, proposal, "The agreed change could not be saved. The app is unchanged.");
                     state["proposal"] = QJsonObject();
                 } else if (m_workspace.applySource(id, proposalSource(proposal), proposal["message"].toString(), &error)) {
+                    committedHere=true;
                     state["revision"] = state["revision"].toInt() + 1;
                     auto decisions = state["decisions"].toArray();
                     decisions.append(QJsonObject{{"summary", proposal["message"]}, {"authors", proposal["accepted"]},
@@ -259,6 +297,17 @@ Session::Session(const QString &root, QObject *parent, int agentDeadlineMs) : QO
                     state["proposal"] = QJsonObject();
                 }
             }
+            if (recovered) {
+                auto details=candidate["recoveryDetails"].toObject();
+                details["code"]=committedHere ? "recovered" : "recovery_stopped";
+                details["recoveryOutcome"]=committedHere ? "committed" : "stopped";
+                details["sourceUnchanged"]=base.toLatin1()==appDigest(id).toHex();
+                details["revisionConsistent"]=baseMatched;
+                if (id==m_recoveryProject) details["requestElapsedMs"]=m_requestClock.elapsed();
+                auto rows=state["messages"].toArray();
+                if (!rows.isEmpty()) { auto row=rows.last().toObject(); row["agentDiagnostics"]=details; rows[rows.size()-1]=row; state["messages"]=rows; }
+            }
+            endActivity(id);
             persist(id, state);
             publish(id);
             QTimer::singleShot(0, this, &Session::nextRequest);
@@ -342,8 +391,12 @@ void Session::start(bool background) {
                 persist(id,state);
             }
             if (!state["activeRequest"].toObject().isEmpty()) {
-                auto queue = state["agentQueue"].toArray(); queue.prepend(state["activeRequest"]);
-                state["agentQueue"] = queue; state.remove("activeRequest"); persist(id, state);
+                if (state["activeRequest"].toObject()["recovering"].toBool()) {
+                    addMessage(state,state["agentName"].toString(),"Centaur restarted before the change could be completed.","system");
+                } else {
+                    auto queue=state["agentQueue"].toArray(); queue.prepend(state["activeRequest"]); state["agentQueue"]=queue;
+                }
+                state.remove("activeRequest"); persist(id,state);
             }
             auto proposal = state["proposal"].toObject();
             if (proposal.value("conflict").isObject() && !proposal.contains("voters") && !m_network->sharing(id)["enabled"].toBool()) {
@@ -825,10 +878,11 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
             auto *process=m_imports.value(id); process->terminate();
             QTimer::singleShot(2000,process,[process] { if (process->state()!=QProcess::NotRunning) process->kill(); });
         }
-        if (m_agentProject == id && m_agent.busy()) {
+        if (m_agentProject == id) {
             m_agent.cancel(); m_agentProject.clear(); m_agentAuthor.clear();
         }
         if (m_validatingProject == id) { m_validatingProject.clear(); m_validator.kill(); }
+        const auto cancelled=recoveryDetails(id,state,"cancelled");
         endActivity(id);
         recordConflictOutcome(state, state["proposal"].toObject(), "The vote was cancelled. The app is unchanged.");
         state.remove("activeRequest"); state["agentQueue"] = QJsonArray(); state["proposal"] = QJsonObject();
@@ -836,6 +890,10 @@ void Session::handle(const QJsonObject &command, QIODevice *sender) {
         auto imported=state["import"].toObject();
         if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="interrupted"; state["import"]=imported; }
         addMessage(state, state["agentName"].toString(), displayName + " stopped the agent. Pending requests were cleared.", "system");
+        if (!cancelled.isEmpty()) {
+            auto rows=state["messages"].toArray(); auto row=rows.last().toObject();
+            row["agentDiagnostics"]=cancelled; rows[rows.size()-1]=row; state["messages"]=rows;
+        }
         persist(id, state);
         QTimer::singleShot(0, this, &Session::nextRequest);
     }
@@ -849,11 +907,20 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     const auto requester = m_agentAuthor;
     auto state = m_workspace.load(id);
     auto reply=agentReply;
+    if (m_corrections && !sameRecoveryBase(id,state)) {
+        agentError("The project changed while I was working. I stopped to preserve the newer work.", "recovery_superseded");
+        return;
+    }
+    if (m_corrections && reply["kind"]!="patch" && reply["kind"]!="question") {
+        validationFailed({"unexpected_response","response","Return a focused patch or a genuine clarification question.",0,false},
+                         "I couldn't safely apply this change.", "recovery_scope");
+        return;
+    }
     if (reply["kind"]=="patch" && state["epoch"].toInt()==m_agentEpoch) {
-        QString error;
-        reply=state["appFormat"]=="gtk4-v1" ? Agent::resolvePatch(reply,m_workspace.source(id),&error) : QJsonObject();
+        QString error; EditIssue issue;
+        reply=state["appFormat"]=="gtk4-v1" ? Agent::resolvePatch(reply,m_workspace.source(id),&error,&issue) : QJsonObject();
         if (reply.isEmpty()) {
-            agentError(error.isEmpty() ? "Focused changes are available only for an existing GTK app." : error,"coordinator_patch_invalid");
+            validationFailed(issue,error.isEmpty() ? "This app does not support that change." : error,"coordinator_patch_invalid");
             return;
         }
     }
@@ -900,6 +967,8 @@ void Session::finishAgent(const QJsonObject &agentReply) {
     } else {
         if (reply["kind"] == "proposal" || reply["kind"] == "restore") {
             auto proposal = reply;
+            proposal.remove("recoveryDetails"); proposal.remove("recoveryBase");
+            proposal["focused"]=agentReply["kind"]=="patch";
             if (reply["kind"] == "proposal" && ((state["appFormat"] == "gtk4-v1") != reply["gtk"].isObject())) {
                 addMessage(state, state["agentName"].toString(), "The agent returned the wrong app format. Your app is unchanged.", "system");
                 persist(id, state); publish(id); return;
@@ -933,6 +1002,11 @@ void Session::finishAgent(const QJsonObject &agentReply) {
                 if (identified.size() != authors.size() || voters.size() != authors.size() || voters.size() < 2) {
                     // A model's compromise is never an approved ordinary edit.
                     // Discard the candidate and regenerate from the original brief.
+                    if (m_corrections) {
+                        m_agentProject=id; m_agentAuthor=requester;
+                        agentError("I couldn't verify whose agreement was needed for this change.","recovery_voters_unverified");
+                        return;
+                    }
                     if (!m_activeRequest["arbitrationCorrection"].toBool()) {
                         m_activeRequest["arbitrationCorrection"] = true;
                         retryRequest(state);
@@ -947,6 +1021,10 @@ void Session::finishAgent(const QJsonObject &agentReply) {
                 proposal["choices"] = choices;
                 proposal["votes"] = QJsonObject();
                 proposal["verifiedDirections"] = true;
+            }
+            if (m_corrections) {
+                proposal["recoveryDetails"]=recoveryDetails(id,state,"validated");
+                proposal["recoveryBase"]=QString::fromLatin1(m_requestDigest.toHex());
             }
             proposal["id"] = uid(); proposal["epoch"] = m_agentEpoch;
             proposal["requestedBy"] = requester;
@@ -970,12 +1048,76 @@ void Session::finishAgent(const QJsonObject &agentReply) {
             }
             state["proposal"] = proposal;
         }
-        if (resolution.isEmpty()) addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent", {}, {}, conflictId);
+        if (resolution.isEmpty() && !(m_corrections && automatic)) addMessage(state, state["agentName"].toString(), reply["message"].toString(), "agent", {}, {}, conflictId);
+    }
+    if (m_corrections && reply["kind"]=="question" && resolution.isEmpty()) {
+        auto rows=state["messages"].toArray(); auto row=rows.last().toObject();
+        auto details=recoveryDetails(id,state,"clarification"); details["code"]="clarification";
+        row["agentDiagnostics"]=details; rows[rows.size()-1]=row; state["messages"]=rows;
     }
     if (automatic) state["activeRequest"] = m_activeRequest;
     if (persist(id, state) && automatic) applyProposal(id, state);
     publish(id);
     QTimer::singleShot(0, this, &Session::nextRequest);
+}
+
+bool Session::sameRecoveryBase(const QString &id, const QJsonObject &state) const {
+    return id==m_recoveryProject && state["epoch"].toInt()==m_agentEpoch
+        && state["revision"].toInt()==m_requestRevision && !m_requestDigest.isEmpty()
+        && m_requestDigest==appDigest(id);
+}
+
+QJsonObject Session::recoveryDetails(const QString &id, const QJsonObject &state, const QString &outcome) const {
+    if (id!=m_recoveryProject || m_validationTrace.isEmpty()) return {};
+    auto details=m_agent.diagnostics();
+    details["requestId"]=m_activities.value(id)["requestId"];
+    details["validationFailures"]=m_validationTrace;
+    details["correctiveAttempts"]=m_corrections;
+    details["requestElapsedMs"]=m_requestClock.elapsed();
+    details["requestLimitMs"]=m_recoveryBudgetMs;
+    details["recoveryOutcome"]=outcome;
+    details["revisionConsistent"]=sameRecoveryBase(id,state);
+    const auto current=appDigest(id);
+    details["sourceComparisonAvailable"]=!current.isEmpty() && !m_requestDigest.isEmpty();
+    if (details["sourceComparisonAvailable"].toBool()) details["sourceUnchanged"]=current==m_requestDigest;
+    return details;
+}
+
+void Session::validationFailed(const EditIssue &issue, const QString &fallback, const QString &code) {
+    const auto id=m_agentProject;
+    if (id!=m_recoveryProject || issue.category.isEmpty()) { agentError(fallback,code); return; }
+    auto state=m_workspace.load(id);
+    QJsonObject record{{"category",issue.category},{"stage",issue.stage},{"operation",issue.operation}};
+    m_validationTrace.append(record);
+    if (!issue.correctable) { agentError("I couldn't safely apply this change.",code); return; }
+    if (!sameRecoveryBase(id,state)) {
+        agentError("The project changed while I was working. I stopped to preserve the newer work.","recovery_superseded"); return;
+    }
+    if (m_corrections>=2) { agentError("I couldn't complete this change.","recovery_exhausted"); return; }
+    const int remaining=m_recoveryBudgetMs-int(m_requestClock.elapsed());
+    if (remaining<=0) { agentError("I couldn't complete this change in time.","recovery_deadline"); return; }
+    ++m_corrections;
+    m_recoveryLimit.start(remaining);
+    record["instruction"]=issue.hint;
+    m_requestContext["editCorrection"]=record;
+    m_activeRequest["recovering"]=true;
+    state["activeRequest"]=m_activeRequest;
+    if (m_corrections==1) {
+        addMessage(state,state["agentName"].toString(),"The change couldn't be applied. I'm checking the code and trying again.","system");
+        if (!persist(id,state)) { agentError("I couldn't save the request status.","recovery_storage"); return; }
+    }
+    m_expectedAgentRun=uid();
+    auto &activity=m_activities[id]; activity["runId"]=m_expectedAgentRun;
+    advanceActivity(id,"correcting");
+    // The previous process must finish emitting its signals before starting another.
+    const auto run=m_expectedAgentRun;
+    QTimer::singleShot(0,this,[this,id,run] {
+        if (m_agentProject!=id || m_expectedAgentRun!=run) return;
+        if (!sameRecoveryBase(id,m_workspace.load(id))) {
+            agentError("The project changed while I was working. I stopped to preserve the newer work.","recovery_superseded"); return;
+        }
+        m_agent.ask(m_workspace.projectPath(id),m_requestContext,m_workspace.source(id),m_requestImage,run);
+    });
 }
 
 void Session::agentError(const QString &message, const QString &code) {
@@ -989,6 +1131,8 @@ void Session::agentError(const QString &message, const QString &code) {
         state["proposal"] = QJsonObject();
     }
     auto details=m_agent.diagnostics();
+    const auto recovered=recoveryDetails(id,state,code.isEmpty() ? "interrupted" : code);
+    if (!recovered.isEmpty()) details=recovered;
     if (!code.isEmpty()) { details["code"]=code; details["layer"]="centaur.coordinator"; }
     details["requestId"]=m_activities.value(id)["requestId"];
     const auto started=QDateTime::fromString(m_activities.value(id)["startedAt"].toString(),Qt::ISODateWithMs);
@@ -997,6 +1141,7 @@ void Session::agentError(const QString &message, const QString &code) {
     const bool verified=!before.isEmpty() && !after.isEmpty();
     details["sourceComparisonAvailable"]=verified;
     if (verified) details["sourceUnchanged"]=before==after;
+    if (m_corrections && state["proposal"].toObject().contains("recoveryBase") && state["proposal"].toObject()["epoch"].toInt()==m_agentEpoch) state["proposal"]=QJsonObject();
     state.remove("activeRequest");
     auto imported=state.value("import").toObject();
     if (!imported.isEmpty() && !imported["previewReady"].toBool()) { imported["status"]="awaitingAnswer"; state["import"]=imported; }
@@ -1018,15 +1163,16 @@ void Session::applyProposal(const QString &id, QJsonObject state) {
         emit this->error(error); return;
     }
     m_validatingProject = id;
+    m_validatingProposal=state["proposal"].toObject();
     m_validatingEpoch = state["epoch"].toInt();
     auto env = QProcessEnvironment::systemEnvironment();
     if (!gtk) { env.insert("QT_QPA_PLATFORM", "offscreen"); env.insert("QT_QUICK_BACKEND", "software"); }
     m_validator.setProcessEnvironment(env);
     m_validator.start(runner(gtk), {"--check", candidate});
     advanceActivity(id,"validating");
-    const int epoch = m_validatingEpoch;
-    QTimer::singleShot(10000, &m_validator, [this, id, epoch] {
-        if (m_validatingProject == id && m_validatingEpoch == epoch && m_validator.state() != QProcess::NotRunning) m_validator.kill();
+    const auto proposalId=m_validatingProposal["id"];
+    QTimer::singleShot(10000, &m_validator, [this, id, proposalId] {
+        if (m_validatingProject == id && m_validatingProposal["id"] == proposalId && m_validator.state() != QProcess::NotRunning) m_validator.kill();
     });
 }
 
@@ -1069,11 +1215,15 @@ void Session::advanceActivity(const QString &id,const QString &phase,const QJson
 }
 
 void Session::endActivity(const QString &id) {
+    if (id==m_recoveryProject) {
+        m_recoveryLimit.stop(); m_recoveryProject.clear(); m_requestContext={};
+        m_requestImage.clear(); m_validationTrace={}; m_corrections=0;
+    }
     m_activities.remove(id); m_activitySources.remove(id);
 }
 
 void Session::settleActivity(const QString &id) {
-    if (!m_activities.contains(id) || m_imports.contains(id) || m_validatingProject==id || (m_agentProject==id && m_agent.busy())) return;
+    if (!m_activities.contains(id) || m_imports.contains(id) || m_validatingProject==id || m_agentProject==id) return;
     const QJsonValue requestId=m_activities.value(id).value("requestId");
     for (const auto &value:m_workspace.load(id)["agentQueue"].toArray())
         if (value.toObject()["continuationOf"]==requestId) return;
@@ -1111,7 +1261,7 @@ static void recoverQueuedReferences(QJsonObject &request, const QJsonObject &sta
 }
 
 void Session::nextRequest() {
-    if (!m_host || m_updateStopping || !m_updateToken.isEmpty() || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
+    if (!m_host || m_updateStopping || !m_updateToken.isEmpty() || !m_agentProject.isEmpty() || m_agent.busy() || !m_validatingProject.isEmpty() || m_validator.state() != QProcess::NotRunning) return;
     for (const auto &project : m_workspace.projects()) {
         const auto id = project.toMap()["id"].toString();
         auto state = m_workspace.load(id); auto queue = state["agentQueue"].toArray();
@@ -1175,7 +1325,13 @@ void Session::nextRequest() {
         // by OMP. Read per request so an already-running host sees UI changes.
         const QSettings preferences(m_workspace.root() + "/preferences.ini", QSettings::IniFormat);
         m_agent.setModel(preferences.value("agent/model").toString());
-        m_agent.ask(m_workspace.projectPath(id), request, pendingImport ? QString() : m_workspace.source(id), image,m_expectedAgentRun);
+        const QString source=pendingImport ? QString() : m_workspace.source(id);
+        if (!source.isEmpty() && state["appFormat"]=="gtk4-v1" && !state["creationPending"].toBool()) {
+            m_requestClock.start(); m_recoveryProject=id; m_corrections=0; m_validationTrace={};
+            m_requestContext=request; m_requestImage=image; m_requestRevision=state["revision"].toInt();
+            m_requestDigest=QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256);
+        }
+        m_agent.ask(m_workspace.projectPath(id),request,source,image,m_expectedAgentRun);
         publish(id); return;
     }
 }

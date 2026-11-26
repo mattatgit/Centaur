@@ -8,6 +8,14 @@ FORMAT = 'gtk4-v1'
 FILES = {'app.py', 'app.ui', 'style.css'}
 
 
+class StyleError(ValueError):
+    pass
+
+
+class BuilderError(ValueError):
+    pass
+
+
 def load_bundle(path):
     raw = Path(path).read_bytes()
     if len(raw) > 256000:
@@ -38,15 +46,18 @@ def construct(bundle):
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Gdk', '4.0')
-    from gi.repository import Gtk, Gdk
+    from gi.repository import Gtk, Gdk, GLib
     provider = Gtk.CssProvider()
     errors = []
     provider.connect('parsing-error', lambda p, section, error: errors.append(str(error)))
     provider.load_from_data(bundle['files']['style.css'].encode())
     if errors:
-        raise ValueError('Invalid GTK CSS: ' + '; '.join(errors))
+        raise StyleError('Invalid GTK CSS: ' + '; '.join(errors))
     Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-    builder = Gtk.Builder.new_from_string(bundle['files']['app.ui'], -1)
+    try:
+        builder = Gtk.Builder.new_from_string(bundle['files']['app.ui'], -1)
+    except GLib.Error as error:
+        raise BuilderError('Invalid GTK interface') from error
     namespace = {'__name__': 'centaur_generated_app', '__file__': 'app.py'}
     exec(compile(bundle['files']['app.py'], 'app.py', 'exec'), namespace)
     window = namespace['create_window'](builder)

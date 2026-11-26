@@ -66,7 +66,7 @@ Agent::Agent(QObject *parent, int deadlineMs, QString designSocket) : QObject(pa
                 return;
             }
             QString error;
-            const auto reply = parseReply(m_structuredOutput ? m_replyOutput : m_textOutput, &error);
+            const auto reply = parseReply(m_structuredOutput ? m_replyOutput : m_textOutput, &error, &m_issue);
             if (reply.isEmpty()) { m_failureCode="agent_response_invalid"; observe("failed",true); emit failed(error); emit failureReady(m_runId,error,diagnostics()); }
             else { observe("complete",true); emit completed(reply); emit resultReady(m_runId,reply); }
         });
@@ -231,7 +231,13 @@ void Agent::cancel() {
     m_visualDir.reset();
 }
 
-QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
+QJsonObject Agent::parseReply(const QByteArray &text, QString *error, EditIssue *issue) {
+    if (issue) *issue = {};
+    const auto reject = [&](QString category, QString hint, int operation = 0, bool correctable = true) -> QJsonObject {
+        if (issue) *issue = {category, "response", hint, operation, correctable};
+        if (error) *error = "I couldn't complete this change.";
+        return {};
+    };
     QByteArray json = text.trimmed();
     // Accept a single Markdown JSON fence, but no prose wrapped around a response.
     if (json.startsWith("```json\n") || json.startsWith("```\n")) {
@@ -245,22 +251,49 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
     if (parseError.error != QJsonParseError::NoError || !doc.isObject()
         || (kind != "question" && kind != "proposal" && kind != "restore" && kind != "inspect" && kind != "retry" && kind != "artifact" && kind != "patch") || object["message"].toString().trimmed().isEmpty()
         || (kind == "proposal" && object["qml"].toString().trimmed().isEmpty() && !object["gtk"].isObject())) {
-        if (error) *error = "The agent returned an unreadable response. Ask it to try again.";
-        return {};
+        return reject("response_format", "Return one JSON response with the required kind and message.");
     }
     if (kind=="patch") {
+        const auto dimensions = object["windowSize"].toObject();
+        const auto edits = object["edits"].toArray();
         static const QRegularExpression digest("^[a-f0-9]{64}$");
-        const auto edits=object["edits"].toArray();
-        bool valid=object.size()==5 && object.contains("conflict") && digest.match(object["baseSha256"].toString()).hasMatch()
-            && !edits.isEmpty() && edits.size()<=12 && QJsonDocument(object).toJson(QJsonDocument::Compact).size()<=64000;
-        for (const auto &value:edits) {
-            const auto edit=value.toObject();
-            valid=valid && edit.size()==3 && QStringList{"app.py","app.ui","style.css"}.contains(edit["file"].toString())
-                && edit["find"].isString() && !edit["find"].toString().isEmpty() && edit["replace"].isString()
-                && edit["find"]!=edit["replace"]
-                && edit["find"].toString().size()<=16000 && edit["replace"].toString().size()<=16000;
+        const QStringList fields{"kind","message","conflict","baseSha256","edits","windowSize"};
+        // Inspect capabilities before correctable mistakes, including in later operations.
+        for (const auto &key : object.keys())
+            if (!fields.contains(key) && key!="width" && key!="height") return reject("unsupported_field", "Unsupported operation.", 0, false);
+        for (qsizetype i=0; i<edits.size(); ++i) {
+            const auto edit = edits[i].toObject();
+            for (const auto &key : edit.keys())
+                if (key!="file" && key!="find" && key!="replace")
+                    return reject("unsupported_operation", "Unsupported operation.", i+1, false);
+            const auto file = edit["file"].toString();
+            if (file.contains('/') || file.contains('\\') || file.startsWith('.') || file.contains(':'))
+                return reject("path_rejected", "File access outside the editable app files is unavailable.", i+1, false);
         }
-        if (!valid) { if (error) *error="The agent returned an invalid focused change. Ask it to use a smaller exact edit."; return {}; }
+        if (object.contains("width") || object.contains("height"))
+            return reject("dimension_location", "Place width and height inside windowSize, not at the root.");
+        if (!object.contains("conflict"))
+            return reject("conflict_missing", "Include conflict explicitly, using the current directions.");
+        if (!digest.match(object["baseSha256"].toString()).hasMatch())
+            return reject("invalid_digest", "Copy baseSha256 exactly from the focused edit contract.");
+        if (!object["edits"].isArray() || (edits.isEmpty() && dimensions.isEmpty()) || edits.size()>12 ||
+            QJsonDocument(object).toJson(QJsonDocument::Compact).size()>64000)
+            return reject("edit_bounds", "Use up to twelve focused edits and stay within the response size limit.");
+        if (object.contains("windowSize")) {
+            if (dimensions.isEmpty()) return reject("window_size", "Supply width or height in windowSize.");
+            for (auto it=dimensions.begin(); it!=dimensions.end(); ++it)
+                if ((it.key()!="width" && it.key()!="height") || it.value().toInt()<120 || it.value().toInt()>4096)
+                    return reject("window_size", "windowSize accepts only width and height as whole logical pixels from 120 to 4096.");
+        }
+        for (qsizetype i=0; i<edits.size(); ++i) {
+            const auto edit=edits[i].toObject();
+            if (!QStringList{"app.py","app.ui","style.css"}.contains(edit["file"].toString()))
+                return reject("unknown_file", "Use app.py, app.ui or style.css. Use windowSize for default dimensions.", i+1);
+            if (edit.size()!=3 || !edit["find"].isString() || edit["find"].toString().isEmpty()
+                || !edit["replace"].isString() || edit["find"]==edit["replace"]
+                || edit["find"].toString().size()>16000 || edit["replace"].toString().size()>16000)
+                return reject("invalid_edit", "Supply distinct find and replace strings, a nonempty anchor, and at most 16000 characters per string.", i+1);
+        }
     }
     if (kind=="inspect" && !object["tool"].isObject() && (object["paths"].toArray().isEmpty() || object["paths"].toArray().size()>12)) {
         if (error) *error="Ask the agent to inspect up to 12 named source files at a time.";
@@ -318,23 +351,26 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error) {
         // Require an explicit classification; an omitted/malformed conflict must
         // never accidentally turn a change requiring agreement into an auto-build.
         if (!valid) {
-            if (error) *error = "The agent did not clearly identify whether the requests conflict. Ask it to try again.";
-            return {};
+            return reject("conflict_invalid", "Classify the current directions explicitly. Preserve every required voter.");
         }
     }
     return object;
 }
 
-QJsonObject Agent::resolvePatch(const QJsonObject &patch, const QString &source, QString *error) {
-    if (patch["kind"]!="patch" || parseReply(QJsonDocument(patch).toJson(QJsonDocument::Compact),error).isEmpty()) return {};
+QJsonObject Agent::resolvePatch(const QJsonObject &patch, const QString &source, QString *error, EditIssue *issue) {
+    const auto reject = [&](QString category, QString hint, int operation = 0) -> QJsonObject {
+        if (issue) *issue = {category, "source", hint, operation, true};
+        if (error) *error = "I couldn't complete this change.";
+        return {};
+    };
+    if (patch["kind"]!="patch" || parseReply(QJsonDocument(patch).toJson(QJsonDocument::Compact),error,issue).isEmpty()) return {};
     const auto digest=QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex());
     if (patch["baseSha256"]!=digest) {
-        if (error) *error="The saved app changed before that edit could be checked. Ask the agent to use the current app.";
-        return {};
+        return reject("digest_mismatch", "Copy the exact baseSha256 supplied with the current source.");
     }
     auto bundle=QJsonDocument::fromJson(source.toUtf8()).object();
     auto files=bundle["files"].toObject();
-    const auto originalFiles=files;
+    const auto original=bundle;
     if (bundle["format"]!="gtk4-v1" || files.size()!=3 || !files["app.py"].isString()
         || !files["app.ui"].isString() || !files["style.css"].isString()) {
         if (error) *error="A focused change needs an existing GTK app. Ask the agent to prepare the app first.";
@@ -342,25 +378,22 @@ QJsonObject Agent::resolvePatch(const QJsonObject &patch, const QString &source,
     }
     // Work on detached values only. Any failed edit discards the entire result;
     // paths, offsets, filesystem access and arbitrary commands are not accepted.
+    int operation=0;
     for (const auto &value:patch["edits"].toArray()) {
+        ++operation;
         const auto edit=value.toObject(); const auto name=edit["file"].toString();
         auto text=files[name].toString(); const auto find=edit["find"].toString();
         const auto at=text.indexOf(find);
-        if (at<0 || text.indexOf(find,at+1)>=0) {
-            if (error) *error="The proposed edit did not match one exact place in the saved app. Ask for a corrected focused change.";
-            return {};
-        }
+        if (at<0) return reject("anchor_missing", "Read the named file again and copy the decoded text exactly.", operation);
+        if (text.indexOf(find,at+1)>=0) return reject("anchor_ambiguous", "Include enough surrounding text to match only once.", operation);
         text.replace(at,find.size(),edit["replace"].toString()); files[name]=text;
     }
     bundle["files"]=files;
-    if (files==originalFiles) {
-        if (error) *error="That edit would leave the app unchanged. Ask the agent for the actual change.";
-        return {};
-    }
-    if (QJsonDocument(bundle).toJson(QJsonDocument::Compact).size()>256000) {
-        if (error) *error="That change would exceed the app size limit. Ask for a smaller step.";
-        return {};
-    }
+    const auto dimensions=patch["windowSize"].toObject();
+    for (auto it=dimensions.begin(); it!=dimensions.end(); ++it) bundle[it.key()]=it.value();
+    if (bundle==original) return reject("no_change", "The assembled app is identical to the current source.");
+    if (QJsonDocument(bundle).toJson(QJsonDocument::Compact).size()>256000)
+        return reject("bundle_limit", "Keep the assembled app within the 256000 byte limit.");
     const QJsonObject proposal{{"kind","proposal"},{"message",patch["message"]},{"conflict",patch["conflict"]},{"gtk",bundle}};
     return parseReply(QJsonDocument(proposal).toJson(QJsonDocument::Compact),error);
 }
@@ -395,7 +428,7 @@ void Agent::ask(const QString &projectPath, const QJsonObject &state, const QStr
     if (busy()) { emit failed("The agent is already working on this project."); return; }
     m_cancelled=false; m_started=false; m_agentEnded=false; m_clock.start();
     m_runId=runId.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : runId;
-    m_phase.clear(); m_lastActivePhase.clear(); m_failureCode.clear(); m_lastEvent.clear(); m_providerOutcome.clear();
+    m_issue={}; m_phase.clear(); m_lastActivePhase.clear(); m_failureCode.clear(); m_lastEvent.clear(); m_providerOutcome.clear();
     m_lastEventMs=m_lastProviderMs=-1; m_lastPublishedMs=-1000;
     m_stdoutBytes=m_stderrBytes=m_promptBytes=m_responseTextBytes=0; m_eventCount=m_deltaCount=m_retryCount=0;
     m_textUpdates=m_thinkingUpdates=m_turnCount=m_nativeToolStarts=0;
@@ -579,7 +612,9 @@ void Agent::startPrepared(const QString &projectPath,const QJsonObject &state,co
                 "For an ordinary change to that app, use exact edits instead of resending unchanged files. "
                 "Return {\"kind\":\"patch\",\"message\":\"Briefly describe the change\",\"conflict\":null,"
                 "\"baseSha256\":\"%1\",\"edits\":[{\"file\":\"app.py\",\"find\":\"exact existing text\",\"replace\":\"replacement text\"}]}. "
-                "Use 1-12 edits across app.py, app.ui and style.css only. Each find must match exactly once; include enough unchanged context to make it unique. "
+                "For default size changes add top-level windowSize with width and/or height (integer 120-4096); edits may be [] for size alone. "
+                "GtkBuilder or Python size hints alone are overridden by the bundle dimensions. Use GTK CSS for rounded corners. "
+                "Use up to 12 edits across app.py, app.ui and style.css only. Each find must match exactly once; include enough unchanged context to make it unique. "
                 "Find/replace strings are the decoded contents of that named file, not the serialized outer bundle. "
                 "Edits apply in order, atomically; files not edited remain unchanged. Never use line numbers, commands, paths or ellipses. "
                 "Preserve the existing layout, content and unrelated behaviour. Use a full proposal only when an actual wholesale replacement is needed. "
@@ -587,6 +622,8 @@ void Agent::startPrepared(const QString &projectPath,const QJsonObject &state,co
                 .arg(QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex()));
         }
     }
+    if (state.contains("editCorrection"))
+        prompt += "\nCORRECTION: Fulfil the same request against the supplied current source. Follow editCorrection, including its 1-based operation when present. Return only a focused patch, or a question if a design decision is genuinely required. Preserve activeDirections and conflict voting. No restore, whole-app proposal, tools, or file paths.\n";
     if (!state["import"].toObject().isEmpty()) {
         prompt += QStringLiteral("\nIMPORT RULES (override native-only generation guidance for imported sources): "
             "For GitHub imports, import.repository, import.branch and import.commit identify the coordinator-verified source. "

@@ -203,6 +203,44 @@ private slots:
         QTcpServer port; QVERIFY(port.listen(QHostAddress::LocalHost, 0));
         qputenv("CENTAUR_PORT", QByteArray::number(port.serverPort()));
     }
+    void guestRequestRecoversOnceOnBothPeers() {
+        const auto client=qgetenv("CENTAUR_GTK_CLIENT"); qputenv("CENTAUR_GTK_CLIENT","1");
+        const auto restoreClient=qScopeGuard([client]{ if(client.isNull()) qunsetenv("CENTAUR_GTK_CLIENT"); else qputenv("CENTAUR_GTK_CLIENT",client); });
+        QTemporaryDir hostRoot,guestRoot;
+        Workspace workspace(hostRoot.path()); QString error;
+        const auto id=workspace.createProject("Shared editor","",&error,"gtk4-v1");
+        QVERIFY(!id.isEmpty());
+        const auto agent=hostRoot.path()+"/agent",checker=hostRoot.path()+"/checker";
+        const auto shell=QStandardPaths::findExecutable("sh").toUtf8();
+        const QJsonObject patch{{"kind","patch"},{"message","Resize the editor"},{"conflict",QJsonValue::Null},
+            {"baseSha256",QString::fromLatin1(QCryptographicHash::hash(workspace.source(id).toUtf8(),QCryptographicHash::Sha256).toHex())},
+            {"windowSize",QJsonObject{{"width",600},{"height",842}}},{"edits",QJsonArray{}}};
+        QVERIFY(Workspace::writeFile(agent,"#!"+shell+"\nif [ ! -f .centaur/tried ]; then touch .centaur/tried; echo invalid; exit; fi\nsleep 1\ncat <<'REPLY'\n"
+                                     +QJsonDocument(patch).toJson(QJsonDocument::Compact)+"\nREPLY\n"));
+        QVERIFY(Workspace::writeFile(checker,"#!"+shell+"\nexit 0\n"));
+        for (const auto &path:{agent,checker}) QVERIFY(QFile::setPermissions(path,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        AgentEnv env(agent);
+        const auto previous=qgetenv("CENTAUR_GTK_RUNNER"); qputenv("CENTAUR_GTK_RUNNER",checker.toUtf8());
+        const auto restore=qScopeGuard([previous]{ if(previous.isNull()) qunsetenv("CENTAUR_GTK_RUNNER"); else qputenv("CENTAUR_GTK_RUNNER",previous); });
+        Controller host(hostRoot.path()); host.start(); host.openProject(id); host.invitePeople("127.0.0.1");
+        Controller guest(guestRoot.path()); guest.start(); guest.joinProject(host.invitationCode(),"Guest");
+        QTRY_VERIFY_WITH_TIMEOUT(guest.canContribute() && guest.projectId()==id,6000);
+        QString hostRequest,guestRequest;
+        auto observe=[](Controller &peer,QString &seen) {
+            const auto activity=peer.project()["agentActivity"].toMap();
+            if (activity["phase"]=="correcting") seen=activity["requestId"].toString();
+        };
+        connect(&host,&Controller::changed,this,[&]{ observe(host,hostRequest); });
+        connect(&guest,&Controller::changed,this,[&]{ observe(guest,guestRequest); });
+        QVERIFY(guest.sendMessage("@centaur Resize the editor"));
+        QTRY_COMPARE_WITH_TIMEOUT(guest.project()["revision"].toInt(),2,20000);
+        QVERIFY(!hostRequest.isEmpty()); QCOMPARE(guestRequest,hostRequest);
+        const auto messages=host.project()["messages"].toList();
+        QCOMPARE(guest.project()["messages"].toList(),messages);
+        QCOMPARE(messages.size(),3);
+        QCOMPARE(messages.last().toMap()["agentDiagnostics"].toMap()["recoveryOutcome"].toString(),"committed");
+        QCOMPARE(host.project()["decisions"].toList().size(),1);
+    }
     void differentDataDirectoriesShareOnlyInvitedProjectAndAcceptedApp() {
         QTemporaryDir hostRoot, guestRoot;
         const auto fake = hostRoot.path() + "/agent";

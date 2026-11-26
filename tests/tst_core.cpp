@@ -899,6 +899,108 @@ private slots:
         auto pending=state; pending["import"]=QJsonObject{{"previewReady",false}};
         QCOMPARE(Agent::prepareContext(pending),pending);
     }
+    void dimensionAndAnchorFailuresHavePreciseSafeCategories() {
+        QFile f(":/templates/App.gtk.json"); QVERIFY(f.open(QIODevice::ReadOnly));
+        const QString source=QString::fromUtf8(f.readAll());
+        QJsonObject patch{{"kind","patch"},{"message","Change window"},{"conflict",QJsonValue::Null},
+            {"baseSha256",QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex())}};
+        EditIssue issue; QString error;
+        const auto rejects=[&](const QJsonObject &input,const QString &category,bool correctable) {
+            QVERIFY(Agent::resolvePatch(input,source,&error,&issue).isEmpty());
+            QCOMPARE(issue.category,category); QCOMPARE(issue.correctable,correctable);
+        };
+        const QJsonObject edit{{"file","app.ui"},{"find","Gtk"},{"replace","different"}};
+        patch["edits"]=QJsonArray{edit}; rejects(patch,"anchor_ambiguous",true);
+        for (const QJsonValue &dimension:QJsonArray{119,4097,842.5,"842",true,QJsonValue::Null}) {
+            patch["windowSize"]=QJsonObject{{"height",dimension}}; rejects(patch,"window_size",true);
+        }
+        patch.remove("windowSize"); patch["width"]=600; rejects(patch,"dimension_location",true); patch.remove("width");
+        auto typo=edit; typo["file"]="app.css"; patch["edits"]=QJsonArray{typo}; rejects(patch,"unknown_file",true);
+        auto forbidden=edit; forbidden["command"]="PRIVATE"; patch["edits"]=QJsonArray{typo,forbidden};
+        rejects(patch,"unsupported_operation",false); QCOMPARE(issue.operation,2); QVERIFY(!issue.hint.contains("PRIVATE"));
+    }
+    void recoveryIsAtomicBoundedAndCancellable_data() {
+        QTest::addColumn<QString>("scenario");
+        QTest::addColumn<QString>("outcome");
+        QTest::addColumn<int>("attempts");
+        QTest::newRow("correct on second retry") << "success" << "committed" << 2;
+        QTest::newRow("malformed three times") << "exhausted" << "recovery_exhausted" << 2;
+        QTest::newRow("permission boundary") << "outside" << "agent_response_invalid" << 0;
+        QTest::newRow("cancel during retry") << "cancel" << "cancelled" << 1;
+        QTest::newRow("concurrent source change") << "concurrent" << "recovery_superseded" << 1;
+        QTest::newRow("total deadline") << "timeout" << "recovery_deadline" << 1;
+        QTest::newRow("native syntax check") << "native" << "committed" << 1;
+        QTest::newRow("clarification") << "question" << "clarification" << 1;
+        QTest::newRow("whole replacement refused") << "replacement" << "recovery_scope" << 1;
+    }
+    void recoveryIsAtomicBoundedAndCancellable() {
+        QFETCH(QString,scenario); QFETCH(QString,outcome); QFETCH(int,attempts);
+        QTemporaryDir dir; Workspace workspace(dir.path()); QString error;
+        const auto id=workspace.createProject("Recovery","",&error,"gtk4-v1");
+        const auto source=workspace.source(id);
+        const auto initial=QJsonDocument::fromJson(source.toUtf8()).object();
+        const auto file=workspace.projectPath(id)+"/App.gtk.json";
+        const auto agent=dir.path()+"/agent", checker=dir.path()+"/checker";
+        QJsonObject patch{{"kind","patch"},{"message","Adjust the window"},{"conflict",QJsonValue::Null},
+            {"baseSha256",QString::fromLatin1(QCryptographicHash::hash(source.toUtf8(),QCryptographicHash::Sha256).toHex())},
+            {"edits",QJsonArray{}},{"windowSize",QJsonObject{{"width",600},{"height",842}}}};
+        const auto writeReply=[&](const QString &name,const QJsonObject &reply) {
+            return Workspace::writeFile(dir.path()+"/"+name,QJsonDocument(reply).toJson(QJsonDocument::Compact));
+        };
+        auto bad=patch;
+        bad["edits"]=QJsonArray{QJsonObject{{"file",scenario=="outside" ? "../private" : "app.py"},{"find","not in this app"},{"replace","example"}}};
+        QVERIFY(writeReply("first",scenario=="native" ? patch : bad));
+        QJsonObject second=patch;
+        if (scenario=="replacement") second={{"kind","proposal"},{"message","replace"},{"conflict",QJsonValue::Null},{"gtk",initial}};
+        if (scenario=="question") second={{"kind","question"},{"message","Which window needs the new size?"}};
+        QVERIFY(writeReply("corrected",second));
+        const auto shell=QStandardPaths::findExecutable("sh").toUtf8();
+        const auto script=QByteArray("#!")+shell+"\ncd '"+dir.path().toUtf8()+"'\n"
+            "if [ ! -f tried ]; then touch tried; cat first; exit; fi\n"
+            "touch correcting\n";
+        QByteArray after;
+        if (scenario=="success") after="if [ ! -f second ]; then touch second; echo 'unreadable'; exit; fi\n";
+        if (scenario=="exhausted") after="echo 'unreadable'; exit\n";
+        if (scenario=="cancel" || scenario=="concurrent") after="sleep 0.8\n";
+        if (scenario=="timeout") after="sleep 10\n";
+        QVERIFY(Workspace::writeFile(agent,script+after+"cat corrected\n"));
+        auto checkScript="#!"+shell+"\n";
+        if (scenario=="native") checkScript+="if [ ! -f '"+dir.path().toUtf8()+"/checked' ]; then touch '"+dir.path().toUtf8()+"/checked'; exit 21; fi\n";
+        QVERIFY(Workspace::writeFile(checker,checkScript+"exit 0\n"));
+        for (const auto &path : {agent,checker}) QVERIFY(QFile::setPermissions(path,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
+        const auto previous=qgetenv("CENTAUR_GTK_RUNNER"); qputenv("CENTAUR_GTK_RUNNER",checker.toUtf8());
+        const auto restore=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_RUNNER"); else qputenv("CENTAUR_GTK_RUNNER",previous); });
+        AgentOverride override(agent);
+        Session host(dir.path(),nullptr,15000,scenario=="timeout" ? 2200 : 15000); host.start();
+        host.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","@centaur Resize the editor"}});
+        if (scenario=="cancel" || scenario=="concurrent") {
+            QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.path()+"/correcting"),2500);
+            if (scenario=="cancel") host.send({{"type","cancel"},{"projectId",id},{"author","Matt"}});
+            else QVERIFY(Workspace::writeFile(file,source.toUtf8()+"\n"));
+        }
+        const auto last=[&] { return workspace.load(id)["messages"].toArray().last().toObject(); };
+        QTRY_VERIFY_WITH_TIMEOUT(last().contains("agentDiagnostics"),5000);
+        const auto details=last()["agentDiagnostics"].toObject();
+        QCOMPARE(details["recoveryOutcome"].toString(),outcome);
+        QCOMPARE(details["correctiveAttempts"].toInt(),attempts);
+        const auto trace=details["validationFailures"].toArray();
+        QCOMPARE(trace.first().toObject()["category"].toString(),scenario=="native" ? "python_syntax" : scenario=="outside" ? "path_rejected" : "anchor_missing");
+        QCOMPARE(details["revisionConsistent"].toBool(),scenario!="concurrent");
+        const bool committed=outcome=="committed";
+        const auto state=workspace.load(id);
+        QCOMPARE(state["revision"].toInt(),committed ? 2 : 1);
+        QCOMPARE(state["decisions"].toArray().size(),committed ? 1 : 0);
+        int successes=0, notices=0;
+        for (const auto &value:state["messages"].toArray()) {
+            const auto text=value.toObject()["text"].toString();
+            successes+=int(text=="Updated the app."); notices+=int(text.contains("checking the code"));
+        }
+        QCOMPARE(successes,committed ? 1 : 0); QCOMPARE(notices,attempts ? 1 : 0);
+        if (committed) {
+            const auto actual=QJsonDocument::fromJson(workspace.source(id).toUtf8()).object();
+            QCOMPARE(actual["width"].toInt(),600); QCOMPARE(actual["height"].toInt(),842); QCOMPARE(actual["files"],initial["files"]);
+        } else QCOMPARE(workspace.source(id),source+(scenario=="concurrent" ? "\n" : ""));
+    }
     void focusedGtkEditsUseNativeValidationAndConflictAgreement() {
         for (const bool conflict:{false,true}) {
             QTemporaryDir dir; Workspace workspace(dir.path());QString error;

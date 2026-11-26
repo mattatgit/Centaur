@@ -2,7 +2,7 @@ name: GTK4 Centaur integration
 
 on:
   push:
-    branches: [main, 'codex/composer-collaboration']
+    branches: [main, 'codex/composer-collaboration', 'codex/agent-recovery']
     paths:
       - 'src/**'
       - 'integrations/figma/**'

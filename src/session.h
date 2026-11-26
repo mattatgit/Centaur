@@ -16,7 +16,7 @@
 class Session : public QObject {
     Q_OBJECT
 public:
-    explicit Session(const QString &root, QObject *parent = nullptr, int agentDeadlineMs = 180000);
+    explicit Session(const QString &root, QObject *parent = nullptr, int agentDeadlineMs = 180000, int recoveryLimitMs = 240000);
     ~Session() override;
     void start(bool background = false);
     bool connected() const { return m_host || m_client.state() == QLocalSocket::ConnectedState; }
@@ -41,6 +41,9 @@ private:
     bool persist(const QString &id, QJsonObject state);
     void finishAgent(const QJsonObject &reply);
     void agentError(const QString &message, const QString &code = {});
+    void validationFailed(const EditIssue &issue, const QString &fallback, const QString &code);
+    bool sameRecoveryBase(const QString &id, const QJsonObject &state) const;
+    QJsonObject recoveryDetails(const QString &id, const QJsonObject &state, const QString &outcome) const;
     void applyProposal(const QString &id, QJsonObject state);
     void nextRequest();
     void retryRequest(QJsonObject &state);
@@ -62,6 +65,14 @@ private:
     QHash<QString,QJsonObject> m_activities;
     QHash<QString,QByteArray> m_activitySources;
     QString m_expectedAgentRun;
+    QString m_recoveryProject, m_requestImage;
+    QByteArray m_requestDigest;
+    QJsonObject m_requestContext;
+    QJsonArray m_validationTrace;
+    int m_requestRevision = 0, m_corrections = 0;
+    QElapsedTimer m_requestClock;
+    QTimer m_recoveryLimit;
+    const int m_recoveryBudgetMs;
     QTimer m_reconnect;
     std::unique_ptr<CollaborationHost> m_network;
     QString m_socketName;
@@ -72,6 +83,7 @@ private:
     QHash<QLocalSocket *, QByteArray> m_buffers;
     Agent m_agent;
     QProcess m_validator;
+    QJsonObject m_validatingProposal;
     QString m_agentProject;
     QString m_agentAuthor;
     QString m_validatingProject;
