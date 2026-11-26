@@ -74,12 +74,15 @@ class AttachmentLayout(Gtk.LayoutManager):
     def do_get_request_mode(self, widget):
         return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
 
-    def place(self, widget, width, allocate_children=False):
+    def place(self, widget, width, allocate_children=False, row_limit=None):
         x = y = row_height = 0
+        row = 1
         for child in widget:
             natural = child.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
             w = min(natural, width) if width >= 0 else natural
             if x and width >= 0 and x + w > width:
+                if row == row_limit: break
+                row += 1
                 y += row_height + self.gap
                 x = row_height = 0
             h = child.measure(Gtk.Orientation.VERTICAL, w)[1]

@@ -368,7 +368,7 @@ class Centaur(Gtk.Application):
         row=box(spacing=8)
         self.attach=icon_button('Attach images',artwork('db162.svg',16,(2,2,12,12)),lambda:self.composer_input.pick(),'composer-action')
         row.append(self.attach); self.targets['attach']=self.attach
-        self.upload_status=Gtk.Label(accessible_role=Gtk.AccessibleRole.STATUS,css_classes=['small','muted'])
+        self.upload_status=Gtk.Label(accessible_role=Gtk.AccessibleRole.STATUS,css_classes=['small','upload-status'])
         self.upload_status.set_visible(False); row.append(self.upload_status)
         self.targets['upload-status']=self.upload_status
         spacer=box(); spacer.set_hexpand(True); row.append(spacer)
@@ -381,6 +381,7 @@ class Centaur(Gtk.Application):
         row.append(self.send_button); self.targets['send']=self.send_button
         self.composer=Composer(self.editor,row); chat.append(self.composer)
         self.composer_input=ComposerInput(self)
+        if self.reports: self.targets['attachment-tray']=self.composer.tray
         self.targets['composer']=self.composer
         self.editor.get_buffer().connect('changed',lambda b:self.update_send())
         self.update_footer=box(spacing=8); chat.append(self.update_footer)

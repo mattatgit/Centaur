@@ -202,6 +202,8 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     x,_,width,_=target(guest,'composer')
     refs=[target(guest,'draft-reference-'+str(i)) for i in range(4)]
     assert refs[3][1]>refs[0][1] and all(x<=a and a+c<=x+width+1 for a,b,c,d in refs),refs
+    _,top,_,height=target(guest,'attachment-tray')
+    assert refs[2][1]>=top and refs[2][1]+refs[2][3]<=top+height+1,(refs[2],top,height)
     for prev,current in zip(refs,refs[1:]):
         assert current[1]>=prev[1]+prev[3] or current[0]>=prev[0]+prev[2],refs
     driver.screenshot(gw,evidence/'composer-wrapped-images-and-links.png')

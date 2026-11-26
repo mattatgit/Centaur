@@ -259,6 +259,7 @@ popover.import-branch-menu > contents { min-width: 344px; padding: 8px; border: 
 .request-details { padding: 2px 4px; color: #646964; font-size: 11px; }
 .request-details:hover, .request-details:focus-visible { color: #171717; }
 .upload-attribution { font-family: Inter; font-size: 10px; color: #6b6b6b; }
+.upload-status { color: #646964; }
 .import-prompt-box.invalid, .import-prompt-box.invalid textview, .import-prompt-box.invalid text { background-color: #ffefee; }
 .form-error-text { font-family: Inter; font-weight: 500; color: #ff6157; font-size: 10px; }
 

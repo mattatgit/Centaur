@@ -292,7 +292,9 @@ class Composer(Gtk.Widget):
 
     def tray_size(self, width):
         if not getattr(self,'tray',None) or not self.tray.get_visible(): return 0
-        return min(144,self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-16))[1])+8
+        # Give the first two rows their full height. Further rows scroll
+        # independently so the draft and the conversation remain accessible.
+        return self.flow.get_layout_manager().place(self.flow,max(1,width-16),row_limit=2)+8
 
     def changed(self, buffer):
         self.placeholder.set_visible(not buffer.get_char_count()); self.queue_resize()
@@ -312,7 +314,7 @@ class Composer(Gtk.Widget):
         # text height grows. Claiming both as the minimum violates GTK's
         # height-for-width contract during typing/resizing.
         extra=self.tray_size(for_size if for_size>=0 else 384)
-        return (128+min(80,extra), min(292,height+extra), -1, -1)
+        return (128+extra, min(292,height+extra), -1, -1)
 
     def do_size_allocate(self, width, height, baseline):
         extra=min(self.tray_size(width),max(0,height-112))
