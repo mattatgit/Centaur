@@ -6,7 +6,7 @@ import time
 
 import gi
 gi.require_version('Gtk', '4.0')
-from gi.repository import Gdk, Gio, GLib, Gtk
+from gi.repository import Gdk, GLib, Gtk
 from PIL import Image
 
 from backend import AppSpec, CasildaBackend
@@ -16,12 +16,11 @@ from viewport import PreviewViewport
 
 
 def capture(driver, folder, source):
+    Gtk.init()
     folder.mkdir()
     bundle = load_bundle(source)
     w, h = bundle['width'], bundle['height']
-    application = Gtk.Application(application_id='org.centaur.Gtk4', flags=Gio.ApplicationFlags.NON_UNIQUE)
-    application.register()
-    window = Gtk.ApplicationWindow(application=application, decorated=False, default_width=w+80, default_height=h+80)
+    window = Gtk.Window(title='Centaur preview corner check', decorated=False, default_width=w+80, default_height=h+80)
     provider = Gtk.CssProvider()
     provider.load_from_path(str(Path(__file__).with_name('shell.css')))
     display = Gdk.Display.get_default()
@@ -38,10 +37,20 @@ def capture(driver, folder, source):
 
     def allocated():
         pump()
-        return backend.widget.get_width() == w+192 and backend.widget.get_height() == h+192
+        return (viewport.get_width(), viewport.get_height()) == (w+80, h+80) and (
+            backend.widget.get_width(), backend.widget.get_height()) == (w+192, h+192)
 
     try:
         window.present()
+
+        def mapped_window():
+            pump()
+            return next((node['id'] for node in driver.nodes()
+                         if node.get('pid') == os.getpid() and node.get('name') == window.get_title()), None)
+
+        handle = until(mapped_window, 'Host window failed to map')
+        driver.ipc(f'[con_id={handle}] floating enable, border none')
+        driver.resize(handle, w+80, h+80)
         until(allocated, 'Preview stage did not allocate')
         backend.start(AppSpec((os.environ['CENTAUR_GTK_RUNNER'], str(source)), w, h), folder, report)
 
@@ -51,7 +60,6 @@ def capture(driver, folder, source):
             return (client.get('width'), client.get('height')) == (w, h)
 
         until(ready, 'Separate app failed to map at its saved dimensions')
-        handle = driver.find_window('org.centaur.Gtk4', os.getpid())
         results = {}
         for mode in ('100%', '75%'):
             viewport.set_zoom(mode)
