@@ -170,7 +170,7 @@ def check_multiplayer(driver, folder, launch, click, message, bridge, env, host,
         until(lambda:guest()['author']=='Framework','Guest name did not save')
         first_invitation=invite_and_join()
         from composer_check import check_composer
-        check_composer(driver,evidence,click,host,hw,guest,gw,alpha,host_root,guest_root)
+        check_composer(driver,evidence,click,host,hw,guest,gw,alpha,host_root,guest_root,hold_coordinator)
         shared_host=(host_root/'profile-avatar-wire').read_bytes()
         assert guest_avatar.read_bytes()==alpha.read_bytes()
         with Image.open(guest_wire) as image:

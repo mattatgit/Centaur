@@ -50,6 +50,7 @@ def chip(ref, activate, remove=None):
 
 def thumbnail(path, remove):
     tile = Gtk.Overlay()
+    tile.add_css_class('draft-thumbnail')
     tile.set_size_request(72,72)
     tile.set_halign(Gtk.Align.START)
     tile.set_valign(Gtk.Align.START)
@@ -66,6 +67,41 @@ def thumbnail(path, remove):
     return tile
 
 
+class AttachmentLayout(Gtk.LayoutManager):
+    """Wrap each attachment at its own width; a long chip occupies only its row."""
+    gap = 8  # A 72px tile reserves another 8px beside its 64px image for the X.
+
+    def do_get_request_mode(self, widget):
+        return Gtk.SizeRequestMode.HEIGHT_FOR_WIDTH
+
+    def place(self, widget, width, allocate_children=False):
+        x = y = row_height = 0
+        for child in widget:
+            natural = child.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+            w = min(natural, width) if width >= 0 else natural
+            if x and width >= 0 and x + w > width:
+                y += row_height + self.gap
+                x = row_height = 0
+            h = child.measure(Gtk.Orientation.VERTICAL, w)[1]
+            if allocate_children:
+                allocate(child, w, h, x, y)
+            x += w + self.gap
+            row_height = max(row_height, h)
+        return y + row_height
+
+    def do_measure(self, widget, orientation, for_size):
+        if orientation == Gtk.Orientation.HORIZONTAL:
+            widths = [child.measure(orientation, -1) for child in widget]
+            minimum = max((w[0] for w in widths), default=0)
+            natural = sum(w[1] for w in widths) + self.gap * max(0, len(widths)-1)
+            return minimum, natural, -1, -1
+        height = self.place(widget, for_size)
+        return height, height, -1, -1
+
+    def do_allocate(self, widget, width, height, baseline):
+        self.place(widget, width, allocate_children=True)
+
+
 class ComposerInput:
     def __init__(self, owner):
         self.owner = owner
@@ -77,9 +113,8 @@ class ComposerInput:
         self.titles_inflight = 0
         self.metadata_pool = ThreadPoolExecutor(max_workers=2,thread_name_prefix='figma-title')
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='composer-image')
-        self.flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=False,
-                                min_children_per_line=1, max_children_per_line=8,
-                                row_spacing=8,column_spacing=8,halign=Gtk.Align.FILL)
+        self.flow = Gtk.Box()
+        self.flow.set_layout_manager(AttachmentLayout())
         self.ghost = label('', 'composer-placeholder', False)
         self.ghost.set_can_target(False); self.ghost.set_halign(Gtk.Align.START); self.ghost.set_valign(Gtk.Align.START)
         owner.composer.area.add_overlay(self.ghost)
@@ -336,7 +371,7 @@ class ComposerInput:
         while self.flow.get_first_child():
             self.flow.remove(self.flow.get_first_child())
         for key in list(self.owner.targets):
-            if key.startswith(('remove-reference-','draft-reference-')): del self.owner.targets[key]
+            if key.startswith(('remove-reference-','draft-reference-','draft-image-')): del self.owner.targets[key]
         for i,r in enumerate(self.refs):
             remove = lambda i=i:self.remove(i)
             if r['type']=='loading':
@@ -346,9 +381,11 @@ class ComposerInput:
                 child=chip(r,False,remove)
             else:
                 child=thumbnail(self.directory/image_filename(r),remove)
-            self.flow.insert(child,-1)
+            self.flow.append(child)
             self.owner.targets['remove-reference-'+str(i)]=child.get_last_child()
-            if self.owner.reports: self.owner.targets['draft-reference-'+str(i)]=child
+            if self.owner.reports:
+                self.owner.targets['draft-reference-'+str(i)]=child
+                if r['type']=='image': self.owner.targets['draft-image-'+str(i)]=child.get_child()
         self.owner.composer.tray.set_visible(bool(self.refs))
         self.owner.composer.queue_resize()
         self.owner.update_send()

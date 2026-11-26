@@ -245,16 +245,19 @@ popover.import-branch-menu > contents { min-width: 344px; padding: 8px; border: 
 .composer-action:active { background: #d9d9d9; }
 .composer-action:disabled { background: transparent; opacity: 1; }
 .composer-action:focus-visible, .chip-action:focus-visible, .uploaded-image:focus-visible, .image-remove:focus-visible {
-  outline: 2px solid #138ef5; outline-offset: -2px;
+  outline: 1px solid #505750; outline-offset: -2px;
 }
-.composer flowbox, .composer flowboxchild { padding: 0; margin: 0; background: transparent; }
+.uploaded-image:focus-visible { outline: 2px solid white; outline-offset: -3px; border-color: #505750; }
 .figma-chip { min-height: 20px; background: #ebebeb; border-radius: 8px; padding: 6px 8px; }
 .chip-title { font-family: "Inter Tight"; font-size: 12px; font-weight: 600; color: #171717; }
 .chip-action { min-width: 16px; min-height: 16px; }
 .image-thumbnail, .uploaded-image { border-radius: 10px; box-shadow: inset 0 0 0 1px alpha(#171717,.12); }
 .uploaded-image { border: 1px solid alpha(#171717,.12); }
-.image-remove { background: #d9d9d9; border-radius: 12px; min-width: 24px; min-height: 24px; opacity: 0; }
-flowboxchild:hover .image-remove, .image-remove:focus-visible { opacity: 1; }
+.image-remove { background: #ebebeb; border-radius: 12px; min-width: 24px; min-height: 24px; opacity: 0; }
+.draft-thumbnail:hover .image-remove, .image-remove:focus-visible { opacity: 1; }
+.draft-thumbnail .image-remove:hover, .image-remove:active { background: #d9d9d9; }
+.request-details { padding: 2px 4px; color: #646964; font-size: 11px; }
+.request-details:hover, .request-details:focus-visible { color: #171717; }
 .upload-attribution { font-family: Inter; font-size: 10px; color: #6b6b6b; }
 .import-prompt-box.invalid, .import-prompt-box.invalid textview, .import-prompt-box.invalid text { background-color: #ffefee; }
 .form-error-text { font-family: Inter; font-weight: 500; color: #ff6157; font-size: 10px; }

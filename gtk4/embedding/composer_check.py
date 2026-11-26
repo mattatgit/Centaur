@@ -59,7 +59,7 @@ def drop_files(driver, state, window, paths):
               'The composer did not receive the file drop')
 
 
-def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root):
+def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root, hold_coordinator):
     from check import target
     from workspace_polish_check import move_over
     pid=host()['project']['id']
@@ -90,6 +90,8 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         if 'attach' in host()['focusedTargets']: break
     assert 'attach' in host()['focusedTargets'],'The attach button was unreachable by keyboard'
     driver.screenshot(hw,evidence/'composer-keyboard-focus.png')
+    move_over(driver,hw,target(host,'draft-reference-1'))
+    driver.screenshot(hw,evidence/'composer-thumbnail-hover.png')
     move_over(driver,hw,target(host,'remove-reference-1'))
     driver.screenshot(hw,evidence/'composer-remove-hover.png')
     old_size=host()['windowSize']
@@ -159,9 +161,15 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         if any(n['id']==chooser['id'] for n in driver.nodes()):
             driver.screenshot(chooser['id'],evidence/'composer-picker-after-open.png',focus=False)
         raise
-    click(guest,gw,'send')
+    with hold_coordinator():
+        click(guest,gw,'send')
+        until(lambda:'upload-status' in guest()['targets'],'Image send had no pending acknowledgement')
+        assert not guest()['draft']['canSend'] and guest()['draft']['attachments']==['image']
+        driver.screenshot(gw,evidence/'composer-image-sending.png')
     until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1
                      for m in host()['project']['messages']),'Host never received the guest’s selected image')
+    until(lambda:'upload-status' not in guest()['targets'] and not guest()['draft']['attachments'],
+          'Acknowledged image stayed pending')
     from attachment_model import prepare_image
     picked=prepare_image(recent.read_bytes())[0]
     assert any(m.get('text')=='Guest visual reference' and m.get('attachments')==[picked]
@@ -182,7 +190,24 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     for index in range(2):
         bounds=target(guest,'draft-reference-'+str(index))
         assert tuple(map(round,bounds[2:]))==(72,72),bounds
+    left,right=(target(guest,'draft-image-'+str(index)) for index in (0,1))
+    assert left[1]==right[1] and round(right[0]-left[0]-left[2])==16,(left,right)
     driver.screenshot(gw,evidence/'composer-dropped-images.png')
+    for count,slug in enumerate(('Illustrations-for-the-project','Reference-for-colour-and-type'),1):
+        with clipboard(driver,'text','https://www.figma.com/design/Fixture123/'+slug):
+            click(guest,gw,'editor'); driver.key('ctrl+v')
+            until(lambda:guest()['draft']['attachments'].count('figma')==count,'The pasted chip did not appear')
+    driver.resize(gw,376,old_size[1])
+    until(lambda:guest()['layout']['chatWidth']<400,'Narrow mixed layout did not settle')
+    x,_,width,_=target(guest,'composer')
+    refs=[target(guest,'draft-reference-'+str(i)) for i in range(4)]
+    assert refs[3][1]>refs[0][1] and all(x<=a and a+c<=x+width+1 for a,b,c,d in refs),refs
+    for prev,current in zip(refs,refs[1:]):
+        assert current[1]>=prev[1]+prev[3] or current[0]>=prev[0]+prev[2],refs
+    driver.screenshot(gw,evidence/'composer-wrapped-images-and-links.png')
+    driver.resize(gw,*old_size)
+    until(lambda:guest()['windowSize']==old_size,'Could not restore the guest window')
+    click(guest,gw,'remove-reference-3'); click(guest,gw,'remove-reference-2')
     click(guest,gw,'remove-reference-1'); click(guest,gw,'remove-reference-0')
 
 

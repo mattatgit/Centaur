@@ -368,6 +368,9 @@ class Centaur(Gtk.Application):
         row=box(spacing=8)
         self.attach=icon_button('Attach images',artwork('db162.svg',16,(2,2,12,12)),lambda:self.composer_input.pick(),'composer-action')
         row.append(self.attach); self.targets['attach']=self.attach
+        self.upload_status=Gtk.Label(accessible_role=Gtk.AccessibleRole.STATUS,css_classes=['small','muted'])
+        self.upload_status.set_visible(False); row.append(self.upload_status)
+        self.targets['upload-status']=self.upload_status
         spacer=box(); spacer.set_hexpand(True); row.append(spacer)
         self.send_icons=Gtk.Stack()
         for key,filename in [('enabled','0bc46.svg'),('disabled','5be6d.svg')]:
@@ -435,6 +438,10 @@ class Centaur(Gtk.Application):
         if inputs and any(r['type']=='loading' for r in inputs.refs): ready=False
         self.send_button.set_sensitive(ready)
         self.send_icons.set_visible_child_name('enabled' if ready else 'disabled')
+        count=sum(r['type']=='image' for r in (self.pending_message or {}).get('attachments',[]))
+        self.upload_status.set_visible(bool(count))
+        if count:
+            self.upload_status.set_text('Sending image…' if count==1 else f'Sending {count} images…')
 
     @staticmethod
     def clear(widget):
@@ -1077,8 +1084,11 @@ class Centaur(Gtk.Application):
         if conflict and not conflict.get('resolving'): self.add_conflict_choices(column,conflict)
         if message.get('agentDiagnostics'):
             details=message['agentDiagnostics']
-            action=button('Request details',lambda d=details:self.show_agent_details(d),tone='plain')
-            action.set_halign(Gtk.Align.START); column.append(action)
+            stamp.set_hexpand(True)
+            action=Gtk.Button(label='Details',css_classes=['request-details'])
+            accessible(action,'Request details')
+            action.connect('clicked',lambda _:self.show_agent_details(details))
+            head.append(action)
         if message.get('attachments'):
             item=conversation_references(self,message,author,item)
         return item,(avatar,name,stamp,body),action,mark
@@ -1119,6 +1129,8 @@ class Centaur(Gtk.Application):
         if self.send_button.get_sensitive() and (text.strip() or self.composer_input.refs):
             fields={'text':text,'projectId':self.project['id'],'clientId':str(uuid4()),'attachments':list(self.composer_input.refs)}
             if self.comment.phase=='placed': fields['comment']=self.comment.target
+            self.pending_message={'text':text,'clientId':fields['clientId'],'attachments':fields['attachments'],'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
+            self.update_send()
             if mentions_agent(text,self.project.get('agentName','centaur')) and self.viewport:
                 try:
                     # Capture only the canvas, including aligned annotations;
@@ -1143,9 +1155,8 @@ class Centaur(Gtk.Application):
                     fields.update(image=str(target),imageRevision=self.project['revision'])
                 except Exception as error:
                     self.show_error('Could not attach the canvas image. Drawing coordinates are included. '+str(error))
-            self.pending_message={'text':text,'clientId':fields['clientId'],'attachments':fields['attachments'],'seen':{m['id'] for m in self.project.get('messages',[])},'commentToken':self.comment.token,'comment':fields.get('comment')}
-            self.send_button.set_sensitive(False)
-            if not self.service.send('message',**fields): self.pending_message=None
+            if not self.service.send('message',**fields):
+                self.pending_message=None; self.update_send()
 
     def editor_key(self,controller,keyval,keycode,state):
         if self.composer_input.key(keyval,state): return True
