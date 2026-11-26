@@ -63,11 +63,20 @@ def check_provider_hovers(driver,folder,state,window):
 
 def check_working_pixels(driver,folder,state,window):
     until(lambda:state().get('workingAnimation',{}).get('running'),'Working mark did not start its native frame clock')
-    mark=until(lambda:next((s['bounds'] for s in state()['assetSlots'] if s['file']=='v2/centaur_wait_animation.svg'),None),'Working mark did not receive its native allocation')
-    x,y,w,h=map(round,mark);assert (w,h)==(32,32)
+    def visible_mark():
+        current=state()
+        sx,sy,sw,sh=current['targets']['chat-scroller']
+        for slot in current['assetSlots']:
+            if slot['file']=='v2/centaur_wait_animation.svg':
+                x,y,w,h=map(round,slot['bounds'])
+                if sx<=x and sy<=y and x+w<=sx+sw and y+h<=sy+sh: return x,y,w,h
     captures=[]; samples=[]; started=time.monotonic()
     for index in range(12):
         time.sleep(.12)
+        # Appending the activity can scroll the chat after its first allocation.
+        # Sample the visible artwork each time, inside the actual viewport.
+        x,y,w,h=until(visible_mark,'Working mark never became visible in the chat viewport')
+        assert (w,h)==(32,32)
         path=folder/f'ui-working-clock-{index:02}.png'
         driver.screenshot(window,path,focus=False)
         with Image.open(path) as image:

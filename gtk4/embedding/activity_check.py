@@ -100,6 +100,8 @@ def check_activity(driver,folder,hs,hw,gs,gw,click,message,control,reply_file):
     assert details['layer']=='centaur.agent' and details['sourceUnchanged'] and details['sourceComparisonAvailable']
     assert 'SECRET_' not in json.dumps(details)
     until(lambda:not hs()['workingAnimation']['running'],'Failed request kept animating')
+    target(hs,'agent-details-'+failure['id'])
+    driver.screenshot(hw,folder/'composer-error-details.png')
     click(hs,hw,'agent-details-'+failure['id'])
     until(lambda:hs().get('form')=='Agent request details','In-app request details did not open')
     driver.screenshot(hw,folder/'ui-agent-request-details.png')
