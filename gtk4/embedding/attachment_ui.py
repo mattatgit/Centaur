@@ -506,6 +506,12 @@ class ComposerInput:
             else: job.future.cancel()
         self.refresh(); self.clean_files()
 
+    def update_remove_controls(self, submitted):
+        # The bridge still needs these files until it acknowledges the message.
+        # References appended for the next message remain independently editable.
+        for index, child in enumerate(self.flow):
+            child.get_last_child().set_sensitive(index >= len(submitted))
+
     def clean_files(self):
         used = {image_filename(r) for draft in self.drafts.values() for r in draft if r['type']=='image'}
         for suffix in ('png','jpeg'):

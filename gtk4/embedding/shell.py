@@ -439,7 +439,9 @@ class Centaur(Gtk.Application):
         if inputs and any(r['type']=='loading' for r in inputs.refs): ready=False
         self.send_button.set_sensitive(ready)
         self.send_icons.set_visible_child_name('enabled' if ready else 'disabled')
-        count=sum(r['type']=='image' for r in (self.pending_message or {}).get('attachments',[]))
+        submitted = (self.pending_message or {}).get('attachments',[])
+        if inputs: inputs.update_remove_controls(submitted)
+        count=sum(r['type']=='image' for r in submitted)
         self.upload_status.set_visible(bool(count))
         if count:
             self.upload_status.set_text('Sending image…' if count==1 else f'Sending {count} images…')

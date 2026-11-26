@@ -208,19 +208,37 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
         if any(n['id']==chooser['id'] for n in driver.nodes()):
             driver.screenshot(chooser['id'],evidence/'composer-picker-after-open.png',focus=False)
         raise
+    with clipboard(driver,'text',url):
+        click(guest,gw,'editor'); driver.key('ctrl+v')
+        until(lambda:guest()['draft']['attachments']==['image','figma'],'Guest mixed draft did not settle')
     with hold_coordinator():
         click(guest,gw,'send')
         until(lambda:'upload-status' in guest()['targets'],'Image send had no pending acknowledgement')
-        assert not guest()['draft']['canSend'] and guest()['draft']['attachments']==['image']
+        assert not guest()['draft']['canSend']
+        for index in (0,1):
+            click(guest,gw,'remove-reference-'+str(index))
+        next_link='https://www.figma.com/design/Fixture123/Next-draft'
+        with clipboard(driver,'text',next_link):
+            click(guest,gw,'editor'); driver.key('ctrl+v')
+            until(lambda:guest()['draft']['attachments']==['image','figma','figma'],
+                  'Removing a submitted reference changed the pending message')
+            click(guest,gw,'remove-reference-2')
+            until(lambda:guest()['draft']['attachments']==['image','figma'],'Next-draft chip could not be removed')
+            click(guest,gw,'editor'); driver.key('ctrl+v')
+            until(lambda:guest()['draft']['attachments']==['image','figma','figma'],'Next draft was not restored')
         driver.screenshot(gw,evidence/'composer-image-sending.png')
-    until(lambda:any(m.get('text')=='Guest visual reference' and len(m.get('attachments',[]))==1
-                     for m in host()['project']['messages']),'Host never received the guest’s selected image')
-    until(lambda:'upload-status' not in guest()['targets'] and not guest()['draft']['attachments'],
-          'Acknowledged image stayed pending')
+    until(lambda:'upload-status' not in guest()['targets'] and guest()['draft']['attachments']==['figma']
+          and guest()['draft']['canSend'],'Acknowledgement did not preserve exactly the next draft')
     from attachment_model import prepare_image
     picked=prepare_image(recent.read_bytes())[0]
-    assert any(m.get('text')=='Guest visual reference' and m.get('attachments')==[picked]
-               for m in host()['project']['messages']),'The chosen file did not reach the other participant'
+    for state in (host,guest):
+        rows=until(lambda:[m for m in state()['project']['messages'] if m.get('text')=='Guest visual reference'],
+                   'The guest’s mixed message did not reach both participants')
+        assert len(rows)==1 and rows[0]['attachments'][0]==picked and len(rows[0]['attachments'])==2
+        assert rows[0]['attachments'][1]['url']==url,rows[0]['attachments']
+    click(guest,gw,'remove-reference-0')
+    until(lambda:not guest()['draft']['attachments'],'Next-draft chip stayed locked after acknowledgement')
+    print('PASS: submitted guest attachments survive removal attempts; editable next draft survives acknowledgement',flush=True)
     second=evidence/'drop-input.jpg'
     primary=Image.new('RGB',(1024,1365),'#138ef5')
     alternate=Image.new('RGB',primary.size,'red')
