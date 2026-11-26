@@ -1,12 +1,23 @@
 # Current state
 
-## Composer polish queued after owner testing on 966074c
+## Owner acceptance of GTK4 preview `0.4.0-preview+742a307`
 
-The owner verified recall of an image originally attached to an agent request on the ARM64 VM and x86-64 Framework. On `003173c`, an MPO flower photograph shared in ordinary chat displayed on both machines, but both follow-up requests using “photograph” sent only the app canvas to the agent. The visual refinements below remain queued for a dedicated pass. Explicit private-reader access and an owner update starting from `003173c` are still untested.
+The ARM64 NixOS VM (host) and x86-64 Framework (guest) both updated from `003173c` through Centaur, relaunched normally and retained their existing Sharing Test data. All completed functional checks passed.
+
+- The Framework's Send button enabled after reopening the project while the host stayed quiet. Its first message appeared exactly once on each machine.
+- Each participant could ask about a photograph the other had posted in ordinary human chat. The original flower MPO/JPEG also uploaded and appeared on both machines.
+- The Framework paused at “Preparing to download” and finished with 21,781,519 of 21,781,519 bytes downloaded. Its final diagnostics showed no recent download errors. The owner did not independently verify live MB in both Settings and the chat footer.
+
+The next normal update **started from `742a307`** is the first opportunity for the owner to observe its elapsed-time feedback. Check both views during preparation and transfer on that update. The earlier two-participant conflict agreement passed on `003173c`. The owner deferred the deliberately split vote. This round calls for no corrective release.
+
+## Separate composer design review
+
+The owner carried forward these six observations from earlier acceptance. They were outside the `742a307` retest.
 
 - Measure the interval from Send to visible feedback on image messages. Show a pending state immediately and distinguish upload from agent processing.
 - Use the lighter remove-button treatment when hovering a thumbnail and the darker treatment directly over the X.
-- Set image-preview spacing to 16 px and check mixed image and Figma chip wrapping as the composer narrows.
+- Set the visible gap between adjacent image previews to 16 px.
+- Check mixed image and Figma chip wrapping as the composer narrows.
 - Refine keyboard focus outlines while keeping the focused control readily identifiable.
 - Review a secondary location for **Request details** on agent errors while keeping diagnostics available.
 
