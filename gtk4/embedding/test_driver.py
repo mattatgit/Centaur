@@ -126,7 +126,7 @@ class Driver:
     def drag(self, window, x, y, dx, dy, button=2):
         self.drag_path(window,x,y,[(dx,dy)],button)
 
-    def drag_path(self, window, x, y, moves, button=1):
+    def drag_path(self, window, x, y, moves, button=1, waypoint=None):
         if self.wayland:
             self.ipc(f'[con_id={window}] focus')
             r = self.rect(window)
@@ -134,12 +134,15 @@ class Driver:
             name = 'left' if button == 1 else 'middle'
             self.seat_command(name + ' press')
             previous_x = previous_y = 0
-            for dx,dy in moves:
-                for step in range(5):
-                    self.seat_command(f'motion {(dx-previous_x)/5} {(dy-previous_y)/5}')
-                    time.sleep(0.02)
-                previous_x,previous_y = dx,dy
-            self.seat_command(name + ' release')
+            try:
+                for dx,dy in moves:
+                    for step in range(5):
+                        self.seat_command(f'motion {(dx-previous_x)/5} {(dy-previous_y)/5}')
+                        time.sleep(0.02)
+                    if waypoint: waypoint(x+dx,y+dy)
+                    previous_x,previous_y = dx,dy
+            finally:
+                self.seat_command(name + ' release')
         else:
             command('xdotool','mousemove','--window',window,str(x),str(y),'mousedown',str(button))
             for dx,dy in moves:

@@ -26,14 +26,17 @@ def check_ink(driver,folder,hs,hw,gs,gw,click,resize_host,project_id):
         driver.ipc(f"seat seat0 cursor set {rect['x']+x} {rect['y']+y}");driver.seat_command('motion 0 0')
         # Both the Sway cursor and GTK widget coordinates are rounded to
         # device pixels. A fresh event can land one pixel from the target.
-        def reached():
+        def reached(px,py):
             observed=state()
             point=observed.get('nativePointer') or []
             return (observed.get('nativePointerSerial',0)>serial and len(point)==2 and
-                    abs(point[0]-x)<=1 and abs(point[1]-y)<=1)
-        until(reached,
-              'Drawing start did not reach the focused native client')
-        driver.drag_path(window,x,y,moves)
+                    abs(point[0]-px)<=1 and abs(point[1]-py)<=1)
+        def waypoint(px,py):
+            until(lambda:reached(px,py),'Drawing waypoint did not reach the focused native client')
+        # GTK can coalesce outbound and return motion into a single event.
+        # Wait until the client receives the turn before reversing direction.
+        waypoint(x,y)
+        driver.drag_path(window,x,y,moves,waypoint=waypoint)
 
     def blue(state,window,name,point):
         path=folder/(name+'.png')
