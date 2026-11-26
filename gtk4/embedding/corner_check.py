@@ -40,7 +40,6 @@ def capture(driver, application, folder, source):
 
     try:
         window.present()
-
         until(allocated, 'Preview stage did not allocate')
         backend.start(AppSpec((os.environ['CENTAUR_GTK_RUNNER'], str(source)), w, h), folder, report)
 
@@ -71,9 +70,12 @@ def capture(driver, application, folder, source):
                 pixels = image.convert('RGB')
             # An opaque white window on white exposes its silhouette only through its shadow.
             # Probe inside the nominal rectangle, outside the 12px arc, in all four corners.
-            inset = max(1, round(scale))
-            values = [pixels.getpixel((px, py))[0] for px in (x+inset, last_x-inset)
-                      for py in (y+inset, last_y-inset)]
+            # Stay one pixel inside to exclude the rectangular edge's antialiasing.
+            reach = max(2, round(5*scale))
+            values = [min(pixels.getpixel((cx+dx*i, cy+dy*j))[0]
+                          for i in range(1, reach) for j in range(1, reach))
+                      for cx, dx in ((x, 1), (last_x, -1))
+                      for cy, dy in ((y, 1), (last_y, -1))]
             results[mode] = dict(corners=values, interior=pixels.getpixel((x+20,y+20))[0],
                                  leftShadow=pixels.getpixel((x-2,(y+last_y)//2))[0],
                                  canvas=pixels.getpixel((x-16,(y+last_y)//2))[0])
