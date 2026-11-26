@@ -359,8 +359,8 @@ QJsonObject Agent::parseReply(const QByteArray &text, QString *error, EditIssue 
 }
 
 QJsonObject Agent::resolvePatch(const QJsonObject &patch, const QString &source, QString *error, EditIssue *issue) {
-    const auto reject = [&](QString category, QString hint, int operation = 0) -> QJsonObject {
-        if (issue) *issue = {category, "source", hint, operation, true};
+    const auto reject = [&](QString category, QString hint, int operation = 0, const QString &file = {}) -> QJsonObject {
+        if (issue) *issue = {category, "source", hint, operation, true, file};
         if (error) *error = "I couldn't complete this change.";
         return {};
     };
@@ -385,8 +385,8 @@ QJsonObject Agent::resolvePatch(const QJsonObject &patch, const QString &source,
         const auto edit=value.toObject(); const auto name=edit["file"].toString();
         auto text=files[name].toString(); const auto find=edit["find"].toString();
         const auto at=text.indexOf(find);
-        if (at<0) return reject("anchor_missing", "Read the named file again and copy the decoded text exactly.", operation);
-        if (text.indexOf(find,at+1)>=0) return reject("anchor_ambiguous", "Include enough surrounding text to match only once.", operation);
+        if (at<0) return reject("anchor_missing", "Copy the decoded text exactly from the current file.", operation,name);
+        if (text.indexOf(find,at+1)>=0) return reject("anchor_ambiguous", "Include enough surrounding text to match only once.", operation,name);
         text.replace(at,find.size(),edit["replace"].toString()); files[name]=text;
     }
     bundle["files"]=files;

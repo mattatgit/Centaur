@@ -20,9 +20,11 @@ def main():
     parser.add_argument('--height', type=int)
     args = parser.parse_args()
     if args.check:
-        # Only classify failures from static parsing, before any app code is run.
+        # The coordinator receives fixed categories without raw exceptions or source text.
         try:
             bundle = load_bundle(args.source)
+        except PermissionError:
+            return 26
         except SyntaxError:
             return 21
         except ET.ParseError:
@@ -32,6 +34,8 @@ def main():
         Gtk.init()
         try:
             window = construct(bundle)
+        except PermissionError:
+            return 26
         except StyleError:
             return 24
         except BuilderError:

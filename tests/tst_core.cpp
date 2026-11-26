@@ -910,7 +910,7 @@ private slots:
             QCOMPARE(issue.category,category); QCOMPARE(issue.correctable,correctable);
         };
         const QJsonObject edit{{"file","app.ui"},{"find","Gtk"},{"replace","different"}};
-        patch["edits"]=QJsonArray{edit}; rejects(patch,"anchor_ambiguous",true);
+        patch["edits"]=QJsonArray{edit}; rejects(patch,"anchor_ambiguous",true); QCOMPARE(issue.file,"app.ui");
         for (const QJsonValue &dimension:QJsonArray{119,4097,842.5,"842",true,QJsonValue::Null}) {
             patch["windowSize"]=QJsonObject{{"height",dimension}}; rejects(patch,"window_size",true);
         }
@@ -928,8 +928,10 @@ private slots:
         QTest::newRow("permission boundary") << "outside" << "agent_response_invalid" << 0;
         QTest::newRow("cancel during retry") << "cancel" << "cancelled" << 1;
         QTest::newRow("concurrent source change") << "concurrent" << "recovery_superseded" << 1;
+        QTest::newRow("earlier work consumes the request budget") << "budget" << "recovery_deadline" << 0;
         QTest::newRow("total deadline") << "timeout" << "recovery_deadline" << 1;
         QTest::newRow("native syntax check") << "native" << "committed" << 1;
+        QTest::newRow("checker permission failure") << "permission" << "permission_denied" << 0;
         QTest::newRow("clarification") << "question" << "clarification" << 1;
         QTest::newRow("conflict cannot disappear during repair") << "droppedVote" << "recovery_exhausted" << 2;
         QTest::newRow("whole replacement refused") << "replacement" << "recovery_scope" << 1;
@@ -951,7 +953,7 @@ private slots:
         auto bad=patch;
         bad["edits"]=QJsonArray{QJsonObject{{"file",scenario=="outside" ? "../private" : "app.py"},{"find","not in this app"},{"replace","example"}}};
         if (scenario=="droppedVote") bad["conflict"]=QJsonObject{{"reason","Opposing directions"},{"authors",QJsonArray{"Matt","Saori"}}};
-        QVERIFY(writeReply("first",scenario=="native" ? patch : bad));
+        QVERIFY(writeReply("first",(scenario=="native" || scenario=="permission") ? patch : bad));
         QJsonObject second=patch;
         if (scenario=="replacement") second={{"kind","proposal"},{"message","replace"},{"conflict",QJsonValue::Null},{"gtk",initial}};
         if (scenario=="question") second={{"kind","question"},{"message","Which window needs the new size?"}};
@@ -968,13 +970,20 @@ private slots:
         QVERIFY(Workspace::writeFile(agent,script+after+"cat corrected\n"));
         auto checkScript="#!"+shell+"\n";
         if (scenario=="native") checkScript+="if [ ! -f '"+dir.path().toUtf8()+"/checked' ]; then touch '"+dir.path().toUtf8()+"/checked'; exit 21; fi\n";
+        if (scenario=="permission") checkScript+="exit 26\n";
         QVERIFY(Workspace::writeFile(checker,checkScript+"exit 0\n"));
         for (const auto &path : {agent,checker}) QVERIFY(QFile::setPermissions(path,QFile::ReadOwner|QFile::WriteOwner|QFile::ExeOwner));
         const auto previous=qgetenv("CENTAUR_GTK_RUNNER"); qputenv("CENTAUR_GTK_RUNNER",checker.toUtf8());
         const auto restore=qScopeGuard([previous] { if (previous.isNull()) qunsetenv("CENTAUR_GTK_RUNNER"); else qputenv("CENTAUR_GTK_RUNNER",previous); });
         AgentOverride override(agent);
+        if (scenario=="budget") {
+            auto state=workspace.load(id);
+            state["agentQueue"]=QJsonArray{QJsonObject{{"id","original-request"},{"author","Matt"},
+                {"text","@centaur Resize the editor"},{"priorExecutionMs",15000}}};
+            QVERIFY(workspace.save(id,state));
+        }
         Session host(dir.path(),nullptr,15000,scenario=="timeout" ? 2200 : 15000); host.start();
-        host.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","@centaur Resize the editor"}});
+        if (scenario!="budget") host.send({{"type","message"},{"projectId",id},{"author","Matt"},{"text","@centaur Resize the editor"}});
         if (scenario=="cancel" || scenario=="concurrent") {
             QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(dir.path()+"/correcting"),2500);
             if (scenario=="cancel") host.send({{"type","cancel"},{"projectId",id},{"author","Matt"}});
@@ -986,7 +995,7 @@ private slots:
         QCOMPARE(details["recoveryOutcome"].toString(),outcome);
         QCOMPARE(details["correctiveAttempts"].toInt(),attempts);
         const auto trace=details["validationFailures"].toArray();
-        QCOMPARE(trace.first().toObject()["category"].toString(),scenario=="native" ? "python_syntax" : scenario=="outside" ? "path_rejected" : "anchor_missing");
+        QCOMPARE(trace.first().toObject()["category"].toString(),scenario=="permission" ? "permission_denied" : scenario=="native" ? "python_syntax" : scenario=="outside" ? "path_rejected" : "anchor_missing");
         QCOMPARE(details["revisionConsistent"].toBool(),scenario!="concurrent");
         const bool committed=outcome=="committed";
         const auto state=workspace.load(id);

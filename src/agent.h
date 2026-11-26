@@ -13,6 +13,7 @@ struct EditIssue {
     QString category, stage, hint;
     int operation = 0; // 1-based edit within the response, or 0 for the envelope.
     bool correctable = false;
+    QString file; // Only a validated name from the GTK bundle.
 };
 
 // The agent proposes source; only the project coordinator can apply it.

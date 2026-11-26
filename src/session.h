@@ -42,6 +42,7 @@ private:
     void finishAgent(const QJsonObject &reply);
     void agentError(const QString &message, const QString &code = {});
     void validationFailed(const EditIssue &issue, const QString &fallback, const QString &code);
+    qint64 requestElapsedMs() const;
     bool sameRecoveryBase(const QString &id, const QJsonObject &state) const;
     QJsonObject recoveryDetails(const QString &id, const QJsonObject &state, const QString &outcome) const;
     void applyProposal(const QString &id, QJsonObject state);

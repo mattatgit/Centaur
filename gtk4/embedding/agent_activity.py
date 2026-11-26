@@ -56,7 +56,8 @@ def details_text(details):
         for failure in details.get('validationFailures', [])[:3]:
             operation=failure.get('operation',0)
             lines.append('Validation: '+failure['stage']+' / '+failure['category']+
-                         (' (edit '+str(operation)+')' if operation else ''))
+                         (' (edit '+str(operation)+')' if operation else '')+
+                         (' / '+failure['file'] if failure.get('file') in ('app.py','app.ui','style.css') else ''))
     if details.get('recoveryOutcome') == 'committed':
         lines.append('Saved app source: corrected change committed')
     elif details.get('sourceComparisonAvailable'):
