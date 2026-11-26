@@ -8,6 +8,18 @@ MAX_IMAGE = 1024 * 1024
 MAX_INPUT = 16 * MAX_IMAGE
 MAX_MESSAGE = 3 * MAX_IMAGE
 MAX_ITEMS = 8
+MAX_PIXELS = 16_000_000
+MAX_EDGE = 8192
+
+
+def check_image_dimensions(width, height):
+    if width * height > MAX_PIXELS or max(width, height) > MAX_EDGE:
+        raise ValueError(f'Choose an image up to {MAX_PIXELS // 1_000_000}MP and {MAX_EDGE}px wide or high')
+
+
+def check_input_size(size):
+    if size > MAX_INPUT:
+        raise ValueError(f'Choose an image up to {MAX_INPUT // (1024 * 1024)} MiB.')
 
 
 def figma_reference(text):
@@ -56,16 +68,14 @@ def image_filename(ref):
 
 def prepare_image(raw):
     from PIL import Image, ImageOps, UnidentifiedImageError
-    if len(raw) > MAX_INPUT:
-        raise ValueError('Choose an image smaller than 16 MB.')
+    check_input_size(len(raw))
     try:
         with Image.open(BytesIO(raw), formats=('PNG', 'JPEG', 'WEBP')) as src:
             if src.format == 'MPO':
                 src.seek(0)  # Decode only the primary photograph.
             elif getattr(src, 'n_frames', 1) != 1:
                 raise ValueError('This image has multiple frames. Export a single frame as PNG or JPEG.')
-            if src.width * src.height > 16000000 or max(src.size) > 8192:
-                raise ValueError('Choose an image up to 16 megapixels and 8192 pixels wide or high.')
+            check_image_dimensions(*src.size)
             image = ImageOps.exif_transpose(src)
             alpha = image.has_transparency_data if hasattr(image, 'has_transparency_data') else ('A' in image.getbands() or 'transparency' in image.info)
             fmt = 'png' if alpha or src.format == 'PNG' else 'jpeg'

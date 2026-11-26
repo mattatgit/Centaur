@@ -4,10 +4,21 @@ import tempfile
 import unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'gtk4/embedding'))
-from attachment_model import figma_reference, image_filename, mentions_agent, mention_suffix, prepare_image, stored_image
+from attachment_model import (MAX_INPUT, check_image_dimensions, check_input_size, figma_reference,
+                              image_filename, mentions_agent, mention_suffix, prepare_image, stored_image)
 
 
 class ComposerModelTests(unittest.TestCase):
+    def test_displayed_image_limits_include_the_boundary(self):
+        for size in ((4000,4000),(8192,1),(1,8192)):
+            check_image_dimensions(*size)
+        for size in ((4001,4000),(8193,1),(1,8193)):
+            with self.assertRaisesRegex(ValueError,'16MP and 8192px'):
+                check_image_dimensions(*size)
+        check_input_size(MAX_INPUT)
+        with self.assertRaisesRegex(ValueError,'up to 16 MiB'):
+            check_input_size(MAX_INPUT+1)
+
     def test_mpo_shares_only_primary_photo_and_explains_other_multiframe_files(self):
         try: from PIL import Image
         except ImportError: self.skipTest('Pillow required for codec test')

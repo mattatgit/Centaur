@@ -294,7 +294,7 @@ class Composer(Gtk.Widget):
         if not getattr(self,'tray',None) or not self.tray.get_visible(): return 0
         # Give the first two rows their full height. Further rows scroll
         # independently so the draft and the conversation remain accessible.
-        return self.flow.get_layout_manager().place(self.flow,max(1,width-16),row_limit=2)+8
+        return self.flow.get_layout_manager().place(self.flow,max(1,width-32),row_limit=2)+8
 
     def changed(self, buffer):
         self.placeholder.set_visible(not buffer.get_char_count()); self.queue_resize()
@@ -320,12 +320,12 @@ class Composer(Gtk.Widget):
         extra=min(self.tray_size(width),max(0,height-112))
         if extra:
             tray_height=max(1,extra-8)
-            natural=self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-16))[1]
+            natural=self.flow.measure(Gtk.Orientation.VERTICAL,max(1,width-32))[1]
             # A fitting chip row is shorter than a native scrollbar. Request
             # the bar only when the allocated tray actually needs to scroll.
             policy=Gtk.PolicyType.AUTOMATIC if natural>tray_height and tray_height>=36 else Gtk.PolicyType.EXTERNAL
             if self.tray.get_policy()[1]!=policy: self.tray.set_policy(Gtk.PolicyType.NEVER,policy)
-            allocate(self.tray,width-16,tray_height,8,8)
+            allocate(self.tray,width-32,tray_height,16,8)
         allocate(self.area, width - 32, height - 56-extra, 16, 16+extra)
         allocate(self.row, width - 16, 32, 8, height - 40)
 

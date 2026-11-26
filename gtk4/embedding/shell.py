@@ -454,6 +454,7 @@ class Centaur(Gtk.Application):
         if page!='workspace': self.cancel_comment()
         opened_settings=page=='settings' and self.page!='settings'
         self.page=page
+        self.composer_input.refresh_notice()
         if opened_settings and hasattr(self,'settings'): self.settings.opened()
         if page=='settings' and hasattr(self,'updates') and not self.updates.checked: self.updates.check()
         if page=='settings' and hasattr(self,'settings'): self.settings.refresh()
@@ -1676,6 +1677,7 @@ class Centaur(Gtk.Application):
             draft_buffer=self.editor.get_buffer()
             draft=draft_buffer.get_text(draft_buffer.get_start_iter(),draft_buffer.get_end_iter(),False).encode()
             data['draft']={'bytes':len(draft),'sha256':hashlib.sha256(draft).hexdigest(),
+                           'imageError':self.composer_input.notice.caption.get_text(),
                            'suggestion':self.composer_input.suffix,'canSend':self.send_button.get_sensitive(),
                            'attachments':[r['type'] for r in self.composer_input.refs]}
             data['activity']={'inConversation':self.busy.get_parent()==self.messages,

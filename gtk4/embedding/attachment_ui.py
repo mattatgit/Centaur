@@ -1,5 +1,6 @@
 """GTK input and rendering for image and Figma conversation references."""
 import json
+import math
 import re
 import socket
 from concurrent.futures import ThreadPoolExecutor
@@ -8,9 +9,11 @@ import gi
 gi.require_version('Gtk','4.0')
 gi.require_version('Gdk','4.0')
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, GObject, Gtk, Pango
-from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, figma_reference,
-                              image_filename, mention_suffix, prepare_image, stored_image)
-from ui import OriginalSvg, Raster, accessible, allocate, box, label
+from attachment_model import (MAX_IMAGE, MAX_INPUT, MAX_ITEMS, MAX_MESSAGE, check_image_dimensions,
+                              check_input_size, figma_reference, image_filename, mention_suffix,
+                              prepare_image, stored_image)
+from ui import OriginalSvg, Raster, WidthLimit, accessible, allocate, box, label
+from workspace_motion import reduced_motion
 
 
 def artwork(name, size, rect=None):
@@ -48,7 +51,48 @@ def chip(ref, activate, remove=None):
     return row
 
 
-def thumbnail(path, remove):
+class LoadingRing(OriginalSvg):
+    def __init__(self):
+        super().__init__('composer/5488c.svg',26)
+        self.angle = 0
+        self.tick = None
+        self.connect('map', self.start)
+        self.connect('unmap', self.stop)
+
+    def start(self, *_):
+        prop = 'gtk-interface-reduced-motion' if self.get_settings().find_property('gtk-interface-reduced-motion') else 'gtk-enable-animations'
+        self.preference = self.get_settings().connect('notify::'+prop, self.sync)
+        self.sync()
+
+    def stop(self, *_):
+        self.get_settings().disconnect(self.preference)
+        if self.tick is not None:
+            self.remove_tick_callback(self.tick)
+            self.tick = None
+
+    def sync(self, *_):
+        if reduced_motion(self):
+            if self.tick is not None:
+                self.remove_tick_callback(self.tick)
+                self.tick = None
+            self.angle = 0
+            self.queue_draw()
+        elif self.tick is None:
+            self.tick = self.add_tick_callback(self.advance)
+
+    def advance(self, widget, clock):
+        self.angle = math.tau * (clock.get_frame_time() % 1_000_000) / 1_000_000
+        self.queue_draw()
+        return True
+
+    def draw(self, area, cr, width, height):
+        cr.translate(width/2, height/2)
+        cr.rotate(self.angle)
+        cr.translate(-width/2, -height/2)
+        super().draw(area, cr, width, height)
+
+
+def thumbnail(texture, remove):
     tile = Gtk.Overlay()
     tile.add_css_class('draft-thumbnail')
     tile.set_size_request(72,72)
@@ -57,14 +101,58 @@ def thumbnail(path, remove):
     frame = Gtk.Box(css_classes=['image-thumbnail'], overflow=Gtk.Overflow.HIDDEN)
     frame.set_margin_top(8)
     frame.set_margin_end(8)
-    preview = GdkPixbuf.Pixbuf.new_from_file_at_scale(str(path),128,128,True)
-    pic = Raster(path,64,cover=True,texture=Gdk.Texture.new_for_pixbuf(preview))
-    frame.append(pic)
+    if texture is None:
+        frame.add_css_class('image-loading')
+        accessible(frame,'Preparing image')
+        frame.set_halign(Gtk.Align.FILL)
+        frame.set_homogeneous(True)
+        frame.append(LoadingRing())
+    else:
+        frame.append(Raster('',64,cover=True,texture=texture))
     tile.set_child(frame)
-    close = icon_button('Remove image',artwork('f0a73.svg',16,(3.71,3.71,8.57,8.57)),remove,'image-remove')
+    close = icon_button('Cancel image preparation' if texture is None else 'Remove image',
+                        artwork('f0a73.svg',16,(3.71,3.71,8.57,8.57)),remove,'image-remove')
     close.set_halign(Gtk.Align.END); close.set_valign(Gtk.Align.START)
     tile.add_overlay(close)
     return tile
+
+
+class ImageNotice(WidthLimit):
+    def __init__(self, dismiss):
+        row = Gtk.Box(spacing=16, accessible_role=Gtk.AccessibleRole.ALERT, css_classes=['image-notice'])
+        row.append(artwork('d4461.svg',16))
+        self.caption = label('', 'image-notice-caption', True)
+        self.caption.set_hexpand(True)
+        self.caption.set_margin_end(12)
+        row.append(self.caption)
+        self.dismiss = icon_button('Dismiss image notification', artwork('cd44b.svg',16,(5.14,5.14,5.714,5.714)),
+                                   dismiss, 'image-notice-dismiss')
+        self.dismiss.set_valign(Gtk.Align.CENTER)
+        row.append(self.dismiss)
+        super().__init__(row,392)
+        self.set_halign(Gtk.Align.END)
+        self.set_valign(Gtk.Align.END)
+        for side in ('start','end','bottom'):
+            getattr(self,'set_margin_'+side)(24)
+        self.set_visible(False)
+
+    def do_measure(self, orientation, for_size):
+        minimum, natural, a, b = super().do_measure(orientation, for_size)
+        return minimum, self.maximum if orientation == Gtk.Orientation.HORIZONTAL else natural, a, b
+
+
+class ImageLoad:
+    def __init__(self, project):
+        self.project = project
+        self.slot = {'type':'loading'}
+        self.cancel = Gio.Cancellable()
+        self.future = None
+        self.timer = None
+
+    def stop_timer(self):
+        if self.timer is not None:
+            self.timer.destroy()
+            self.timer = None
 
 
 class AttachmentLayout(Gtk.LayoutManager):
@@ -111,8 +199,13 @@ class ComposerInput:
         self.editor = owner.editor
         self.directory = Path(owner.runtime.name)
         self.drafts = {}
-        self.pending = {}
-        self.clipboard_reads=set()
+        self.pending = set()
+        self.previews = {}
+        self.errors = {}
+        self.notice = ImageNotice(self.dismiss_notice)
+        owner.root_overlay.add_overlay(self.notice)
+        owner.targets['dismiss-image-notice'] = self.notice.dismiss
+        owner.targets['image-notice'] = self.notice
         self.titles_inflight = 0
         self.metadata_pool = ThreadPoolExecutor(max_workers=2,thread_name_prefix='figma-title')
         self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix='composer-image')
@@ -204,11 +297,12 @@ class ComposerInput:
         for file in files:
             path = file.get_path()
             if not path:
-                self.owner.show_error('Choose an image stored on this device.')
+                self.show_notice(self.project,'Choose an image stored on this device.')
                 continue
             def read(path=Path(path)):
-                if not path.is_file() or path.stat().st_size > MAX_INPUT:
-                    raise ValueError('Choose a regular image file smaller than 16 MB.')
+                if not path.is_file():
+                    raise ValueError('Choose a regular image file.')
+                check_input_size(path.stat().st_size)
                 with path.open('rb') as stream:
                     return stream.read(MAX_INPUT+1)
             if not self.ingest(read): break
@@ -218,56 +312,11 @@ class ComposerInput:
         formats = clipboard.get_formats()
         project = self.project
         image_types=[mime for mime in ('image/png','image/jpeg','image/webp') if formats.contain_mime_type(mime)]
-        if image_types:
-            # Read the encoded selection under the same limits as the picker.
-            # Asking GTK for a texture first would decode it before validation.
+        if image_types or formats.contain_gtype(Gdk.Texture.__gtype__):
             editor.stop_emission_by_name('paste-clipboard')
-            def stream_ready(source,result):
-                try:
-                    stream,_mime=source.read_finish(result)
-                    if stream is None: return
-                    if project!=self.project:
-                        stream.close(None)
-                        return
-                    cancel=Gio.Cancellable()
-                    self.clipboard_reads.add(cancel)
-                    timer=GLib.timeout_source_new_seconds(10)
-                    timer.set_callback(lambda *_:cancel.cancel() or False)
-                    timer.attach(None)
-                    def close_stream():
-                        timer.destroy()
-                        self.clipboard_reads.discard(cancel)
-                        return False
-                    def read():
-                        raw=bytearray()
-                        try:
-                            while len(raw)<=MAX_INPUT:
-                                chunk=stream.read_bytes(min(65536,MAX_INPUT+1-len(raw)),cancel).get_data()
-                                if not chunk: break
-                                raw.extend(chunk)
-                            return bytes(raw)
-                        except GLib.Error as error:
-                            raise ValueError('The clipboard image could not be read.') from error
-                        finally:
-                            GLib.idle_add(close_stream)
-                            stream.close(None)
-                    if not self.ingest(read):
-                        close_stream(); stream.close(None)
-                except GLib.Error:
-                    self.owner.show_error('The clipboard image could not be read.')
-            clipboard.read_async(image_types,GLib.PRIORITY_DEFAULT,None,stream_ready)
-        elif formats.contain_gtype(Gdk.Texture.__gtype__):
-            editor.stop_emission_by_name('paste-clipboard')
-            def texture_ready(source, result):
-                try:
-                    texture = source.read_texture_finish(result)
-                    if not texture or project != self.project: return
-                    if texture.get_width()*texture.get_height()>16000000:
-                        raise ValueError('Choose an image of up to 16 megapixels.')
-                    raw = texture.save_to_png_bytes().get_data()
-                    self.ingest(lambda: raw)
-                except (GLib.Error,ValueError) as error: self.owner.show_error(str(error))
-            clipboard.read_texture_async(None, texture_ready)
+            job = self.reserve()
+            if job is not None:
+                self.read_clipboard(job, clipboard, image_types)
         elif formats.contain_gtype(GObject.TYPE_STRING) or any(m.startswith('text/plain') for m in formats.get_mime_types()):
             editor.stop_emission_by_name('paste-clipboard')
             mark = self.buffer.create_mark(None,self.buffer.get_iter_at_mark(self.buffer.get_insert()),False)
@@ -287,43 +336,131 @@ class ComposerInput:
                 finally: self.buffer.delete_mark(mark)
             clipboard.read_text_async(None,text_ready)
 
+    def read_clipboard(self, job, clipboard, image_types):
+        def timed_out(*_):
+            job.cancel.cancel()
+            self.finish(job, error='The clipboard image took too long to read. Try copying it again.')
+            return False
+        job.timer = GLib.timeout_source_new_seconds(10)
+        job.timer.set_callback(timed_out)
+        job.timer.attach(None)
+
+        def texture_ready(source, result):
+            try:
+                texture = source.read_texture_finish(result)
+                if texture is None: raise ValueError('The clipboard image could not be read.')
+                check_image_dimensions(texture.get_width(), texture.get_height())
+                self.process(job, lambda:texture.save_to_png_bytes().get_data())
+            except (GLib.Error, ValueError) as error:
+                self.finish(job,error=str(error))
+
+        def stream_ready(source, result):
+            try:
+                stream, _mime = source.read_finish(result)
+                if stream is None: raise ValueError('The clipboard image could not be read.')
+            except (GLib.Error, ValueError):
+                self.finish(job,error='The clipboard image could not be read.')
+                return
+            raw = bytearray()
+            def chunk_ready(stream, result):
+                try:
+                    chunk = stream.read_bytes_finish(result).get_data()
+                    if job in self.pending and chunk:
+                        raw.extend(chunk)
+                        check_input_size(len(raw))
+                        next_chunk()
+                        return
+                    self.process(job, lambda:raw)
+                except GLib.Error:
+                    self.finish(job,error='The clipboard image could not be read.')
+                except ValueError as error:
+                    self.finish(job,error=str(error))
+                stream.close_async(GLib.PRIORITY_DEFAULT,None,None)
+
+            def next_chunk():
+                stream.read_bytes_async(min(65536, MAX_INPUT+1-len(raw)), GLib.PRIORITY_DEFAULT, job.cancel, chunk_ready)
+            next_chunk()
+
+        if image_types:
+            clipboard.read_async(image_types, GLib.PRIORITY_DEFAULT, job.cancel, stream_ready)
+        else:
+            clipboard.read_texture_async(job.cancel, texture_ready)
+
     def has_room(self, project):
         return project and len(self.drafts.get(project,[])) < MAX_ITEMS
 
-    def ingest(self, read):
+    def reserve(self):
         project = self.project
-        if not self.has_room(project) or sum(self.pending.values()) >= MAX_ITEMS:
-            self.owner.show_error('Attach up to eight references at a time.')
-            return False
-        placeholder={'type':'loading'}
-        self.drafts.setdefault(project,[]).append(placeholder)
-        self.pending[project] = self.pending.get(project,0)+1
+        if not self.has_room(project) or len(self.pending) >= MAX_ITEMS:
+            self.show_notice(project,'Attach up to eight references at a time.')
+            return None
+        job = ImageLoad(project)
+        self.pending.add(job)
+        self.drafts.setdefault(project,[]).append(job.slot)
         self.refresh()
-        future = self.pool.submit(lambda:prepare_image(read()))
-        def finish():
-            if self.owner.closing: return False
-            self.pending[project] -= 1
-            draft=self.drafts.get(project,[])
-            slot=next((i for i,item in enumerate(draft) if item is placeholder),None)
-            if slot is None: return False
-            try:
-                ref, raw = future.result()
-                draft = self.drafts.get(project,[])
-                if sum((self.directory/image_filename(r)).stat().st_size for r in draft if r['type']=='image') + len(raw) > MAX_MESSAGE:
-                    raise ValueError('These images exceed the 3 MB message limit. Send them in separate messages.')
-                path = self.directory/image_filename(ref)
-                if not path.exists():
-                    if sum(p.stat().st_size for p in self.directory.glob('*.*') if p.is_file()) + len(raw) > 32*MAX_IMAGE:
-                        raise ValueError('Send or remove images from other drafts to make room.')
-                    path.write_bytes(raw)
-                draft[slot]=ref
-            except (ValueError,OSError) as error:
-                draft.pop(slot)
-                self.owner.show_error(str(error))
-            if project==self.project: self.refresh()
-            return False
-        future.add_done_callback(lambda _:GLib.idle_add(finish))
+        return job
+
+    def ingest(self, read):
+        job = self.reserve()
+        if job is None: return False
+        self.process(job, read)
         return True
+
+    def process(self, job, read):
+        if job not in self.pending: return
+        job.stop_timer()
+        def prepare():
+            ref, raw = prepare_image(read())
+            stream = Gio.MemoryInputStream.new_from_bytes(GLib.Bytes.new(raw))
+            pixbuf = GdkPixbuf.Pixbuf.new_from_stream_at_scale(stream,128,128,True,job.cancel)
+            return ref, raw, pixbuf
+        job.future = self.pool.submit(prepare)
+        job.future.add_done_callback(lambda _:GLib.idle_add(self.finish,job))
+
+    def finish(self, job, error=None):
+        if job not in self.pending: return False
+        self.pending.remove(job)
+        job.stop_timer()
+        draft = self.drafts.get(job.project,[])
+        slot = next((i for i,item in enumerate(draft) if item is job.slot),None)
+        if self.owner.closing or slot is None: return False
+        try:
+            if error is not None: raise ValueError(error)
+            ref, raw, pixbuf = job.future.result()
+            if sum((self.directory/image_filename(r)).stat().st_size for r in draft if r['type']=='image') + len(raw) > MAX_MESSAGE:
+                raise ValueError(f'These images exceed the {MAX_MESSAGE // (1024*1024)} MiB message limit. Send them in separate messages.')
+            path = self.directory/image_filename(ref)
+            if not path.exists():
+                if sum(p.stat().st_size for p in self.directory.glob('*.*') if p.is_file()) + len(raw) > 32*MAX_IMAGE:
+                    raise ValueError('Send or remove images from other drafts to make room.')
+                staging = path.with_suffix('.part')
+                try:
+                    staging.write_bytes(raw)
+                    staging.replace(path)
+                finally:
+                    staging.unlink(missing_ok=True)
+            self.previews[path.name] = Gdk.Texture.new_for_pixbuf(pixbuf)
+            draft[slot] = ref
+        except Exception as failure:
+            draft.pop(slot)
+            message = str(failure) if isinstance(failure,ValueError) else 'This image could not be prepared. Try another image.'
+            self.show_notice(job.project, message)
+        if job.project == self.project: self.refresh()
+        return False
+
+    def show_notice(self, project, message):
+        self.errors[project] = message
+        self.refresh_notice()
+
+    def refresh_notice(self):
+        message = self.errors.get(self.project,'')
+        self.notice.caption.set_text(message)
+        self.notice.set_visible(bool(message) and self.owner.page == 'workspace')
+
+    def dismiss_notice(self):
+        self.errors.pop(self.project,None)
+        self.refresh_notice()
+        self.editor.grab_focus()
 
     def refine_title(self, project, ref):
         # A denied or unavailable reader leaves the URL-derived title usable.
@@ -360,7 +497,13 @@ class ComposerInput:
         if project == self.project: self.refresh()
 
     def remove(self, index):
-        self.refs.pop(index)
+        ref = self.refs.pop(index)
+        if ref['type'] == 'loading':
+            job = next(job for job in self.pending if job.slot is ref)
+            job.cancel.cancel()
+            job.stop_timer()
+            if job.future is None: self.pending.remove(job)
+            else: job.future.cancel()
         self.refresh(); self.clean_files()
 
     def clean_files(self):
@@ -369,6 +512,7 @@ class ComposerInput:
             for path in self.directory.glob('*.'+suffix):
                 if re.fullmatch(r'[0-9a-f]{64}\.(png|jpeg)',path.name) and path.name not in used:
                     path.unlink(missing_ok=True)
+                    self.previews.pop(path.name,None)
 
     def refresh(self):
         while self.flow.get_first_child():
@@ -377,13 +521,11 @@ class ComposerInput:
             if key.startswith(('remove-reference-','draft-reference-','draft-image-')): del self.owner.targets[key]
         for i,r in enumerate(self.refs):
             remove = lambda i=i:self.remove(i)
-            if r['type']=='loading':
-                child=Gtk.Button(label='Preparing image…')
-                child.connect('clicked',lambda _,remove=remove:remove())
-            elif r['type']=='figma':
+            if r['type']=='figma':
                 child=chip(r,False,remove)
             else:
-                child=thumbnail(self.directory/image_filename(r),remove)
+                texture = self.previews[image_filename(r)] if r['type']=='image' else None
+                child=thumbnail(texture,remove)
             self.flow.append(child)
             self.owner.targets['remove-reference-'+str(i)]=child.get_last_child()
             if self.owner.reports:
@@ -392,6 +534,7 @@ class ComposerInput:
         self.owner.composer.tray.set_visible(bool(self.refs))
         self.owner.composer.queue_resize()
         self.owner.update_send()
+        self.refresh_notice()
         self.refresh_suggestion()
 
     def confirmed(self, sent):
@@ -401,7 +544,11 @@ class ComposerInput:
             self.refresh(); self.clean_files()
 
     def close(self):
-        for cancel in self.clipboard_reads: cancel.cancel()
+        for job in self.pending:
+            job.cancel.cancel()
+            job.stop_timer()
+        self.pending.clear()
+        self.notice.release()
         self.metadata_pool.shutdown(wait=False,cancel_futures=True)
         self.pool.shutdown(wait=False,cancel_futures=True)
 

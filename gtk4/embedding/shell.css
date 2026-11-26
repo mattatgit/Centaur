@@ -253,9 +253,15 @@ popover.import-branch-menu > contents { min-width: 344px; padding: 8px; border: 
 .chip-action { min-width: 16px; min-height: 16px; }
 .image-thumbnail, .uploaded-image { border-radius: 10px; box-shadow: inset 0 0 0 1px alpha(#171717,.12); }
 .uploaded-image { border: 1px solid alpha(#171717,.12); }
-.image-remove { background: #ebebeb; border-radius: 12px; min-width: 24px; min-height: 24px; opacity: 0; }
+.image-loading { background: #ebebeb; box-shadow: none; }
+.image-remove { background: #d9d9d9; border-radius: 12px; min-width: 24px; min-height: 24px; opacity: 0; }
 .draft-thumbnail:hover .image-remove, .image-remove:focus-visible { opacity: 1; }
-.draft-thumbnail .image-remove:hover, .image-remove:active { background: #d9d9d9; }
+.draft-thumbnail .image-remove:hover, .image-remove:active { background: #cdd1cd; }
+.image-notice { background: #fafafa; border-radius: 12px; padding: 12px 16px; min-height: 24px; }
+.image-notice-caption { color: #171717; font: 12px "Inter Tight"; }
+.image-notice-dismiss { padding: 0; margin: 0; border: none; box-shadow: none; min-height: 16px; min-width: 16px; border-radius: 8px; background: transparent; }
+.image-notice-dismiss:hover, .image-notice-dismiss:active { background: #cdd1cd; }
+.image-notice-dismiss:focus-visible { outline: 1px solid #505750; outline-offset: -1px; }
 .request-details { padding: 2px 4px; color: #646964; font-size: 11px; }
 .request-details:hover, .request-details:focus-visible { color: #171717; }
 .upload-attribution { font-family: Inter; font-size: 10px; color: #6b6b6b; }

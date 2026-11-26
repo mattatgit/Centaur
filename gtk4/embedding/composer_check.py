@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from hashlib import sha256
 import json
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
@@ -24,7 +25,7 @@ def reference_source(driver,kind,*values):
                 if rect!=last: last=rect; since=time.monotonic()
                 return rect['width']>0 and rect['height']>0 and time.monotonic()-since>=.2
             until(placed,'Reference window did not settle')
-            yield fixture
+            yield fixture, helper
         finally:
             helper.terminate(); helper.wait(timeout=4)
 
@@ -33,7 +34,7 @@ def reference_source(driver,kind,*values):
 def clipboard(driver,kind,value):
     mime='image/png' if kind=='image' else 'text/plain;charset=utf-8'
     data=value.read_bytes() if kind=='image' else value.encode()
-    with reference_source(driver,kind,value) as fixture:
+    with reference_source(driver,kind,value) as (fixture,helper):
         def owns_selection():
             # Wayland grants ownership using the focused source's input
             # serial. Renew that serial if the initial window map raced the
@@ -43,12 +44,20 @@ def clipboard(driver,kind,value):
             result=subprocess.run(['wl-paste','--no-newline','--type',mime],capture_output=True,timeout=3)
             return result.returncode==0 and result.stdout==data
         until(owns_selection,'The external window did not copy the requested bytes')
-        yield
+        yield helper
+
+
+@contextmanager
+def hold_clipboard(helper):
+    # Keep the advertised selection, but withhold its bytes until released.
+    helper.send_signal(signal.SIGSTOP)
+    try: yield
+    finally: helper.send_signal(signal.SIGCONT)
 
 
 def drop_files(driver, state, window, paths):
     from check import target
-    with reference_source(driver,'drop',*paths) as fixture:
+    with reference_source(driver,'drop',*paths) as (fixture,_):
         rect=driver.rect(fixture); receiver=driver.rect(window)
         x,y,w,h=target(state,'composer')
         start_x,start_y=rect['width']//2,rect['height']//2
@@ -61,6 +70,7 @@ def drop_files(driver, state, window, paths):
 
 def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_root, guest_root, hold_coordinator):
     from check import target
+    from PIL import Image
     from workspace_polish_check import move_over
     pid=host()['project']['id']
     name=host()['project']['agentName']
@@ -77,9 +87,46 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     with clipboard(driver,'text',url):
         click(host,hw,'editor'); driver.key('ctrl+v')
         until(lambda:host()['draft']['attachments']==['figma'],'The pasted Figma link did not become a chip')
-    with clipboard(driver,'image',source):
+    invalid=evidence/'too-wide.png'
+    Image.new('RGB',(8193,1),'red').save(invalid)
+    with clipboard(driver,'image',invalid):
         click(host,hw,'editor'); driver.key('ctrl+v')
+        until(lambda:'image-notice' in host()['targets'],'Invalid image produced no validation notice')
+        assert host()['draft']['attachments']==['figma'] and host()['draft']['canSend']
+        assert host()['draft']['imageError']=='Choose an image up to 16MP and 8192px wide or high'
+        assert target(host,'image-notice')[2:]==[392,48]
+        driver.screenshot(hw,evidence/'composer-image-validation.png')
+        click(host,hw,'dismiss-image-notice')
+        until(lambda:'image-notice' not in host()['targets'],'Dismiss left the notice visible')
+    with clipboard(driver,'image',source) as helper:
+        with hold_clipboard(helper):
+            click(host,hw,'editor'); driver.key('ctrl+v')
+            until(lambda:host()['draft']['attachments']==['figma','loading'],'Clipboard transfer did not reserve its slot')
+            click(host,hw,'remove-reference-1')
+            until(lambda:host()['draft']['attachments']==['figma'] and host()['draft']['canSend'],
+                  'Cancelling the clipboard read lost the other reference or left Send disabled')
+        with hold_clipboard(helper):
+            click(host,hw,'editor'); driver.key('ctrl+v')
+            until(lambda:host()['draft']['attachments']==['figma','loading'],'Loading did not appear before image data arrived')
+            assert not host()['draft']['canSend']
+            driver.type('x'); driver.key('Return')
+            until(lambda:host()['draft']['bytes']==1 and not host()['draft']['canSend'],
+                  'Pending preparation blocked typing or allowed Return to send')
+            before=target(host,'draft-reference-1')
+            x,y,w,h=map(round,before)
+            assert (w,h)==(72,72)
+            frames=[]
+            for n in range(3):
+                snap=evidence/f'composer-image-loading-{n}.png'
+                driver.screenshot(hw,snap)
+                with Image.open(snap) as screenshot:
+                    ring=screenshot.convert('RGB').crop((x+19,y+27,x+45,y+53))
+                    frames.append(ring.tobytes())
+                time.sleep(.09)
+            assert len(set(frames))>1,'The original loading ring did not visibly rotate'
+            driver.key('BackSpace')
         until(lambda:host()['draft']['attachments']==['figma','image'],'Clipboard image was not attached')
+        assert target(host,'draft-reference-1')==before and not host()['draft']['imageError']
     driver.screenshot(hw,evidence/'composer-mixed.png')
     assert host()['draft']['bytes']==0 and host()['draft']['canSend']
     click(host,hw,'editor')
@@ -174,7 +221,6 @@ def check_composer(driver, evidence, click, host, hw, guest, gw, source, host_ro
     picked=prepare_image(recent.read_bytes())[0]
     assert any(m.get('text')=='Guest visual reference' and m.get('attachments')==[picked]
                for m in host()['project']['messages']),'The chosen file did not reach the other participant'
-    from PIL import Image
     second=evidence/'drop-input.jpg'
     primary=Image.new('RGB',(1024,1365),'#138ef5')
     alternate=Image.new('RGB',primary.size,'red')
